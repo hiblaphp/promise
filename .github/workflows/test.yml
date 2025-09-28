@@ -37,3 +37,6 @@ jobs:
 
       - name: Run Tests
         run: ./vendor/bin/pest
+        
+      - name: Run Static Analysis
+        run: ./vendor/bin/phpstan analyse
