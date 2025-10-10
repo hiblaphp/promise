@@ -4,9 +4,6 @@ use Hibla\EventLoop\EventLoop;
 use Hibla\Promise\Handlers\AwaitHandler;
 use Hibla\Promise\Interfaces\PromiseInterface;
 
-beforeEach(function () {
-    $this->awaitHandler = new AwaitHandler();
-});
 
 describe('AwaitHandler', function () {
     describe('resolved promise', function () {
@@ -17,7 +14,7 @@ describe('AwaitHandler', function () {
             $promise->shouldReceive('isResolved')->andReturn(true);
             $promise->shouldReceive('getValue')->andReturn($value);
 
-            $result = $this->awaitHandler->await($promise);
+            $result = (new AwaitHandler())->await($promise);
 
             expect($result)->toBe($value);
         });
@@ -32,7 +29,7 @@ describe('AwaitHandler', function () {
             $promise->shouldReceive('isRejected')->andReturn(true);
             $promise->shouldReceive('getReason')->andReturn($reason);
 
-            expect(fn () => $this->awaitHandler->await($promise))
+            expect(fn () => (new AwaitHandler())->await($promise))
                 ->toThrow(Exception::class, 'test error')
             ;
         });
@@ -45,7 +42,7 @@ describe('AwaitHandler', function () {
             $promise->shouldReceive('isRejected')->andReturn(true);
             $promise->shouldReceive('getReason')->andReturn($reason);
 
-            expect(fn () => $this->awaitHandler->await($promise))
+            expect(fn () => (new AwaitHandler())->await($promise))
                 ->toThrow(Exception::class, 'string error')
             ;
         });
@@ -71,7 +68,7 @@ describe('AwaitHandler', function () {
                 ->andReturn($promise)
             ;
 
-            $result = $this->awaitHandler->await($promise);
+            $result = (new AwaitHandler())->await($promise);
 
             expect($result)->toBe($value);
         });
@@ -95,7 +92,7 @@ describe('AwaitHandler', function () {
                 })
             ;
 
-            expect(fn () => $this->awaitHandler->await($promise))
+            expect(fn () => (new AwaitHandler())->await($promise))
                 ->toThrow(Exception::class, 'async error')
             ;
         });
@@ -111,7 +108,7 @@ describe('AwaitHandler', function () {
             $initialInstance = EventLoop::getInstance();
             expect($initialInstance)->toBeInstanceOf(EventLoop::class);
 
-            $this->awaitHandler->await($promise);
+            (new AwaitHandler())->await($promise);
 
             $newInstance = EventLoop::getInstance();
             expect($newInstance)->not->toBe($initialInstance);
@@ -126,7 +123,7 @@ describe('AwaitHandler', function () {
             $initialInstance = EventLoop::getInstance();
             expect($initialInstance)->toBeInstanceOf(EventLoop::class);
 
-            $this->awaitHandler->await($promise, false);
+            (new AwaitHandler())->await($promise, false);
 
             $currentInstance = EventLoop::getInstance();
             expect($currentInstance)->toBe($initialInstance);
@@ -141,9 +138,9 @@ describe('AwaitHandler', function () {
             $promise->shouldReceive('isRejected')->andReturn(true);
             $promise->shouldReceive('getReason')->andReturn(['key' => 'value']);
 
-            expect(fn () => $this->awaitHandler->await($promise))
+            expect(fn () => (new AwaitHandler())->await($promise))
                 ->toThrow(Exception::class)
-                ->and(fn () => $this->awaitHandler->await($promise))
+                ->and(fn () => (new AwaitHandler())->await($promise))
                 ->toThrow(fn (Exception $e) => str_contains($e->getMessage(), 'Array:'))
             ;
         });
@@ -161,7 +158,7 @@ describe('AwaitHandler', function () {
             $promise->shouldReceive('isRejected')->andReturn(true);
             $promise->shouldReceive('getReason')->andReturn($reason);
 
-            expect(fn () => $this->awaitHandler->await($promise))
+            expect(fn () => (new AwaitHandler())->await($promise))
                 ->toThrow(Exception::class, 'custom error')
             ;
         });

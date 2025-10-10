@@ -1,16 +1,12 @@
 <?php
 
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\Handlers\ChainHandler;
 use Hibla\Promise\Interfaces\PromiseInterface;
-
-beforeEach(function () {
-    $this->chainHandler = new ChainHandler();
-});
 
 describe('ChainHandler', function () {
     describe('then handler creation', function () {
         it('should create handler that transforms value', function () {
+            $handler = chainHandler();
             $resolvedValue = null;
             $rejectedReason = null;
 
@@ -24,8 +20,8 @@ describe('ChainHandler', function () {
 
             $onFulfilled = fn ($value) => strtoupper($value);
 
-            $handler = $this->chainHandler->createThenHandler($onFulfilled, $resolve, $reject);
-            $handler('test');
+            $thenHandler = $handler->createThenHandler($onFulfilled, $resolve, $reject);
+            $thenHandler('test');
 
             expect($resolvedValue)->toBe('TEST')
                 ->and($rejectedReason)->toBeNull()
@@ -33,6 +29,7 @@ describe('ChainHandler', function () {
         });
 
         it('should create handler that passes through value when no callback', function () {
+            $handler = chainHandler();
             $resolvedValue = null;
 
             $resolve = function ($value) use (&$resolvedValue) {
@@ -41,13 +38,14 @@ describe('ChainHandler', function () {
 
             $reject = function () {};
 
-            $handler = $this->chainHandler->createThenHandler(null, $resolve, $reject);
-            $handler('test');
+            $thenHandler = $handler->createThenHandler(null, $resolve, $reject);
+            $thenHandler('test');
 
             expect($resolvedValue)->toBe('test');
         });
 
         it('should handle promise returned from callback', function () {
+            $handler = chainHandler();
             $finalValue = null;
             $mockPromise = Mockery::mock(PromiseInterface::class);
 
@@ -64,13 +62,14 @@ describe('ChainHandler', function () {
                 ->with($resolve, $reject)
             ;
 
-            $handler = $this->chainHandler->createThenHandler($onFulfilled, $resolve, $reject);
-            $handler('test');
+            $thenHandler = $handler->createThenHandler($onFulfilled, $resolve, $reject);
+            $thenHandler('test');
 
             // The mock expectation validates the behavior
         });
 
         it('should reject when callback throws exception', function () {
+            $handler = chainHandler();
             $resolvedValue = null;
             $rejectedReason = null;
 
@@ -86,8 +85,8 @@ describe('ChainHandler', function () {
                 throw new Exception('callback error');
             };
 
-            $handler = $this->chainHandler->createThenHandler($onFulfilled, $resolve, $reject);
-            $handler('test');
+            $thenHandler = $handler->createThenHandler($onFulfilled, $resolve, $reject);
+            $thenHandler('test');
 
             expect($rejectedReason)->toBeInstanceOf(Exception::class)
                 ->and($rejectedReason->getMessage())->toBe('callback error')
@@ -98,6 +97,7 @@ describe('ChainHandler', function () {
 
     describe('catch handler creation', function () {
         it('should create handler that transforms rejection reason', function () {
+            $handler = chainHandler();
             $resolvedValue = null;
             $rejectedReason = null;
 
@@ -111,8 +111,8 @@ describe('ChainHandler', function () {
 
             $onRejected = fn ($reason) => "handled: $reason";
 
-            $handler = $this->chainHandler->createCatchHandler($onRejected, $resolve, $reject);
-            $handler('error');
+            $catchHandler = $handler->createCatchHandler($onRejected, $resolve, $reject);
+            $catchHandler('error');
 
             expect($resolvedValue)->toBe('handled: error')
                 ->and($rejectedReason)->toBeNull()
@@ -120,6 +120,7 @@ describe('ChainHandler', function () {
         });
 
         it('should create handler that passes through rejection when no callback', function () {
+            $handler = chainHandler();
             $rejectedReason = null;
 
             $resolve = function () {};
@@ -128,13 +129,14 @@ describe('ChainHandler', function () {
                 $rejectedReason = $reason;
             };
 
-            $handler = $this->chainHandler->createCatchHandler(null, $resolve, $reject);
-            $handler('error');
+            $catchHandler = $handler->createCatchHandler(null, $resolve, $reject);
+            $catchHandler('error');
 
             expect($rejectedReason)->toBe('error');
         });
 
         it('should handle promise returned from catch callback', function () {
+            $handler = chainHandler();
             $mockPromise = Mockery::mock(PromiseInterface::class);
 
             $resolve = function () {};
@@ -147,11 +149,12 @@ describe('ChainHandler', function () {
                 ->with($resolve, $reject)
             ;
 
-            $handler = $this->chainHandler->createCatchHandler($onRejected, $resolve, $reject);
-            $handler('error');
+            $catchHandler = $handler->createCatchHandler($onRejected, $resolve, $reject);
+            $catchHandler('error');
         });
 
         it('should reject when catch callback throws exception', function () {
+            $handler = chainHandler();
             $rejectedReason = null;
 
             $resolve = function () {};
@@ -164,8 +167,8 @@ describe('ChainHandler', function () {
                 throw new Exception('catch callback error');
             };
 
-            $handler = $this->chainHandler->createCatchHandler($onRejected, $resolve, $reject);
-            $handler('original error');
+            $catchHandler = $handler->createCatchHandler($onRejected, $resolve, $reject);
+            $catchHandler('original error');
 
             expect($rejectedReason)->toBeInstanceOf(Exception::class)
                 ->and($rejectedReason->getMessage())->toBe('catch callback error')
@@ -175,13 +178,14 @@ describe('ChainHandler', function () {
 
     describe('handler scheduling', function () {
         it('should schedule handler execution', function () {
+            $handler = chainHandler();
             $executed = false;
 
-            $handler = function () use (&$executed) {
+            $scheduledHandler = function () use (&$executed) {
                 $executed = true;
             };
 
-            $this->chainHandler->scheduleHandler($handler);
+            $handler->scheduleHandler($scheduledHandler);
 
             Loop::run();
 

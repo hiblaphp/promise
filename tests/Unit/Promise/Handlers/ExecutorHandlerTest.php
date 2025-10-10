@@ -1,13 +1,8 @@
 <?php
 
-use Hibla\Promise\Handlers\ExecutorHandler;
-
-beforeEach(function () {
-    $this->executorHandler = new ExecutorHandler();
-});
-
 describe('ExecutorHandler', function () {
     it('should execute executor with resolve and reject functions', function () {
+        $handler = executorHandler();
         $resolvedValue = null;
         $rejectedReason = null;
 
@@ -23,7 +18,7 @@ describe('ExecutorHandler', function () {
             $res('test value');
         };
 
-        $this->executorHandler->executeExecutor($executor, $resolve, $reject);
+        $handler->executeExecutor($executor, $resolve, $reject);
 
         expect($resolvedValue)->toBe('test value')
             ->and($rejectedReason)->toBeNull()
@@ -31,6 +26,7 @@ describe('ExecutorHandler', function () {
     });
 
     it('should handle executor that rejects', function () {
+        $handler = executorHandler();
         $resolvedValue = null;
         $rejectedReason = null;
 
@@ -46,7 +42,7 @@ describe('ExecutorHandler', function () {
             $rej('error reason');
         };
 
-        $this->executorHandler->executeExecutor($executor, $resolve, $reject);
+        $handler->executeExecutor($executor, $resolve, $reject);
 
         expect($rejectedReason)->toBe('error reason')
             ->and($resolvedValue)->toBeNull()
@@ -54,6 +50,7 @@ describe('ExecutorHandler', function () {
     });
 
     it('should handle executor exceptions by rejecting', function () {
+        $handler = executorHandler();
         $resolvedValue = null;
         $rejectedReason = null;
 
@@ -69,7 +66,7 @@ describe('ExecutorHandler', function () {
             throw new Exception('executor error');
         };
 
-        $this->executorHandler->executeExecutor($executor, $resolve, $reject);
+        $handler->executeExecutor($executor, $resolve, $reject);
 
         expect($rejectedReason)->toBeInstanceOf(Exception::class)
             ->and($rejectedReason->getMessage())->toBe('executor error')
@@ -78,6 +75,7 @@ describe('ExecutorHandler', function () {
     });
 
     it('should handle null executor gracefully', function () {
+        $handler = executorHandler();
         $resolvedValue = null;
         $rejectedReason = null;
 
@@ -89,8 +87,7 @@ describe('ExecutorHandler', function () {
             $rejectedReason = $reason;
         };
 
-        // Should not throw or call resolve/reject
-        $this->executorHandler->executeExecutor(null, $resolve, $reject);
+        $handler->executeExecutor(null, $resolve, $reject);
 
         expect($resolvedValue)->toBeNull()
             ->and($rejectedReason)->toBeNull()
@@ -98,6 +95,7 @@ describe('ExecutorHandler', function () {
     });
 
     it('should handle executor with complex operations', function () {
+        $handler = executorHandler();
         $resolvedValue = null;
 
         $resolve = function ($value) use (&$resolvedValue) {
@@ -107,12 +105,11 @@ describe('ExecutorHandler', function () {
         $reject = function () {};
 
         $executor = function ($res, $rej) {
-            // Simulate async-like operation
             $result = array_map(fn ($x) => $x * 2, [1, 2, 3]);
             $res($result);
         };
 
-        $this->executorHandler->executeExecutor($executor, $resolve, $reject);
+        $handler->executeExecutor($executor, $resolve, $reject);
 
         expect($resolvedValue)->toBe([2, 4, 6]);
     });

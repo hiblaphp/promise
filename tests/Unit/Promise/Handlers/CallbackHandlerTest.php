@@ -1,26 +1,21 @@
 <?php
 
-use Hibla\Promise\Handlers\CallbackHandler;
-
-beforeEach(function () {
-    $this->callbackHandler = new CallbackHandler();
-});
-
 describe('CallbackHandler', function () {
     describe('then callbacks', function () {
         it('should execute then callbacks with value', function () {
+            $handler = callbackHandler();
             $executedCallbacks = [];
             $value = 'test value';
 
-            $this->callbackHandler->addThenCallback(function ($v) use (&$executedCallbacks) {
+            $handler->addThenCallback(function ($v) use (&$executedCallbacks) {
                 $executedCallbacks[] = "callback1:$v";
             });
 
-            $this->callbackHandler->addThenCallback(function ($v) use (&$executedCallbacks) {
+            $handler->addThenCallback(function ($v) use (&$executedCallbacks) {
                 $executedCallbacks[] = "callback2:$v";
             });
 
-            $this->callbackHandler->executeThenCallbacks($value);
+            $handler->executeThenCallbacks($value);
 
             expect($executedCallbacks)->toBe([
                 "callback1:$value",
@@ -28,39 +23,75 @@ describe('CallbackHandler', function () {
             ]);
         });
 
-        it('should handle callback exceptions without stopping other callbacks', function () {
-            $executedCallbacks = [];
-            $value = 'test';
+        it('should execute all callbacks in order', function () {
+            $handler = callbackHandler();
+            $order = [];
 
-            $this->callbackHandler->addThenCallback(function () {
+            $handler->addThenCallback(function () use (&$order) {
+                $order[] = 1;
+            });
+
+            $handler->addThenCallback(function () use (&$order) {
+                $order[] = 2;
+            });
+
+            $handler->addThenCallback(function () use (&$order) {
+                $order[] = 3;
+            });
+
+            $handler->executeThenCallbacks('value');
+
+            expect($order)->toBe([1, 2, 3]);
+        });
+
+        it('should propagate exceptions from callbacks', function () {
+            $handler = callbackHandler();
+            
+            $handler->addThenCallback(function () {
                 throw new Exception('callback error');
             });
 
-            $this->callbackHandler->addThenCallback(function ($v) use (&$executedCallbacks) {
-                $executedCallbacks[] = "executed:$v";
+            expect(fn() => $handler->executeThenCallbacks('value'))
+                ->toThrow(Exception::class, 'callback error');
+        });
+
+        it('should stop execution when callback throws', function () {
+            $handler = callbackHandler();
+            $executedCallbacks = [];
+
+            $handler->addThenCallback(function () {
+                throw new Exception('first callback error');
             });
 
-            // Should not throw and should execute second callback
-            $this->callbackHandler->executeThenCallbacks($value);
+            $handler->addThenCallback(function ($v) use (&$executedCallbacks) {
+                $executedCallbacks[] = "should not execute";
+            });
 
-            expect($executedCallbacks)->toBe(["executed:$value"]);
+            try {
+                $handler->executeThenCallbacks('value');
+            } catch (Exception $e) {
+                // Expected
+            }
+
+            expect($executedCallbacks)->toBe([]);
         });
     });
 
     describe('catch callbacks', function () {
         it('should execute catch callbacks with reason', function () {
+            $handler = callbackHandler();
             $executedCallbacks = [];
             $reason = 'error reason';
 
-            $this->callbackHandler->addCatchCallback(function ($r) use (&$executedCallbacks) {
+            $handler->addCatchCallback(function ($r) use (&$executedCallbacks) {
                 $executedCallbacks[] = "callback1:$r";
             });
 
-            $this->callbackHandler->addCatchCallback(function ($r) use (&$executedCallbacks) {
+            $handler->addCatchCallback(function ($r) use (&$executedCallbacks) {
                 $executedCallbacks[] = "callback2:$r";
             });
 
-            $this->callbackHandler->executeCatchCallbacks($reason);
+            $handler->executeCatchCallbacks($reason);
 
             expect($executedCallbacks)->toBe([
                 "callback1:$reason",
@@ -68,77 +99,152 @@ describe('CallbackHandler', function () {
             ]);
         });
 
-        it('should handle callback exceptions without stopping other callbacks', function () {
+        it('should execute all callbacks in order', function () {
+            $handler = callbackHandler();
+            $order = [];
+
+            $handler->addCatchCallback(function () use (&$order) {
+                $order[] = 1;
+            });
+
+            $handler->addCatchCallback(function () use (&$order) {
+                $order[] = 2;
+            });
+
+            $handler->addCatchCallback(function () use (&$order) {
+                $order[] = 3;
+            });
+
+            $handler->executeCatchCallbacks('error');
+
+            expect($order)->toBe([1, 2, 3]);
+        });
+
+        it('should propagate exceptions from callbacks', function () {
+            $handler = callbackHandler();
+            
+            $handler->addCatchCallback(function () {
+                throw new Exception('catch callback error');
+            });
+
+            expect(fn() => $handler->executeCatchCallbacks('reason'))
+                ->toThrow(Exception::class, 'catch callback error');
+        });
+
+        it('should stop execution when callback throws', function () {
+            $handler = callbackHandler();
             $executedCallbacks = [];
-            $reason = 'error';
 
-            $this->callbackHandler->addCatchCallback(function () {
-                throw new Exception('callback error');
+            $handler->addCatchCallback(function () {
+                throw new Exception('error in catch');
             });
 
-            $this->callbackHandler->addCatchCallback(function ($r) use (&$executedCallbacks) {
-                $executedCallbacks[] = "executed:$r";
+            $handler->addCatchCallback(function ($r) use (&$executedCallbacks) {
+                $executedCallbacks[] = "should not execute";
             });
 
-            $this->callbackHandler->executeCatchCallbacks($reason);
+            try {
+                $handler->executeCatchCallbacks('reason');
+            } catch (Exception $e) {
+                // Expected
+            }
 
-            expect($executedCallbacks)->toBe(["executed:$reason"]);
+            expect($executedCallbacks)->toBe([]);
         });
     });
 
     describe('finally callbacks', function () {
         it('should execute finally callbacks without parameters', function () {
+            $handler = callbackHandler();
             $executedCallbacks = [];
 
-            $this->callbackHandler->addFinallyCallback(function () use (&$executedCallbacks) {
+            $handler->addFinallyCallback(function () use (&$executedCallbacks) {
                 $executedCallbacks[] = 'callback1';
             });
 
-            $this->callbackHandler->addFinallyCallback(function () use (&$executedCallbacks) {
+            $handler->addFinallyCallback(function () use (&$executedCallbacks) {
                 $executedCallbacks[] = 'callback2';
             });
 
-            $this->callbackHandler->executeFinallyCallbacks();
+            $handler->executeFinallyCallbacks();
 
             expect($executedCallbacks)->toBe(['callback1', 'callback2']);
         });
 
-        it('should handle callback exceptions without stopping other callbacks', function () {
+        it('should execute all callbacks in order', function () {
+            $handler = callbackHandler();
+            $order = [];
+
+            $handler->addFinallyCallback(function () use (&$order) {
+                $order[] = 1;
+            });
+
+            $handler->addFinallyCallback(function () use (&$order) {
+                $order[] = 2;
+            });
+
+            $handler->addFinallyCallback(function () use (&$order) {
+                $order[] = 3;
+            });
+
+            $handler->executeFinallyCallbacks();
+
+            expect($order)->toBe([1, 2, 3]);
+        });
+
+        it('should propagate exceptions from callbacks', function () {
+            $handler = callbackHandler();
+            
+            $handler->addFinallyCallback(function () {
+                throw new Exception('finally callback error');
+            });
+
+            expect(fn() => $handler->executeFinallyCallbacks())
+                ->toThrow(Exception::class, 'finally callback error');
+        });
+
+        it('should stop execution when callback throws', function () {
+            $handler = callbackHandler();
             $executedCallbacks = [];
 
-            $this->callbackHandler->addFinallyCallback(function () {
-                throw new Exception('callback error');
+            $handler->addFinallyCallback(function () {
+                throw new Exception('error in finally');
             });
 
-            $this->callbackHandler->addFinallyCallback(function () use (&$executedCallbacks) {
-                $executedCallbacks[] = 'executed';
+            $handler->addFinallyCallback(function () use (&$executedCallbacks) {
+                $executedCallbacks[] = "should not execute";
             });
 
-            $this->callbackHandler->executeFinallyCallbacks();
+            try {
+                $handler->executeFinallyCallbacks();
+            } catch (Exception $e) {
+                // Expected
+            }
 
-            expect($executedCallbacks)->toBe(['executed']);
+            expect($executedCallbacks)->toBe([]);
         });
     });
 
     describe('multiple callback types', function () {
         it('should handle different callback types independently', function () {
+            $handler = callbackHandler();
             $results = [];
 
-            $this->callbackHandler->addThenCallback(function ($v) use (&$results) {
+            $handler->addThenCallback(function ($v) use (&$results) {
                 $results['then'] = $v;
             });
 
-            $this->callbackHandler->addCatchCallback(function ($r) use (&$results) {
+            $handler->addCatchCallback(function ($r) use (&$results) {
                 $results['catch'] = $r;
             });
 
-            $this->callbackHandler->addFinallyCallback(function () use (&$results) {
+            $handler->addFinallyCallback(function () use (&$results) {
                 $results['finally'] = true;
             });
 
             // Execute only then and finally
-            $this->callbackHandler->executeThenCallbacks('value');
-            $this->callbackHandler->executeFinallyCallbacks();
+            $handler->executeThenCallbacks('value');
+            $handler->executeFinallyCallbacks();
 
             expect($results)->toBe([
                 'then' => 'value',

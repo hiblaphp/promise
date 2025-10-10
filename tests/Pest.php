@@ -8,6 +8,11 @@
 
 use Hibla\Async\Async;
 use Hibla\EventLoop\EventLoop;
+use Hibla\Promise\Handlers\CallbackHandler;
+use Hibla\Promise\Handlers\ChainHandler;
+use Hibla\Promise\Handlers\ExecutorHandler;
+use Hibla\Promise\Handlers\ResolutionHandler;
+use Hibla\Promise\Handlers\StateHandler;
 use Hibla\Promise\Promise;
 use Tests\TestCase;
 
@@ -29,6 +34,31 @@ expect()->extend('toBeOne', function () {
 | Functions
 |--------------------------------------------------------------------------
 */
+
+function chainHandler(): ChainHandler
+{
+    return new ChainHandler();
+}
+
+function executorHandler(): ExecutorHandler
+{
+    return new ExecutorHandler();
+}
+
+function stateHandler(): StateHandler
+{
+    return new StateHandler();
+}
+
+function callbackHandler(): CallbackHandler
+{
+    return new CallbackHandler();
+}
+
+function resolutionHandler(StateHandler $stateHandler, CallbackHandler $callbackHandler): ResolutionHandler
+{
+    return new ResolutionHandler($stateHandler, $callbackHandler);
+}
 
 /**
  * Resets all core singletons and clears test state.

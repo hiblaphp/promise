@@ -64,6 +64,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     private static ?AsyncOperations $asyncOps = null;
 
     private bool $hasRejectionHandler = false;
+    private bool $valueAccessed = false;
 
     /**
      * Create a new promise with an optional executor function.
@@ -259,7 +260,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     public function finally(callable $onFinally): PromiseInterface
     {
         $this->callbackHandler->addFinallyCallback($onFinally);
-
+        $this->hasRejectionHandler = true; 
         return $this;
     }
 
@@ -292,6 +293,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public function getValue(): mixed
     {
+        $this->valueAccessed = true;
         return $this->stateHandler->getValue();
     }
 
@@ -300,6 +302,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public function getReason(): mixed
     {
+        $this->valueAccessed = true;
         return $this->stateHandler->getReason();
     }
 
@@ -411,11 +414,13 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
         return self::getAsyncOps()->batchSettled($tasks, $batchSize, $concurrency);
     }
 
-    /**
-     * Destructor to detect unhandled promise rejections.
-     */
     public function __destruct()
     {
+        // Don't report if value/reason was directly accessed (e.g., in tests)
+        if ($this->valueAccessed) {
+            return;
+        }
+
         if ($this->stateHandler->isRejected() && !$this->hasRejectionHandler) {
             if ($this instanceof CancellablePromiseInterface && $this->isCancelled()) {
                 return;

@@ -1,44 +1,42 @@
 <?php
 
-use Hibla\Promise\Handlers\CallbackHandler;
-use Hibla\Promise\Handlers\ResolutionHandler;
-use Hibla\Promise\Handlers\StateHandler;
-
-beforeEach(function () {
-    $this->stateHandler = new StateHandler();
-    $this->callbackHandler = new CallbackHandler();
-    $this->resolutionHandler = new ResolutionHandler($this->stateHandler, $this->callbackHandler);
-});
-
 describe('ResolutionHandler', function () {
     describe('resolve handling', function () {
         it('should resolve state and execute then callbacks', function () {
+            $state = stateHandler();
+            $callback = callbackHandler();
+            $handler = resolutionHandler($state, $callback);
+            
             $executedCallbacks = [];
             $value = 'test value';
 
-            $this->callbackHandler->addThenCallback(function ($v) use (&$executedCallbacks) {
+            $callback->addThenCallback(function ($v) use (&$executedCallbacks) {
                 $executedCallbacks[] = "then:$v";
             });
 
-            $this->callbackHandler->addFinallyCallback(function () use (&$executedCallbacks) {
+            $callback->addFinallyCallback(function () use (&$executedCallbacks) {
                 $executedCallbacks[] = 'finally';
             });
 
-            $this->resolutionHandler->handleResolve($value);
+            $handler->handleResolve($value);
 
-            expect($this->stateHandler->isResolved())->toBeTrue()
-                ->and($this->stateHandler->getValue())->toBe($value)
+            expect($state->isResolved())->toBeTrue()
+                ->and($state->getValue())->toBe($value)
             ;
         });
 
         it('should not execute catch callbacks on resolve', function () {
+            $state = stateHandler();
+            $callback = callbackHandler();
+            $handler = resolutionHandler($state, $callback);
+            
             $executedCallbacks = [];
 
-            $this->callbackHandler->addCatchCallback(function () use (&$executedCallbacks) {
+            $callback->addCatchCallback(function () use (&$executedCallbacks) {
                 $executedCallbacks[] = 'catch';
             });
 
-            $this->resolutionHandler->handleResolve('value');
+            $handler->handleResolve('value');
 
             expect($executedCallbacks)->toBeEmpty();
         });
@@ -46,32 +44,40 @@ describe('ResolutionHandler', function () {
 
     describe('reject handling', function () {
         it('should reject state and execute catch callbacks', function () {
+            $state = stateHandler();
+            $callback = callbackHandler();
+            $handler = resolutionHandler($state, $callback);
+            
             $executedCallbacks = [];
             $reason = 'error reason';
 
-            $this->callbackHandler->addCatchCallback(function ($r) use (&$executedCallbacks) {
+            $callback->addCatchCallback(function ($r) use (&$executedCallbacks) {
                 $executedCallbacks[] = "catch:$r";
             });
 
-            $this->callbackHandler->addFinallyCallback(function () use (&$executedCallbacks) {
+            $callback->addFinallyCallback(function () use (&$executedCallbacks) {
                 $executedCallbacks[] = 'finally';
             });
 
-            $this->resolutionHandler->handleReject($reason);
+            $handler->handleReject($reason);
 
-            expect($this->stateHandler->isRejected())->toBeTrue();
+            expect($state->isRejected())->toBeTrue();
 
             // Note: The callbacks are scheduled for next tick
         });
 
         it('should not execute then callbacks on reject', function () {
+            $state = stateHandler();
+            $callback = callbackHandler();
+            $handler = resolutionHandler($state, $callback);
+            
             $executedCallbacks = [];
 
-            $this->callbackHandler->addThenCallback(function () use (&$executedCallbacks) {
+            $callback->addThenCallback(function () use (&$executedCallbacks) {
                 $executedCallbacks[] = 'then';
             });
 
-            $this->resolutionHandler->handleReject('error');
+            $handler->handleReject('error');
 
             expect($executedCallbacks)->toBeEmpty();
         });
@@ -79,29 +85,37 @@ describe('ResolutionHandler', function () {
 
     describe('state consistency', function () {
         it('should maintain state consistency during resolution', function () {
+            $state = stateHandler();
+            $callback = callbackHandler();
+            $handler = resolutionHandler($state, $callback);
+            
             $value = 'test';
 
-            expect($this->stateHandler->isPending())->toBeTrue();
+            expect($state->isPending())->toBeTrue();
 
-            $this->resolutionHandler->handleResolve($value);
+            $handler->handleResolve($value);
 
-            expect($this->stateHandler->isResolved())->toBeTrue()
-                ->and($this->stateHandler->isPending())->toBeFalse()
-                ->and($this->stateHandler->isRejected())->toBeFalse()
-                ->and($this->stateHandler->getValue())->toBe($value)
+            expect($state->isResolved())->toBeTrue()
+                ->and($state->isPending())->toBeFalse()
+                ->and($state->isRejected())->toBeFalse()
+                ->and($state->getValue())->toBe($value)
             ;
         });
 
         it('should maintain state consistency during rejection', function () {
+            $state = stateHandler();
+            $callback = callbackHandler();
+            $handler = resolutionHandler($state, $callback);
+            
             $reason = 'error';
 
-            expect($this->stateHandler->isPending())->toBeTrue();
+            expect($state->isPending())->toBeTrue();
 
-            $this->resolutionHandler->handleReject($reason);
+            $handler->handleReject($reason);
 
-            expect($this->stateHandler->isRejected())->toBeTrue()
-                ->and($this->stateHandler->isPending())->toBeFalse()
-                ->and($this->stateHandler->isResolved())->toBeFalse()
+            expect($state->isRejected())->toBeTrue()
+                ->and($state->isPending())->toBeFalse()
+                ->and($state->isResolved())->toBeFalse()
             ;
         });
     });
