@@ -7,7 +7,6 @@ namespace Hibla\Promise\Handlers;
  *
  * This handler maintains collections of callbacks for different Promise states
  * (then, catch, finally) and provides methods to execute them when appropriate.
- * It handles error isolation to prevent callback failures from affecting other callbacks.
  */
 final class CallbackHandler
 {
@@ -23,7 +22,7 @@ final class CallbackHandler
 
     /**
      * @var array<callable> Callbacks to execute when Promise settles (resolve or reject)
-     *  */
+     */
     private array $finallyCallbacks = [];
 
     /**
@@ -59,38 +58,30 @@ final class CallbackHandler
     /**
      * Execute all registered then callbacks with the resolved value.
      *
-     * Each callback is executed in isolation - if one throws an exception,
-     * it won't prevent other callbacks from running. Errors are logged.
+     * Callbacks are executed and exceptions are allowed to propagate.
+     * This ensures unhandled errors are not silently swallowed.
      *
      * @param  mixed  $value  The resolved value to pass to callbacks
      */
     public function executeThenCallbacks(mixed $value): void
     {
         foreach ($this->thenCallbacks as $callback) {
-            try {
-                $callback($value);
-            } catch (\Throwable $e) {
-                error_log('Promise then callback error: '.$e->getMessage());
-            }
+            $callback($value);
         }
     }
 
     /**
      * Execute all registered catch callbacks with the rejection reason.
      *
-     * Each callback is executed in isolation - if one throws an exception,
-     * it won't prevent other callbacks from running. Errors are logged.
+     * Callbacks are executed and exceptions are allowed to propagate.
+     * This ensures unhandled errors are not silently swallowed.
      *
      * @param  mixed  $reason  The rejection reason to pass to callbacks
      */
     public function executeCatchCallbacks(mixed $reason): void
     {
         foreach ($this->catchCallbacks as $callback) {
-            try {
-                $callback($reason);
-            } catch (\Throwable $e) {
-                error_log('Promise catch callback error: '.$e->getMessage());
-            }
+            $callback($reason);
         }
     }
 
@@ -98,17 +89,12 @@ final class CallbackHandler
      * Execute all registered finally callbacks.
      *
      * Finally callbacks don't receive any parameters and are called regardless
-     * of whether the Promise resolved or rejected. Each callback is executed
-     * in isolation with error logging.
+     * of whether the Promise resolved or rejected. Exceptions are allowed to propagate.
      */
     public function executeFinallyCallbacks(): void
     {
         foreach ($this->finallyCallbacks as $callback) {
-            try {
-                $callback();
-            } catch (\Throwable $e) {
-                error_log('Promise finally callback error: '.$e->getMessage());
-            }
+            $callback();
         }
     }
 }

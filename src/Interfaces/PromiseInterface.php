@@ -117,6 +117,17 @@ interface PromiseInterface
     public function getReason(): mixed;
 
     /**
+     * Get the root cancellable promise in the chain, if any.
+     * 
+     * Note: Typically, only the creator of the CancellablePromise should
+     * call cancel(). This method is provided for advanced use cases and
+     * debugging. Use with care.
+     *
+     * @return CancellablePromiseInterface<mixed>|null
+     */
+    public function getRootCancellable(): ?CancellablePromiseInterface;
+
+    /**
      * **[BLOCKING]** Wait for the promise to resolve synchronously.
      *
      * ⚠️ This method BLOCKS the current thread by running the EventLoop

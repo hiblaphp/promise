@@ -63,6 +63,8 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     private static ?AsyncOperations $asyncOps = null;
 
+    private bool $hasRejectionHandler = false;
+
     /**
      * Create a new promise with an optional executor function.
      *
@@ -85,8 +87,8 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
         $this->executorHandler->executeExecutor(
             $executor,
-            fn ($value = null) => $this->resolve($value),
-            fn ($reason = null) => $this->reject($reason)
+            fn($value = null) => $this->resolve($value),
+            fn($reason = null) => $this->reject($reason)
         );
     }
 
@@ -146,6 +148,10 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public function then(?callable $onFulfilled = null, ?callable $onRejected = null): PromiseInterface
     {
+        if ($onRejected !== null) {
+            $this->hasRejectionHandler = true;
+        }
+
         /** @var Promise<TResult> $newPromise */
         $newPromise = new self(
             /**
@@ -200,9 +206,9 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
                 };
 
                 if ($this->stateHandler->isResolved()) {
-                    $this->chainHandler->scheduleHandler(fn () => $handleResolve($this->stateHandler->getValue()));
+                    $this->chainHandler->scheduleHandler(fn() => $handleResolve($this->stateHandler->getValue()));
                 } elseif ($this->stateHandler->isRejected()) {
-                    $this->chainHandler->scheduleHandler(fn () => $handleReject($this->stateHandler->getReason()));
+                    $this->chainHandler->scheduleHandler(fn() => $handleReject($this->stateHandler->getReason()));
                 } else {
                     $this->callbackHandler->addThenCallback($handleResolve);
                     $this->callbackHandler->addCatchCallback($handleReject);
@@ -216,11 +222,15 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
             $newPromise->rootCancellable = $this->rootCancellable;
         }
 
+        if ($onRejected !== null || $onFulfilled !== null) {
+            $this->hasRejectionHandler = true;
+        }
+
         return $newPromise;
     }
 
     /**
-     * @return CancellablePromiseInterface<mixed>|null
+     * @inheritDoc
      */
     public function getRootCancellable(): ?CancellablePromiseInterface
     {
@@ -237,6 +247,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public function catch(callable $onRejected): PromiseInterface
     {
+        $this->hasRejectionHandler = true;
         return $this->then(null, $onRejected);
     }
 
@@ -398,5 +409,31 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     public static function batchSettled(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
         return self::getAsyncOps()->batchSettled($tasks, $batchSize, $concurrency);
+    }
+
+    /**
+     * Destructor to detect unhandled promise rejections.
+     */
+    public function __destruct()
+    {
+        if ($this->stateHandler->isRejected() && !$this->hasRejectionHandler) {
+            if ($this instanceof CancellablePromiseInterface && $this->isCancelled()) {
+                return;
+            }
+
+            $reason = $this->stateHandler->getReason();
+            $message = $reason instanceof \Throwable
+                ? sprintf(
+                    "Unhandled promise rejection with %s: %s in %s:%d\nStack trace:\n%s",
+                    get_class($reason),
+                    $reason->getMessage(),
+                    $reason->getFile(),
+                    $reason->getLine(),
+                    $reason->getTraceAsString()
+                )
+                : "Unhandled promise rejection: " . print_r($reason, true);
+
+            fwrite(STDERR, $message . PHP_EOL);
+        }
     }
 }
