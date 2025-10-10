@@ -117,12 +117,32 @@ interface PromiseInterface
     public function getReason(): mixed;
 
     /**
-     * Block execution until the promise resolves and return the value.
+     * **[BLOCKING]** Wait for the promise to resolve synchronously.
      *
-     * @param  bool  $resetEventLoop  Whether to reset the event loop after completion (default: true)
-     * @return TValue The resolved value
+     * ⚠️ This method BLOCKS the current thread by running the EventLoop
+     * until the promise settles. Use this only at the top-level of your
+     * application or in synchronous contexts.
      *
-     * @throws \Throwable The rejection reason if promise was rejected
+     * For non-blocking async code, use the await() function instead.
+     * 
+     * ```php
+     * // ❌ Don't use inside async blocks
+     * async(function() {
+     *     return $promise->await();  // Blocks unnecessarily!
+     * });
+     *
+     * // ✅ Use await() function instead
+     * async(function() {
+     *     return await($promise);  // Suspends fiber properly
+     * });
+     *
+     * // ✅ Use ->await() at top-level
+     * $result = $promise->await();  // Blocks to get result
+     * ```
+     * 
+     * @param  bool  $resetEventLoop  Reset event loop after completion
+     * @return TValue
+     * @throws \Throwable
      */
     public function await(bool $resetEventLoop = true): mixed;
 }
