@@ -119,6 +119,11 @@ interface PromiseInterface
     /**
      * Get the root cancellable promise in the chain, if any.
      *
+     * this method is primarily intended for advanced use cases and debugging and testing.
+     * 
+     * If the promise is not a CancellablePromise or is not part of a chain,
+     * this method will return null.
+     *
      * Note: Typically, only the creator of the CancellablePromise should
      * call cancel(). This method is provided for advanced use cases and
      * debugging. Use with care.
