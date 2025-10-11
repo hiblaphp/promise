@@ -4,7 +4,6 @@ use Hibla\EventLoop\EventLoop;
 use Hibla\Promise\Handlers\AwaitHandler;
 use Hibla\Promise\Interfaces\PromiseInterface;
 
-
 describe('AwaitHandler', function () {
     describe('resolved promise', function () {
         it('should return value immediately for resolved promise', function () {

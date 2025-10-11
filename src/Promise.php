@@ -88,8 +88,8 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
         $this->executorHandler->executeExecutor(
             $executor,
-            fn($value = null) => $this->resolve($value),
-            fn($reason = null) => $this->reject($reason)
+            fn ($value = null) => $this->resolve($value),
+            fn ($reason = null) => $this->reject($reason)
         );
     }
 
@@ -153,74 +153,86 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
             $this->hasRejectionHandler = true;
         }
 
-        /** @var Promise<TResult> $newPromise */
-        $newPromise = new self(
-            /**
-             * @param  callable(TResult): void  $resolve
-             * @param  callable(mixed): void  $reject
-             */
-            function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected) {
-                $root = $this instanceof CancellablePromiseInterface
-                    ? $this
-                    : $this->rootCancellable;
+        // Determine the root cancellable promise
+        $root = $this instanceof CancellablePromiseInterface
+            ? $this
+            : $this->rootCancellable;
 
-                $handleResolve = function ($value) use ($onFulfilled, $resolve, $reject, $root) {
-                    if ($root !== null && $root->isCancelled()) {
-                        return;
-                    }
+        $executor = function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected) {
+            $root = $this instanceof CancellablePromiseInterface
+                ? $this
+                : $this->rootCancellable;
 
-                    if ($onFulfilled !== null) {
-                        try {
-                            $result = $onFulfilled($value);
-                            if ($result instanceof PromiseInterface) {
-                                $result->then($resolve, $reject);
-                            } else {
-                                $resolve($result);
-                            }
-                        } catch (\Throwable $e) {
-                            $reject($e);
-                        }
-                    } else {
-                        $resolve($value);
-                    }
-                };
-
-                $handleReject = function ($reason) use ($onRejected, $resolve, $reject, $root) {
-                    if ($root !== null && $root->isCancelled()) {
-                        return;
-                    }
-
-                    if ($onRejected !== null) {
-                        try {
-                            $result = $onRejected($reason);
-                            if ($result instanceof PromiseInterface) {
-                                $result->then($resolve, $reject);
-                            } else {
-                                $resolve($result);
-                            }
-                        } catch (\Throwable $e) {
-                            $reject($e);
-                        }
-                    } else {
-                        $reject($reason);
-                    }
-                };
-
-                if ($this->stateHandler->isResolved()) {
-                    $this->chainHandler->scheduleHandler(fn() => $handleResolve($this->stateHandler->getValue()));
-                } elseif ($this->stateHandler->isRejected()) {
-                    $this->chainHandler->scheduleHandler(fn() => $handleReject($this->stateHandler->getReason()));
-                } else {
-                    $this->callbackHandler->addThenCallback($handleResolve);
-                    $this->callbackHandler->addCatchCallback($handleReject);
+            $handleResolve = function ($value) use ($onFulfilled, $resolve, $reject, $root) {
+                if ($root !== null && $root->isCancelled()) {
+                    return;
                 }
-            }
-        );
 
+                if ($onFulfilled !== null) {
+                    try {
+                        $result = $onFulfilled($value);
+                        if ($result instanceof PromiseInterface) {
+                            $result->then($resolve, $reject);
+                        } else {
+                            $resolve($result);
+                        }
+                    } catch (\Throwable $e) {
+                        $reject($e);
+                    }
+                } else {
+                    $resolve($value);
+                }
+            };
+
+            $handleReject = function ($reason) use ($onRejected, $resolve, $reject, $root) {
+                if ($root !== null && $root->isCancelled()) {
+                    return;
+                }
+
+                if ($onRejected !== null) {
+                    try {
+                        $result = $onRejected($reason);
+                        if ($result instanceof PromiseInterface) {
+                            $result->then($resolve, $reject);
+                        } else {
+                            $resolve($result);
+                        }
+                    } catch (\Throwable $e) {
+                        $reject($e);
+                    }
+                } else {
+                    $reject($reason);
+                }
+            };
+
+            if ($this->stateHandler->isResolved()) {
+                $this->chainHandler->scheduleHandler(fn () => $handleResolve($this->stateHandler->getValue()));
+            } elseif ($this->stateHandler->isRejected()) {
+                $this->chainHandler->scheduleHandler(fn () => $handleReject($this->stateHandler->getReason()));
+            } else {
+                $this->callbackHandler->addThenCallback($handleResolve);
+                $this->callbackHandler->addCatchCallback($handleReject);
+            }
+        };
+
+        // Create CancellablePromise if there's a cancellable root, otherwise regular Promise
+        /** @var Promise<TResult> $newPromise */
+        $newPromise = $root !== null
+            ? new CancellablePromise($executor)
+            : new self($executor);
+
+        // Set root cancellable reference
         if ($this instanceof CancellablePromiseInterface) {
             $newPromise->rootCancellable = $this;
         } elseif ($this->rootCancellable !== null) {
             $newPromise->rootCancellable = $this->rootCancellable;
+        }
+
+        // If new promise is cancellable, forward cancellation to root
+        if ($newPromise instanceof CancellablePromise && $root !== null) {
+            $newPromise->setCancelHandler(function () use ($root) {
+                $root->cancel();
+            });
         }
 
         if ($onRejected !== null || $onFulfilled !== null) {
@@ -249,6 +261,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     public function catch(callable $onRejected): PromiseInterface
     {
         $this->hasRejectionHandler = true;
+
         return $this->then(null, $onRejected);
     }
 
@@ -260,7 +273,8 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     public function finally(callable $onFinally): PromiseInterface
     {
         $this->callbackHandler->addFinallyCallback($onFinally);
-        $this->hasRejectionHandler = true; 
+        $this->hasRejectionHandler = true;
+
         return $this;
     }
 
@@ -294,6 +308,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     public function getValue(): mixed
     {
         $this->valueAccessed = true;
+
         return $this->stateHandler->getValue();
     }
 
@@ -303,6 +318,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     public function getReason(): mixed
     {
         $this->valueAccessed = true;
+
         return $this->stateHandler->getReason();
     }
 
@@ -421,7 +437,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
             return;
         }
 
-        if ($this->stateHandler->isRejected() && !$this->hasRejectionHandler) {
+        if ($this->stateHandler->isRejected() && ! $this->hasRejectionHandler) {
             if ($this instanceof CancellablePromiseInterface && $this->isCancelled()) {
                 return;
             }
@@ -436,7 +452,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
                     $reason->getLine(),
                     $reason->getTraceAsString()
                 )
-                : "Unhandled promise rejection: " . print_r($reason, true);
+                : 'Unhandled promise rejection: ' . print_r($reason, true);
 
             fwrite(STDERR, $message . PHP_EOL);
         }

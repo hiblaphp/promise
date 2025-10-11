@@ -118,7 +118,7 @@ interface PromiseInterface
 
     /**
      * Get the root cancellable promise in the chain, if any.
-     * 
+     *
      * Note: Typically, only the creator of the CancellablePromise should
      * call cancel(). This method is provided for advanced use cases and
      * debugging. Use with care.
@@ -135,7 +135,7 @@ interface PromiseInterface
      * application or in synchronous contexts.
      *
      * For non-blocking async code, use the await() function instead.
-     * 
+     *
      * ```php
      * // ❌ Don't use inside async blocks
      * async(function() {
@@ -150,7 +150,7 @@ interface PromiseInterface
      * // ✅ Use ->await() at top-level
      * $result = $promise->await();  // Blocks to get result
      * ```
-     * 
+     *
      * @param  bool  $resetEventLoop  Reset event loop after completion
      * @return TValue
      * @throws \Throwable

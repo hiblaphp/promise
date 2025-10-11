@@ -46,13 +46,14 @@ describe('CallbackHandler', function () {
 
         it('should propagate exceptions from callbacks', function () {
             $handler = callbackHandler();
-            
+
             $handler->addThenCallback(function () {
                 throw new Exception('callback error');
             });
 
-            expect(fn() => $handler->executeThenCallbacks('value'))
-                ->toThrow(Exception::class, 'callback error');
+            expect(fn () => $handler->executeThenCallbacks('value'))
+                ->toThrow(Exception::class, 'callback error')
+            ;
         });
 
         it('should stop execution when callback throws', function () {
@@ -64,7 +65,7 @@ describe('CallbackHandler', function () {
             });
 
             $handler->addThenCallback(function ($v) use (&$executedCallbacks) {
-                $executedCallbacks[] = "should not execute";
+                $executedCallbacks[] = 'should not execute';
             });
 
             try {
@@ -122,13 +123,14 @@ describe('CallbackHandler', function () {
 
         it('should propagate exceptions from callbacks', function () {
             $handler = callbackHandler();
-            
+
             $handler->addCatchCallback(function () {
                 throw new Exception('catch callback error');
             });
 
-            expect(fn() => $handler->executeCatchCallbacks('reason'))
-                ->toThrow(Exception::class, 'catch callback error');
+            expect(fn () => $handler->executeCatchCallbacks('reason'))
+                ->toThrow(Exception::class, 'catch callback error')
+            ;
         });
 
         it('should stop execution when callback throws', function () {
@@ -140,7 +142,7 @@ describe('CallbackHandler', function () {
             });
 
             $handler->addCatchCallback(function ($r) use (&$executedCallbacks) {
-                $executedCallbacks[] = "should not execute";
+                $executedCallbacks[] = 'should not execute';
             });
 
             try {
@@ -194,13 +196,14 @@ describe('CallbackHandler', function () {
 
         it('should propagate exceptions from callbacks', function () {
             $handler = callbackHandler();
-            
+
             $handler->addFinallyCallback(function () {
                 throw new Exception('finally callback error');
             });
 
-            expect(fn() => $handler->executeFinallyCallbacks())
-                ->toThrow(Exception::class, 'finally callback error');
+            expect(fn () => $handler->executeFinallyCallbacks())
+                ->toThrow(Exception::class, 'finally callback error')
+            ;
         });
 
         it('should stop execution when callback throws', function () {
@@ -212,7 +215,7 @@ describe('CallbackHandler', function () {
             });
 
             $handler->addFinallyCallback(function () use (&$executedCallbacks) {
-                $executedCallbacks[] = "should not execute";
+                $executedCallbacks[] = 'should not execute';
             });
 
             try {

@@ -6,7 +6,7 @@ describe('ResolutionHandler', function () {
             $state = stateHandler();
             $callback = callbackHandler();
             $handler = resolutionHandler($state, $callback);
-            
+
             $executedCallbacks = [];
             $value = 'test value';
 
@@ -29,7 +29,7 @@ describe('ResolutionHandler', function () {
             $state = stateHandler();
             $callback = callbackHandler();
             $handler = resolutionHandler($state, $callback);
-            
+
             $executedCallbacks = [];
 
             $callback->addCatchCallback(function () use (&$executedCallbacks) {
@@ -47,7 +47,7 @@ describe('ResolutionHandler', function () {
             $state = stateHandler();
             $callback = callbackHandler();
             $handler = resolutionHandler($state, $callback);
-            
+
             $executedCallbacks = [];
             $reason = 'error reason';
 
@@ -70,7 +70,7 @@ describe('ResolutionHandler', function () {
             $state = stateHandler();
             $callback = callbackHandler();
             $handler = resolutionHandler($state, $callback);
-            
+
             $executedCallbacks = [];
 
             $callback->addThenCallback(function () use (&$executedCallbacks) {
@@ -88,7 +88,7 @@ describe('ResolutionHandler', function () {
             $state = stateHandler();
             $callback = callbackHandler();
             $handler = resolutionHandler($state, $callback);
-            
+
             $value = 'test';
 
             expect($state->isPending())->toBeTrue();
@@ -106,7 +106,7 @@ describe('ResolutionHandler', function () {
             $state = stateHandler();
             $callback = callbackHandler();
             $handler = resolutionHandler($state, $callback);
-            
+
             $reason = 'error';
 
             expect($state->isPending())->toBeTrue();

@@ -19,7 +19,7 @@ describe('CancellablePromise Chaining', function () {
         $promise->resolve('initial');
 
         expect($chainedPromise)->toBeInstanceOf(PromiseInterface::class);
-        expect($chainedPromise)->not->toBeInstanceOf(CancellablePromiseInterface::class);
+        expect($chainedPromise)->toBeInstanceOf(CancellablePromiseInterface::class);
     });
 
     it('handles cancellation in promise chain', function () {

@@ -4,7 +4,7 @@ describe('StateHandler', function () {
     describe('initial state', function () {
         it('should be pending initially', function () {
             $handler = stateHandler();
-            
+
             expect($handler->isPending())->toBeTrue()
                 ->and($handler->isResolved())->toBeFalse()
                 ->and($handler->isRejected())->toBeFalse()
@@ -13,7 +13,7 @@ describe('StateHandler', function () {
 
         it('should have null value and reason initially', function () {
             $handler = stateHandler();
-            
+
             expect($handler->getValue())->toBeNull()
                 ->and($handler->getReason())->toBeNull()
             ;
@@ -21,7 +21,7 @@ describe('StateHandler', function () {
 
         it('should be settleable initially', function () {
             $handler = stateHandler();
-            
+
             expect($handler->canSettle())->toBeTrue();
         });
     });
@@ -43,7 +43,7 @@ describe('StateHandler', function () {
 
         it('should resolve with null value', function () {
             $handler = stateHandler();
-            
+
             $handler->resolve(null);
 
             expect($handler->isResolved())->toBeTrue()

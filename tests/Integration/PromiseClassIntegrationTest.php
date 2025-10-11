@@ -26,8 +26,9 @@ describe('Promise Static Methods Integration', function () {
             expect($promise->isRejected())->toBeTrue();
             expect($promise->getReason())->toBe($error);
 
-            expect(fn() => await($promise))
-                ->toThrow(RuntimeException::class, 'test error');
+            expect(fn () => await($promise))
+                ->toThrow(RuntimeException::class, 'test error')
+            ;
         });
     });
 
@@ -71,17 +72,19 @@ describe('Promise Static Methods Integration', function () {
 
             $promise = Promise::all($promises);
 
-            expect(fn() => await($promise))
-                ->toThrow(RuntimeException::class, 'all error');
+            expect(fn () => await($promise))
+                ->toThrow(RuntimeException::class, 'all error')
+            ;
         });
 
         it('works with async functions', function () {
             $promises = [
-                async(fn() => 'async-first'),
-                async(fn() => 'async-second'),
+                async(fn () => 'async-first'),
+                async(fn () => 'async-second'),
                 function () {
                     return async(function () {
                         await(delay(0.05));
+
                         return 'async-delayed';
                     });
                 },
@@ -116,7 +119,7 @@ describe('Promise Static Methods Integration', function () {
 
             expect($results[0])->toEqual([
                 'status' => 'fulfilled',
-                'value' => 'success'
+                'value' => 'success',
             ]);
 
             expect($results[1]['status'])->toBe('rejected');
@@ -125,7 +128,7 @@ describe('Promise Static Methods Integration', function () {
 
             expect($results[2])->toEqual([
                 'status' => 'fulfilled',
-                'value' => 'another success'
+                'value' => 'another success',
             ]);
         });
 
@@ -148,7 +151,7 @@ describe('Promise Static Methods Integration', function () {
         it('works with mixed async and sync promises', function () {
             $promises = [
                 Promise::resolved('sync'),
-                async(fn() => 'async'),
+                async(fn () => 'async'),
                 function () {
                     return async(function () {
                         throw new RuntimeException('async error');
@@ -172,6 +175,7 @@ describe('Promise Static Methods Integration', function () {
                 function () {
                     return async(function () {
                         await(delay(0.1));
+
                         return 'slow';
                     });
                 },
@@ -179,6 +183,7 @@ describe('Promise Static Methods Integration', function () {
                 function () {
                     return async(function () {
                         await(delay(0.2));
+
                         return 'slower';
                     });
                 },
@@ -194,6 +199,7 @@ describe('Promise Static Methods Integration', function () {
             $promises = [
                 async(function () {
                     await(delay(0.1));
+
                     return 'slow success';
                 }),
                 Promise::rejected(new RuntimeException('fast error')),
@@ -201,8 +207,9 @@ describe('Promise Static Methods Integration', function () {
 
             $promise = Promise::race($promises);
 
-            expect(fn() => await($promise))
-                ->toThrow(RuntimeException::class, 'fast error');
+            expect(fn () => await($promise))
+                ->toThrow(RuntimeException::class, 'fast error')
+            ;
         });
 
         it('cancels cancellable promises when race settles', function () {
@@ -210,12 +217,14 @@ describe('Promise Static Methods Integration', function () {
 
             $immediatePromise = Promise::resolved('immediate')->then(function ($value) use (&$completed) {
                 $completed[] = 'immediate';
+
                 return $value;
             });
 
             $slowDelay = delay(0.1);
             $delayedPromise = $slowDelay->then(function () use (&$completed) {
                 $completed[] = 'delayed';
+
                 return 'delayed';
             });
 
@@ -243,12 +252,14 @@ describe('Promise Static Methods Integration', function () {
 
             $immediatePromise = Promise::resolved('immediate')->then(function ($value) use (&$completed) {
                 $completed[] = 'immediate';
+
                 return $value;
             });
 
             $delayedPromise = async(asyncFunction: function () use (&$completed) {
                 await(delay(0.1));
                 $completed[] = 'delayed-async';
+
                 return 'delayed';
             });
 
@@ -272,16 +283,19 @@ describe('Promise Static Methods Integration', function () {
 
             $shortPromise = $shortDelay->then(function () use (&$events) {
                 $events[] = 'short-completed';
+
                 return 'short';
             });
 
             $longPromise = $longDelay->then(function () use (&$events) {
                 $events[] = 'long-completed';
+
                 return 'long';
             });
 
             $immediatePromise = Promise::resolved('immediate')->then(function ($value) use (&$events) {
                 $events[] = 'immediate-completed';
+
                 return $value;
             });
 
@@ -350,12 +364,14 @@ describe('Promise Static Methods Integration', function () {
                 function () {
                     return async(function () {
                         await(delay(0.1));
+
                         throw new RuntimeException('slow error');
                     });
                 },
                 function () {
                     return async(function () {
                         await(delay(0.05));
+
                         return 'fast success';
                     });
                 },
@@ -372,6 +388,7 @@ describe('Promise Static Methods Integration', function () {
         it('resolves if promise completes before timeout', function () {
             $fastPromise = async(function () {
                 await(delay(0.05));
+
                 return 'completed in time';
             });
 
@@ -384,25 +401,29 @@ describe('Promise Static Methods Integration', function () {
         it('rejects with TimeoutException if promise takes too long', function () {
             $slowPromise = async(function () {
                 await(delay(0.2));
+
                 return 'too slow';
             });
 
             $promise = Promise::timeout($slowPromise, 0.05); // 50ms timeout
 
-            expect(fn() => await($promise))
-                ->toThrow(TimeoutException::class);
+            expect(fn () => await($promise))
+                ->toThrow(TimeoutException::class)
+            ;
         });
 
         it('handles promise rejection before timeout', function () {
             $errorPromise = async(function () {
                 await(delay(0.05));
+
                 throw new RuntimeException('promise error');
             });
 
             $promise = Promise::timeout($errorPromise, 0.2);
 
-            expect(fn() => await($promise))
-                ->toThrow(RuntimeException::class, 'promise error');
+            expect(fn () => await($promise))
+                ->toThrow(RuntimeException::class, 'promise error')
+            ;
         });
     });
 
@@ -414,6 +435,7 @@ describe('Promise Static Methods Integration', function () {
             for ($i = 0; $i < 5; $i++) {
                 $tasks[] = async(function () use ($i) {
                     await(delay(0.1));
+
                     return "task-$i";
                 });
             }
@@ -445,6 +467,7 @@ describe('Promise Static Methods Integration', function () {
                         await(delay(0.05));
 
                         $running--;
+
                         return "task-$i";
                     });
                 };
@@ -469,6 +492,7 @@ describe('Promise Static Methods Integration', function () {
                         $batchOrder[] = "start-$i";
                         await(delay(0.05));
                         $batchOrder[] = "end-$i";
+
                         return "task-$i";
                     });
                 };
@@ -480,8 +504,8 @@ describe('Promise Static Methods Integration', function () {
             expect($results)->toHaveCount(6);
 
             // First batch (0,1,2) should complete before second batch (3,4,5) starts
-            $firstBatchStarts = array_filter($batchOrder, fn($item) => str_starts_with($item, 'start') && in_array($item, ['start-0', 'start-1', 'start-2']));
-            $secondBatchStarts = array_filter($batchOrder, fn($item) => str_starts_with($item, 'start') && in_array($item, ['start-3', 'start-4', 'start-5']));
+            $firstBatchStarts = array_filter($batchOrder, fn ($item) => str_starts_with($item, 'start') && in_array($item, ['start-0', 'start-1', 'start-2']));
+            $secondBatchStarts = array_filter($batchOrder, fn ($item) => str_starts_with($item, 'start') && in_array($item, ['start-3', 'start-4', 'start-5']));
 
             expect(count($firstBatchStarts))->toBe(3);
             expect(count($secondBatchStarts))->toBe(3);
@@ -491,11 +515,11 @@ describe('Promise Static Methods Integration', function () {
     describe('Promise::concurrentSettled() and Promise::batchSettled()', function () {
         it('handles mixed success and failure in concurrent execution', function () {
             $tasks = [
-                async(fn() => 'success-1'),
+                async(fn () => 'success-1'),
                 async(function () {
                     throw new RuntimeException('error-1');
                 }),
-                async(fn() => 'success-2'),
+                async(fn () => 'success-2'),
             ];
 
             $promise = Promise::concurrentSettled($tasks);
@@ -517,7 +541,7 @@ describe('Promise Static Methods Integration', function () {
             $tasks = [];
             for ($i = 0; $i < 6; $i++) {
                 if ($i % 2 === 0) {
-                    $tasks[] = async(fn() => "success-$i");
+                    $tasks[] = async(fn () => "success-$i");
                 } else {
                     $tasks[] = async(function () use ($i) {
                         throw new RuntimeException("error-$i");
@@ -547,10 +571,11 @@ describe('Promise Static Methods Integration', function () {
     describe('Integration with global/namespace functions', function () {
         it('works seamlessly with global async functions', function () {
             $promises = [
-                async(fn() => 'global-async'),
+                async(fn () => 'global-async'),
                 Promise::resolved('static-resolved'),
                 async(function () {
                     $result = await(Promise::resolved('awaited-static'));
+
                     return "processed-$result";
                 }),
             ];
@@ -561,16 +586,17 @@ describe('Promise Static Methods Integration', function () {
             expect($results)->toBe([
                 'global-async',
                 'static-resolved',
-                'processed-awaited-static'
+                'processed-awaited-static',
             ]);
         });
 
         it('integrates with namespace functions', function () {
             $promises = [
-                Hibla\async(fn() => 'namespace-async'),
+                Hibla\async(fn () => 'namespace-async'),
                 Promise::resolved('static-promise'),
                 Hibla\async(function () {
                     \Hibla\await(\Hibla\delay(0.05));
+
                     return 'namespace-delayed';
                 }),
             ];

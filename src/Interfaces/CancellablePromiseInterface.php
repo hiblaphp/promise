@@ -41,4 +41,39 @@ interface CancellablePromiseInterface extends PromiseInterface
      * @param  string  $timerId  The timer identifier.
      */
     public function setTimerId(string $timerId): void;
+
+    /**
+     * Attaches handlers for promise fulfillment and/or rejection.
+     *
+     * Returns a CancellablePromise to maintain cancellability through the chain.
+     *
+     * @template TResult
+     *
+     * @param  callable(TValue): (TResult|PromiseInterface<TResult>)|null  $onFulfilled
+     * @param  callable(mixed): (TResult|PromiseInterface<TResult>)|null  $onRejected
+     * @return CancellablePromiseInterface<TResult>
+     */
+    public function then(?callable $onFulfilled = null, ?callable $onRejected = null): CancellablePromiseInterface;
+
+    /**
+     * Attaches a rejection handler callback.
+     *
+     * Returns a CancellablePromise to maintain cancellability through the chain.
+     *
+     * @template TResult
+     *
+     * @param  callable(mixed): (TResult|PromiseInterface<TResult>)  $onRejected
+     * @return CancellablePromiseInterface<TResult>
+     */
+    public function catch(callable $onRejected): CancellablePromiseInterface;
+
+    /**
+     * Attaches a callback that will be invoked when the promise is settled.
+     *
+     * Returns this CancellablePromise to maintain cancellability.
+     *
+     * @param  callable(): void  $onFinally
+     * @return CancellablePromiseInterface<TValue>
+     */
+    public function finally(callable $onFinally): CancellablePromiseInterface;
 }
