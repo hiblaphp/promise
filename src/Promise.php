@@ -88,15 +88,15 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
         $this->executorHandler->executeExecutor(
             $executor,
-            fn ($value = null) => $this->resolve($value),
-            fn ($reason = null) => $this->reject($reason)
+            fn($value = null) => $this->resolve($value),
+            fn($reason = null) => $this->reject($reason)
         );
     }
 
     /**
      * {@inheritdoc}
      */
-    public function await(bool $resetEventLoop = true): mixed
+    public function await(bool $resetEventLoop = false): mixed
     {
         $this->awaitHandler ??= new AwaitHandler();
 
@@ -206,9 +206,9 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
             };
 
             if ($this->stateHandler->isResolved()) {
-                $this->chainHandler->scheduleHandler(fn () => $handleResolve($this->stateHandler->getValue()));
+                $this->chainHandler->scheduleHandler(fn() => $handleResolve($this->stateHandler->getValue()));
             } elseif ($this->stateHandler->isRejected()) {
-                $this->chainHandler->scheduleHandler(fn () => $handleReject($this->stateHandler->getReason()));
+                $this->chainHandler->scheduleHandler(fn() => $handleReject($this->stateHandler->getReason()));
             } else {
                 $this->callbackHandler->addThenCallback($handleResolve);
                 $this->callbackHandler->addCatchCallback($handleReject);
