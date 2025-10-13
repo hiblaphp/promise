@@ -29,7 +29,7 @@
         "hiblaphp/async": "dev-main"
     },
     "require-dev": {
-        "pestphp/pest": "^4.0",
+        "pestphp/pest": "^3.0",
         "phpstan/phpstan": "^2.1",
         "phpstan/phpstan-strict-rules": "^2.0",
         "laravel/pint": "^1.25",
