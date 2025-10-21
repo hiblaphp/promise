@@ -360,6 +360,10 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     * 
+     * @template TAllValue
+     * @param  array<int|string, PromiseInterface<TAllValue>|callable(): PromiseInterface<TAllValue>>  $promises
+     * @return PromiseInterface<array<int|string, TAllValue>>
      */
     public static function all(array $promises): PromiseInterface
     {
@@ -368,6 +372,10 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     * 
+     * @template TAllSettledValue
+     * @param  array<int|string, PromiseInterface<TAllSettledValue>|callable(): PromiseInterface<TAllSettledValue>>  $promises
+     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TAllSettledValue, reason?: mixed}>>
      */
     public static function allSettled(array $promises): PromiseInterface
     {
@@ -376,6 +384,10 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     * 
+     * @template TRaceValue
+     * @param  array<int|string, PromiseInterface<TRaceValue>|callable(): PromiseInterface<TRaceValue>>  $promises
+     * @return PromiseInterface<TRaceValue>
      */
     public static function race(array $promises): PromiseInterface
     {
@@ -384,6 +396,10 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     * 
+     * @template TAnyValue
+     * @param  array<int|string, PromiseInterface<TAnyValue>|callable(): PromiseInterface<TAnyValue>>  $promises
+     * @return PromiseInterface<TAnyValue>
      */
     public static function any(array $promises): PromiseInterface
     {
@@ -392,6 +408,11 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     * 
+     * @template TTimeoutValue
+     * @param  PromiseInterface<TTimeoutValue>  $promise
+     * @param  float  $seconds
+     * @return PromiseInterface<TTimeoutValue>
      */
     public static function timeout(PromiseInterface $promise, float $seconds): PromiseInterface
     {
@@ -400,6 +421,11 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     * 
+     * @template TConcurrentValue
+     * @param  array<int|string, callable(): (TConcurrentValue|PromiseInterface<TConcurrentValue>)>  $tasks
+     * @param  int  $concurrency
+     * @return PromiseInterface<array<int|string, TConcurrentValue>>
      */
     public static function concurrent(array $tasks, int $concurrency = 10): PromiseInterface
     {
@@ -408,6 +434,12 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     * 
+     * @template TBatchValue
+     * @param  array<int|string, callable(): (TBatchValue|PromiseInterface<TBatchValue>)>  $tasks
+     * @param  int  $batchSize
+     * @param  int|null  $concurrency
+     * @return PromiseInterface<array<int|string, TBatchValue>>
      */
     public static function batch(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
@@ -416,6 +448,11 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     * 
+     * @template TConcurrentSettledValue
+     * @param  array<int|string, callable(): (TConcurrentSettledValue|PromiseInterface<TConcurrentSettledValue>)>  $tasks
+     * @param  int  $concurrency
+     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TConcurrentSettledValue, reason?: mixed}>>
      */
     public static function concurrentSettled(array $tasks, int $concurrency = 10): PromiseInterface
     {
@@ -424,6 +461,12 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     * 
+     * @template TBatchSettledValue
+     * @param  array<int|string, callable(): (TBatchSettledValue|PromiseInterface<TBatchSettledValue>)>  $tasks
+     * @param  int  $batchSize
+     * @param  int|null  $concurrency
+     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TBatchSettledValue, reason?: mixed}>>
      */
     public static function batchSettled(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
