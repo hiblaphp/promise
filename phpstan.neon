@@ -3,9 +3,7 @@ parameters:
     paths:
         - src
     treatPhpDocTypesAsCertain: false
-    excludePaths:
-        - tests/
     ignoreErrors:
         - 
-            message: '#Method Hibla\\Promise\\Handlers\\AwaitHandler::await\(\) should return TValue but returns TValue\|null#'
-            path: src/Handlers/AwaitHandler.php
+            message: '#Method Hibla\\Promise\\Promise::await\(\) should return TValue but returns TValue\|null#'
+            path: src/Promise.php

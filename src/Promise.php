@@ -3,12 +3,8 @@
 namespace Hibla\Promise;
 
 use Hibla\Async\AsyncOperations;
-use Hibla\Promise\Handlers\AwaitHandler;
-use Hibla\Promise\Handlers\CallbackHandler;
-use Hibla\Promise\Handlers\ChainHandler;
-use Hibla\Promise\Handlers\ExecutorHandler;
-use Hibla\Promise\Handlers\ResolutionHandler;
-use Hibla\Promise\Handlers\StateHandler;
+use Hibla\EventLoop\EventLoop;
+use Hibla\Promise\Exceptions\PromiseRejectionException;
 use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseCollectionInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
@@ -27,36 +23,44 @@ use Hibla\Promise\Interfaces\PromiseInterface;
 class Promise implements PromiseCollectionInterface, PromiseInterface
 {
     /**
-     * @var StateHandler Manages the promise's state (pending, resolved, rejected)
+     * @var bool Whether the Promise has been resolved
      */
-    private StateHandler $stateHandler;
+    private bool $resolved = false;
 
     /**
-     * @var CallbackHandler Manages then, catch, and finally callback queues
+     * @var bool Whether the Promise has been rejected
      */
-    private CallbackHandler $callbackHandler;
+    private bool $rejected = false;
 
     /**
-     * @var ExecutorHandler Handles the initial executor function execution
+     * @var mixed The resolved value (if resolved)
      */
-    private ExecutorHandler $executorHandler;
+    private mixed $value = null;
 
     /**
-     * @var ChainHandler Manages promise chaining and callback scheduling
+     * @var mixed The rejection reason (if rejected)
      */
-    private ChainHandler $chainHandler;
+    private mixed $reason = null;
 
     /**
-     * @var ResolutionHandler Handles promise resolution and rejection logic
+     * @var array<callable> Callbacks to execute when Promise resolves
      */
-    private ResolutionHandler $resolutionHandler;
+    private array $thenCallbacks = [];
+
+    /**
+     * @var array<callable> Callbacks to execute when Promise rejects
+     */
+    private array $catchCallbacks = [];
+
+    /**
+     * @var array<callable> Callbacks to execute when Promise settles (resolve or reject)
+     */
+    private array $finallyCallbacks = [];
 
     /**
      * @var CancellablePromiseInterface<mixed>|null
      */
     protected ?CancellablePromiseInterface $rootCancellable = null;
-
-    private AwaitHandler $awaitHandler;
 
     /**
      * @var AsyncOperations|null Static instance for collection operations
@@ -73,24 +77,20 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      * can be used to settle the promise. If no executor is provided,
      * the promise starts in a pending state.
      *
-     * @param  callable|null  $executor  Function to execute immediately with resolve/reject callbacks
+     * @param  callable(callable(TValue): void, callable(mixed): void): void|null  $executor  Function to execute immediately with resolve/reject callbacks
      */
     public function __construct(?callable $executor = null)
     {
-        $this->stateHandler = new StateHandler();
-        $this->callbackHandler = new CallbackHandler();
-        $this->executorHandler = new ExecutorHandler();
-        $this->chainHandler = new ChainHandler();
-        $this->resolutionHandler = new ResolutionHandler(
-            $this->stateHandler,
-            $this->callbackHandler
-        );
-
-        $this->executorHandler->executeExecutor(
-            $executor,
-            fn($value = null) => $this->resolve($value),
-            fn($reason = null) => $this->reject($reason)
-        );
+        if ($executor !== null) {
+            try {
+                $executor(
+                    fn($value = null) => $this->resolve($value),
+                    fn($reason = null) => $this->reject($reason)
+                );
+            } catch (\Throwable $e) {
+                $this->reject($e);
+            }
+        }
     }
 
     /**
@@ -98,9 +98,55 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public function await(bool $resetEventLoop = false): mixed
     {
-        $this->awaitHandler ??= new AwaitHandler();
+        try {
+            if ($this->resolved) {
+                return $this->value;
+            }
 
-        return $this->awaitHandler->await($this, $resetEventLoop);
+            if ($this->rejected) {
+                $this->valueAccessed = true;
+                $reason = $this->reason;
+
+                throw $reason instanceof \Throwable
+                    ? $reason
+                    : new \Exception($this->safeStringCast($reason));
+            }
+
+            $result = null;
+            $error = null;
+            $completed = false;
+
+            $this
+                ->then(function ($value) use (&$result, &$completed) {
+                    $result = $value;
+                    $completed = true;
+
+                    return $value;
+                })
+                ->catch(function ($reason) use (&$error, &$completed) {
+                    $error = $reason;
+                    $completed = true;
+
+                    return $reason;
+                })
+            ;
+
+            while (! $completed) {
+                EventLoop::getInstance()->run();
+            }
+
+            if ($error !== null) {
+                throw $error instanceof \Throwable
+                    ? $error
+                    : new \Exception($this->safeStringCast($error));
+            }
+
+            return $result;
+        } finally {
+            if ($resetEventLoop) {
+                EventLoop::reset();
+            }
+        }
     }
 
     /**
@@ -108,8 +154,17 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public function isSettled(): bool
     {
-        // A promise is settled if it is no longer pending.
-        return ! $this->stateHandler->isPending();
+        return $this->resolved || $this->rejected;
+    }
+
+    /**
+     * Check if the Promise can be settled (resolved or rejected).
+     *
+     * @return bool True if the Promise can be settled, false if already settled
+     */
+    private function canSettle(): bool
+    {
+        return ! $this->resolved && ! $this->rejected;
     }
 
     /**
@@ -118,11 +173,33 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      * If the promise is already settled, this operation has no effect.
      * The resolution triggers all registered fulfillment callbacks.
      *
-     * @param  mixed  $value  The value to resolve the promise with
+     * @param  TValue  $value  The value to resolve the promise with
+     * @return void
      */
     public function resolve(mixed $value): void
     {
-        $this->resolutionHandler->handleResolve($value);
+        if (! $this->canSettle()) {
+            return;
+        }
+
+        $this->resolved = true;
+        $this->value = $value;
+
+        EventLoop::getInstance()->nextTick(function () use ($value) {
+            $callbacks = $this->thenCallbacks;
+            $this->thenCallbacks = [];
+
+            foreach ($callbacks as $callback) {
+                $callback($value);
+            }
+
+            $finallyCallbacks = $this->finallyCallbacks;
+            $this->finallyCallbacks = [];
+
+            foreach ($finallyCallbacks as $callback) {
+                $callback();
+            }
+        });
     }
 
     /**
@@ -132,10 +209,35 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      * The rejection triggers all registered rejection callbacks.
      *
      * @param  mixed  $reason  The reason for rejection (typically an exception)
+     * @return void
      */
     public function reject(mixed $reason): void
     {
-        $this->resolutionHandler->handleReject($reason);
+        if (! $this->canSettle()) {
+            return;
+        }
+
+        $this->rejected = true;
+
+        $this->reason = $reason instanceof \Throwable
+            ? $reason
+            : new PromiseRejectionException($reason);
+
+        EventLoop::getInstance()->nextTick(function () {
+            $callbacks = $this->catchCallbacks;
+            $this->catchCallbacks = [];
+
+            foreach ($callbacks as $callback) {
+                $callback($this->reason);
+            }
+
+            $finallyCallbacks = $this->finallyCallbacks;
+            $this->finallyCallbacks = [];
+
+            foreach ($finallyCallbacks as $callback) {
+                $callback();
+            }
+        });
     }
 
     /**
@@ -158,11 +260,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
             ? $this
             : $this->rootCancellable;
 
-        $stateHandler = $this->stateHandler;
-        $callbackHandler = $this->callbackHandler;
-        $chainHandler = $this->chainHandler;
-
-        $executor = function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected, $root, $stateHandler, $callbackHandler, $chainHandler) {
+        $executor = function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected, $root) {
             $handleResolve = function ($value) use ($onFulfilled, $resolve, $reject, $root) {
                 if ($root !== null && $root->isCancelled()) {
                     return;
@@ -205,13 +303,13 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
                 }
             };
 
-            if ($stateHandler->isResolved()) {
-                $chainHandler->scheduleHandler(fn() => $handleResolve($stateHandler->getValue()));
-            } elseif ($stateHandler->isRejected()) {
-                $chainHandler->scheduleHandler(fn() => $handleReject($stateHandler->getReason()));
+            if ($this->resolved) {
+                EventLoop::getInstance()->nextTick(fn() => $handleResolve($this->value));
+            } elseif ($this->rejected) {
+                EventLoop::getInstance()->nextTick(fn() => $handleReject($this->reason));
             } else {
-                $callbackHandler->addThenCallback($handleResolve);
-                $callbackHandler->addCatchCallback($handleReject);
+                $this->thenCallbacks[] = $handleResolve;
+                $this->catchCallbacks[] = $handleReject;
             }
         };
 
@@ -271,7 +369,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public function finally(callable $onFinally): PromiseInterface
     {
-        $this->callbackHandler->addFinallyCallback($onFinally);
+        $this->finallyCallbacks[] = $onFinally;
         $this->hasRejectionHandler = true;
 
         return $this;
@@ -282,7 +380,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public function isResolved(): bool
     {
-        return $this->stateHandler->isResolved();
+        return $this->resolved;
     }
 
     /**
@@ -290,7 +388,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public function isRejected(): bool
     {
-        return $this->stateHandler->isRejected();
+        return $this->rejected;
     }
 
     /**
@@ -298,7 +396,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public function isPending(): bool
     {
-        return $this->stateHandler->isPending();
+        return ! $this->resolved && ! $this->rejected;
     }
 
     /**
@@ -308,7 +406,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     {
         $this->valueAccessed = true;
 
-        return $this->stateHandler->getValue();
+        return $this->value;
     }
 
     /**
@@ -318,7 +416,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     {
         $this->valueAccessed = true;
 
-        return $this->stateHandler->getReason();
+        return $this->reason;
     }
 
     /**
@@ -326,11 +424,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     private static function getAsyncOps(): AsyncOperations
     {
-        if (self::$asyncOps === null) {
-            self::$asyncOps = new AsyncOperations();
-        }
-
-        return self::$asyncOps;
+        return self::$asyncOps ??= new AsyncOperations();
     }
 
     /**
@@ -343,10 +437,18 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     *
+     * @template TResolvedValue
+     * @param TResolvedValue $value
+     * @return PromiseInterface<TResolvedValue>
      */
     public static function resolved(mixed $value): PromiseInterface
     {
-        return self::getAsyncOps()->resolved($value);
+        /** @var Promise<TResolvedValue> $promise */
+        $promise = new self();
+        $promise->resolve($value);
+
+        return $promise;
     }
 
     /**
@@ -354,12 +456,15 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
      */
     public static function rejected(mixed $reason): PromiseInterface
     {
-        return self::getAsyncOps()->rejected($reason);
+        $promise = new self();
+        $promise->reject($reason);
+
+        return $promise;
     }
 
     /**
      * {@inheritdoc}
-     * 
+     *
      * @template TAllValue
      * @param  array<int|string, PromiseInterface<TAllValue>|callable(): PromiseInterface<TAllValue>>  $promises
      * @return PromiseInterface<array<int|string, TAllValue>>
@@ -371,7 +476,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
-     * 
+     *
      * @template TAllSettledValue
      * @param  array<int|string, PromiseInterface<TAllSettledValue>|callable(): PromiseInterface<TAllSettledValue>>  $promises
      * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TAllSettledValue, reason?: mixed}>>
@@ -383,7 +488,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
-     * 
+     *
      * @template TRaceValue
      * @param  array<int|string, PromiseInterface<TRaceValue>|callable(): PromiseInterface<TRaceValue>>  $promises
      * @return PromiseInterface<TRaceValue>
@@ -395,7 +500,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
-     * 
+     *
      * @template TAnyValue
      * @param  array<int|string, PromiseInterface<TAnyValue>|callable(): PromiseInterface<TAnyValue>>  $promises
      * @return PromiseInterface<TAnyValue>
@@ -407,7 +512,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
-     * 
+     *
      * @template TTimeoutValue
      * @param  PromiseInterface<TTimeoutValue>  $promise
      * @param  float  $seconds
@@ -420,7 +525,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
-     * 
+     *
      * @template TConcurrentValue
      * @param  array<int|string, callable(): (TConcurrentValue|PromiseInterface<TConcurrentValue>)>  $tasks
      * @param  int  $concurrency
@@ -433,7 +538,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
-     * 
+     *
      * @template TBatchValue
      * @param  array<int|string, callable(): (TBatchValue|PromiseInterface<TBatchValue>)>  $tasks
      * @param  int  $batchSize
@@ -447,7 +552,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
-     * 
+     *
      * @template TConcurrentSettledValue
      * @param  array<int|string, callable(): (TConcurrentSettledValue|PromiseInterface<TConcurrentSettledValue>)>  $tasks
      * @param  int  $concurrency
@@ -460,7 +565,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
-     * 
+     *
      * @template TBatchSettledValue
      * @param  array<int|string, callable(): (TBatchSettledValue|PromiseInterface<TBatchSettledValue>)>  $tasks
      * @param  int  $batchSize
@@ -472,21 +577,37 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
         return self::getAsyncOps()->batchSettled($tasks, $batchSize, $concurrency);
     }
 
+    /**
+     * Safely convert mixed value to string for error messages
+     */
+    private function safeStringCast(mixed $value): string
+    {
+        return match (true) {
+            \is_string($value) => $value,
+            \is_null($value) => 'null',
+            \is_scalar($value) => (string) $value,
+            \is_object($value) && method_exists($value, '__toString') => (string) $value,
+            \is_array($value) => 'Array: ' . json_encode($value),
+            \is_object($value) => 'Object: ' . get_class($value),
+            default => 'Unknown error type: ' . gettype($value)
+        };
+    }
+
     public function __destruct()
     {
-        // Don't report if value/reason was directly accessed (e.g., in tests)
+        // Don't report if value/reason was directly accessed (e.g., in tests or directly awaiting the promise)
         if ($this->valueAccessed) {
             return;
         }
 
-        if ($this->stateHandler->isRejected() && ! $this->hasRejectionHandler) {
+        if ($this->rejected && ! $this->hasRejectionHandler) {
             if ($this instanceof CancellablePromiseInterface && $this->isCancelled()) {
                 return;
             }
 
-            $reason = $this->stateHandler->getReason();
+            $reason = $this->reason;
             $message = $reason instanceof \Throwable
-                ? sprintf(
+                ? \sprintf(
                     "Unhandled promise rejection with %s: %s in %s:%d\nStack trace:\n%s",
                     get_class($reason),
                     $reason->getMessage(),

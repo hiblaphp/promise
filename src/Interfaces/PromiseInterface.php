@@ -100,7 +100,7 @@ interface PromiseInterface
      * Get the root cancellable promise in the chain, if any.
      *
      * this method is primarily intended for advanced use cases and debugging and testing.
-     * 
+     *
      * If the promise is not a CancellablePromise or is not part of a chain,
      * this method will return null.
      *
