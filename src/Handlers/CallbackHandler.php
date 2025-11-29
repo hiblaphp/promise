@@ -57,43 +57,42 @@ final class CallbackHandler
 
     /**
      * Execute all registered then callbacks with the resolved value.
-     *
-     * Callbacks are executed and exceptions are allowed to propagate.
-     * This ensures unhandled errors are not silently swallowed.
-     *
-     * @param  mixed  $value  The resolved value to pass to callbacks
+     * Clears callbacks immediately after execution to free memory.
      */
     public function executeThenCallbacks(mixed $value): void
     {
-        foreach ($this->thenCallbacks as $callback) {
+        $callbacks = $this->thenCallbacks;
+        $this->thenCallbacks = [];
+
+        foreach ($callbacks as $callback) {
             $callback($value);
         }
     }
 
     /**
      * Execute all registered catch callbacks with the rejection reason.
-     *
-     * Callbacks are executed and exceptions are allowed to propagate.
-     * This ensures unhandled errors are not silently swallowed.
-     *
-     * @param  mixed  $reason  The rejection reason to pass to callbacks
+     * Clears callbacks immediately after execution to free memory.
      */
     public function executeCatchCallbacks(mixed $reason): void
     {
-        foreach ($this->catchCallbacks as $callback) {
+        $callbacks = $this->catchCallbacks;
+        $this->catchCallbacks = [];
+
+        foreach ($callbacks as $callback) {
             $callback($reason);
         }
     }
 
     /**
      * Execute all registered finally callbacks.
-     *
-     * Finally callbacks don't receive any parameters and are called regardless
-     * of whether the Promise resolved or rejected. Exceptions are allowed to propagate.
+     * Clears callbacks immediately after execution to free memory.
      */
     public function executeFinallyCallbacks(): void
     {
-        foreach ($this->finallyCallbacks as $callback) {
+        $callbacks = $this->finallyCallbacks;
+        $this->finallyCallbacks = [];
+
+        foreach ($callbacks as $callback) {
             $callback();
         }
     }

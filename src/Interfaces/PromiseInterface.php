@@ -15,26 +15,6 @@ use LogicException;
 interface PromiseInterface
 {
     /**
-     * Resolves the promise with a successful value.
-     *
-     * Once resolved, the promise cannot be resolved or rejected again.
-     * All attached fulfillment handlers will be called with the value.
-     *
-     * @param  TValue  $value  The value to resolve the promise with.
-     */
-    public function resolve(mixed $value): void;
-
-    /**
-     * Rejects the promise with a failure reason.
-     *
-     * Once rejected, the promise cannot be resolved or rejected again.
-     * All attached rejection handlers will be called with the reason.
-     *
-     * @param  mixed  $reason  The reason for rejection (typically an exception or error message).
-     */
-    public function reject(mixed $reason): void;
-
-    /**
      * Attaches handlers for promise fulfillment and/or rejection.
      *
      * Returns a new promise that will be resolved or rejected based on

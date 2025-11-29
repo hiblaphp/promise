@@ -158,11 +158,11 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
             ? $this
             : $this->rootCancellable;
 
-        $executor = function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected) {
-            $root = $this instanceof CancellablePromiseInterface
-                ? $this
-                : $this->rootCancellable;
+        $stateHandler = $this->stateHandler;
+        $callbackHandler = $this->callbackHandler;
+        $chainHandler = $this->chainHandler;
 
+        $executor = function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected, $root, $stateHandler, $callbackHandler, $chainHandler) {
             $handleResolve = function ($value) use ($onFulfilled, $resolve, $reject, $root) {
                 if ($root !== null && $root->isCancelled()) {
                     return;
@@ -205,17 +205,16 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
                 }
             };
 
-            if ($this->stateHandler->isResolved()) {
-                $this->chainHandler->scheduleHandler(fn() => $handleResolve($this->stateHandler->getValue()));
-            } elseif ($this->stateHandler->isRejected()) {
-                $this->chainHandler->scheduleHandler(fn() => $handleReject($this->stateHandler->getReason()));
+            if ($stateHandler->isResolved()) {
+                $chainHandler->scheduleHandler(fn() => $handleResolve($stateHandler->getValue()));
+            } elseif ($stateHandler->isRejected()) {
+                $chainHandler->scheduleHandler(fn() => $handleReject($stateHandler->getReason()));
             } else {
-                $this->callbackHandler->addThenCallback($handleResolve);
-                $this->callbackHandler->addCatchCallback($handleReject);
+                $callbackHandler->addThenCallback($handleResolve);
+                $callbackHandler->addCatchCallback($handleReject);
             }
         };
 
-        // Create CancellablePromise if there's a cancellable root, otherwise regular Promise
         /** @var Promise<TResult> $newPromise */
         $newPromise = $root !== null
             ? new CancellablePromise($executor)
