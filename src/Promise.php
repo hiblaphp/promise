@@ -152,7 +152,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             return $result;
         } finally {
             if ($resetEventLoop) {
-                EventLoop::reset();
+                Loop::reset();
             }
         }
     }
