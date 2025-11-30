@@ -10,14 +10,9 @@ use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use InvalidArgumentException;
 
-/**
- * Handles operations on collections of Promises.
- */
 final readonly class PromiseCollectionHandler
 {
     /**
-     * Run multiple Promises in parallel and return a Promise that resolves when all Promises are settled.
-     *
      * @template TAllValue
      * @param  array<int|string, PromiseInterface<TAllValue>>  $promises  Array of PromiseInterface instances.
      * @return PromiseInterface<array<int|string, TAllValue>> A promise that resolves with an array of results.
@@ -77,12 +72,6 @@ final readonly class PromiseCollectionHandler
     }
 
     /**
-     * Wait for all promises to settle (either resolve or reject).
-     *
-     * Unlike all(), this method waits for every promise to complete and returns
-     * all results, including both successful values and rejection reasons.
-     * This method never rejects - it always resolves with an array of settlement results.
-     *
      * @template TAllSettledValue
      * @param  array<int|string, PromiseInterface<TAllSettledValue>>  $promises
      * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TAllSettledValue, reason?: mixed}>>
@@ -195,8 +184,6 @@ final readonly class PromiseCollectionHandler
     }
 
     /**
-     * Race multiple Promises and return the first to settle.
-     *
      * @template TRaceValue
      * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
      * @return CancellablePromiseInterface<TRaceValue> A promise that settles with the first settled promise.
@@ -259,8 +246,6 @@ final readonly class PromiseCollectionHandler
     }
 
     /**
-     * Add a timeout to a promise operation.
-     *
      * @template TTimeoutValue
      * @param  PromiseInterface<TTimeoutValue>  $promise  The promise to add timeout to
      * @param  float  $seconds  Timeout duration in seconds
@@ -281,11 +266,6 @@ final readonly class PromiseCollectionHandler
     }
 
     /**
-     * Wait for any promise in the collection to resolve.
-     *
-     * Returns a promise that resolves with the value of the first
-     * promise that resolves, or rejects if all promises reject.
-     *
      * @template TAnyValue
      * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
      * @return CancellablePromiseInterface<TAnyValue> A promise that resolves with the first settled value
@@ -367,10 +347,6 @@ final readonly class PromiseCollectionHandler
     }
 
     /**
-     * Validate that an item is a PromiseInterface instance.
-     *
-     * If validation fails, cancels any already-added promises and calls the reject callback.
-     *
      * @param  mixed  $promise  The item to validate
      * @param  int|string  $index  The index/key of the item in the original array
      * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances  Previously validated promises to cancel on failure
@@ -448,9 +424,6 @@ final readonly class PromiseCollectionHandler
     }
 
     /**
-     * Determine if array keys should be preserved in the result.
-     * Returns true for string keys or non-sequential numeric keys.
-     *
      * @param  array<int|string, mixed>  $array
      */
     private function shouldPreserveKeys(array $array): bool

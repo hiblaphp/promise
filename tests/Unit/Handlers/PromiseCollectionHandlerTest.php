@@ -1,8 +1,8 @@
 <?php
 
-use Hibla\Async\Exceptions\AggregateErrorException;
-use Hibla\Async\Exceptions\TimeoutException;
-use Hibla\Async\Handlers\PromiseCollectionHandler;
+use Hibla\Promise\Exceptions\AggregateErrorException;
+use Hibla\Promise\Exceptions\TimeoutException;
+use Hibla\Promise\Handlers\PromiseCollectionHandler;
 use Hibla\Promise\Promise;
 
 describe('PromiseCollectionHandler', function () {

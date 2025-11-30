@@ -8,8 +8,8 @@
             "Hibla\\Promise\\": "src/"
         },
         "files": [
-            "src/Helpers/global_functions.php",
-            "src/Helpers/namespace_functions.php"
+            "src/Helpers/delay.php",
+            "src/Helpers/promise_combinators.php"
         ]
     },
     "autoload-dev": {
@@ -25,8 +25,7 @@
     ],
     "require": {
         "php": "^8.2",
-        "hiblaphp/event-loop": "dev-main",
-        "hiblaphp/async": "dev-main"
+        "hiblaphp/event-loop": "dev-main"
     },
     "require-dev": {
         "pestphp/pest": "^3.0",

@@ -9,7 +9,7 @@ namespace Hibla\Promise\Interfaces;
  * including operations like waiting for all promises, racing promises, and
  * managing concurrent execution with limits.
  */
-interface PromiseCollectionInterface
+interface PromiseStaticInterface
 {
     /**
      * Create a resolved promise with the given value.
@@ -36,8 +36,8 @@ interface PromiseCollectionInterface
      * the first rejection reason.
      *
      * @template TAllValue
-     * @param  array<int|string, PromiseInterface<TAllValue>|callable(): PromiseInterface<TAllValue>>  $promises  Array of promises to wait for
-     * @return PromiseInterface<array<int|string, TAllValue>> A promise that resolves with an array of results
+     * @param  array<int|string, PromiseInterface<TAllValue>|callable(): PromiseInterface<TAllValue>>  $promises  Array of PromiseInterface instances.
+     * @return PromiseInterface<array<int|string, TAllValue>> A promise that resolves with an array of results.
      */
     public static function all(array $promises): PromiseInterface;
 
@@ -58,83 +58,90 @@ interface PromiseCollectionInterface
      * Wait for the first promise to resolve or reject.
      *
      * Returns a promise that settles with the same value/reason as
-     * the first promise to settle.
+     * the first promise to settle. Once a promise settles, all other
+     * promises that are instances of CancellablePromise will be automatically
+     * cancelled to free up resources.
      *
      * @template TRaceValue
-     * @param  array<int|string, PromiseInterface<TRaceValue>|callable(): PromiseInterface<TRaceValue>>  $promises  Array of promises to race
-     * @return PromiseInterface<TRaceValue> A promise that settles with the first result
+     * @param  array<int|string, PromiseInterface<TRaceValue>|callable(): PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
+     * @return CancellablePromiseInterface<TRaceValue> A promise that settles with the first settled promise.
      */
-    public static function race(array $promises): PromiseInterface;
+    public static function race(array $promises): CancellablePromiseInterface;
 
     /**
      * Wait for any promise in the collection to resolve.
      *
      * Returns a promise that resolves with the value of the first
      * promise that resolves, or rejects if all promises reject.
+     * Once a promise resolves, all other promises that are instances
+     * of CancellablePromise will be automatically cancelled to free up resources.
      *
      * @template TAnyValue
      * @param  array<int|string, PromiseInterface<TAnyValue>|callable(): PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
-     * @return PromiseInterface<TAnyValue> A promise that resolves with the first settled value
+     * @return CancellablePromiseInterface<TAnyValue> A promise that resolves with the first settled value
      */
-    public static function any(array $promises): PromiseInterface;
+    public static function any(array $promises): CancellablePromiseInterface;
 
     /**
      * Create a promise that resolves or rejects with a timeout.
      *
      * @template TTimeoutValue
-     * @param  PromiseInterface<TTimeoutValue>  $promise  Promise to timeout
-     * @param  float  $seconds  Timeout in seconds
-     * @return PromiseInterface<TTimeoutValue>
+     * @param  PromiseInterface<TTimeoutValue>  $promise  The promise to add timeout to
+     * @param  float  $seconds  Timeout duration in seconds
+     * @return CancellablePromiseInterface<TTimeoutValue>
      */
-    public static function timeout(PromiseInterface $promise, float $seconds): PromiseInterface;
+    public static function timeout(PromiseInterface $promise, float $seconds): CancellablePromiseInterface;
 
     /**
      * Execute multiple tasks with a concurrency limit.
      *
-     * - IMPORTANT: For proper concurrency control, tasks should be callables that return
-     * Promises, not pre-created Promise instances. Pre-created Promises are already
-     * running and cannot be subject to concurrency limiting.
+     * IMPORTANT: Tasks MUST be callables that return promises for proper concurrency control.
+     * Callables allow the system to control when each task starts executing, enabling true
+     * concurrency limiting. Pre-created Promise instances are already running and cannot be
+     * subject to concurrency control - they will execute immediately regardless of the limit.
      *
      * Processes tasks in parallel but with concurrency limit to avoid overwhelming the system
      * with too many concurrent operations.
      *
      * @template TConcurrentValue
-     * @param  array<int|string, callable(): (TConcurrentValue|PromiseInterface<TConcurrentValue>)>  $tasks  Array of tasks (callables) to execute
-     * @param  int  $concurrency  Maximum number of concurrent executions
-     * @return PromiseInterface<array<int|string, TConcurrentValue>> A promise that resolves with all results
+     * @param  array<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks  Array of callable tasks that return promises. Must be callables for proper concurrency control.
+     * @param  int  $concurrency  Maximum number of concurrent executions (default: 10).
+     * @return PromiseInterface<array<int|string, TConcurrentValue>> A promise that resolves with an array of all results.
      */
     public static function concurrent(array $tasks, int $concurrency = 10): PromiseInterface;
 
     /**
      * Execute multiple tasks in batches with a concurrency limit.
      *
-     * - IMPORTANT: For proper concurrency control, tasks should be callables that return
-     * Promises, not pre-created Promise instances. Pre-created Promises are already
-     * running and cannot be subject to concurrency limiting.
+     * IMPORTANT: Tasks MUST be callables that return promises for proper concurrency control.
+     * Callables allow the system to control when each task starts executing, enabling true
+     * concurrency limiting. Pre-created Promise instances are already running and cannot be
+     * subject to concurrency control - they will execute immediately regardless of the limit.
      *
      * This method processes tasks in smaller batches, allowing for
      * controlled concurrency and resource management.
      *
      * @template TBatchValue
-     * @param  array<int|string, callable(): (TBatchValue|PromiseInterface<TBatchValue>)>  $tasks  Array of tasks (callables) to execute
-     * @param  int  $batchSize  Size of each batch to process concurrently
-     * @param  int|null  $concurrency  Maximum number of concurrent executions per batch
-     * @return PromiseInterface<array<int|string, TBatchValue>> A promise that resolves with all results
+     * @param  array<int|string, callable(): PromiseInterface<TBatchValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
+     * @param  int  $batchSize  Size of each batch to process concurrently.
+     * @param  int|null  $concurrency  Maximum number of concurrent executions per batch.
+     * @return PromiseInterface<array<int|string, TBatchValue>> A promise that resolves with all results.
      */
     public static function batch(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface;
 
     /**
      * Execute multiple tasks concurrently with a specified concurrency limit and wait for all to settle.
      *
-     * - IMPORTANT: For proper concurrency control, tasks should be callables that return
-     * Promises, not pre-created Promise instances. Pre-created Promises are already
-     * running and cannot be subject to concurrency limiting.
+     * IMPORTANT: Tasks MUST be callables that return promises for proper concurrency control.
+     * Callables allow the system to control when each task starts executing, enabling true
+     * concurrency limiting. Pre-created Promise instances are already running and cannot be
+     * subject to concurrency control - they will execute immediately regardless of the limit.
      *
      * Similar to concurrent(), but waits for all tasks to complete and returns settlement results.
      * This method never rejects - it always resolves with an array of settlement results.
      *
      * @template TConcurrentSettledValue
-     * @param  array<int|string, callable(): (TConcurrentSettledValue|PromiseInterface<TConcurrentSettledValue>)>  $tasks  Array of tasks (callables) to execute
+     * @param  array<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
      * @param  int  $concurrency  Maximum number of concurrent executions
      * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TConcurrentSettledValue, reason?: mixed}>> A promise that resolves with settlement results
      */
@@ -143,34 +150,19 @@ interface PromiseCollectionInterface
     /**
      * Execute multiple tasks in batches with a concurrency limit and wait for all to settle.
      *
-     * - IMPORTANT: For proper concurrency control, tasks should be callables that return
-     * Promises, not pre-created Promise instances. Pre-created Promises are already
-     * running and cannot be subject to concurrency limiting.
+     * IMPORTANT: Tasks MUST be callables that return promises for proper concurrency control.
+     * Callables allow the system to control when each task starts executing, enabling true
+     * concurrency limiting. Pre-created Promise instances are already running and cannot be
+     * subject to concurrency control - they will execute immediately regardless of the limit.
      *
      * Similar to batch(), but waits for all tasks to complete and returns settlement results.
      * This method never rejects - it always resolves with an array of settlement results.
      *
      * @template TBatchSettledValue
-     * @param  array<int|string, callable(): (TBatchSettledValue|PromiseInterface<TBatchSettledValue>)>  $tasks  Array of tasks (callables) to execute
+     * @param  array<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
      * @param  int  $batchSize  Size of each batch to process concurrently
      * @param  int|null  $concurrency  Maximum number of concurrent executions per batch
      * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TBatchSettledValue, reason?: mixed}>> A promise that resolves with settlement results
      */
     public static function batchSettled(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface;
-
-    /**
-     * Reset the static AsyncOperations instance for testing purposes.
-     *
-     * This method is primarily intended for use in unit tests to ensure
-     * a clean state between test runs. It clears the shared AsyncOperations
-     * instance, forcing a new one to be created on the next static method call.
-     */
-    public static function reset(): void;
-
-    /**
-     * Checks if the promise is settled (either resolved or rejected).
-     *
-     * @return bool True if settled, false if still pending.
-     */
-    public function isSettled(): bool;
 }

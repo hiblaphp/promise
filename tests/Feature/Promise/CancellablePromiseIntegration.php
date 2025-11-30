@@ -3,10 +3,6 @@
 use Hibla\Promise\CancellablePromise;
 
 describe('CancellablePromise Integration', function () {
-    beforeEach(function () {
-        resetTest();
-    });
-
     it('tracks root cancellable promise in chain', function () {
         $cancellable = new CancellablePromise();
         $chained = $cancellable->then(function ($value) {

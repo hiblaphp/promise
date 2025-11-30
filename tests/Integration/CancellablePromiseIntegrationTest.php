@@ -3,11 +3,11 @@
 use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
 
-describe('CancellablePromise Integration', function () {
-    beforeEach(function () {
-        resetTest();
-    });
+use function Hibla\delay;
+use function Hibla\Promise\concurrent;
+use function Hibla\Promise\timeout;
 
+describe('CancellablePromise Integration', function () {
     it('works with delay function', function () {
         $promise = delay(0.1);
 

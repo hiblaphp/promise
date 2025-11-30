@@ -2,11 +2,9 @@
 
 use Hibla\Promise\Promise;
 
-describe('Promise Batch Processing', function () {
-    beforeEach(function () {
-        resetTest();
-    });
+use function Hibla\delay;
 
+describe('Promise Batch Processing', function () {
     describe('Promise::batch', function () {
         it('processes tasks in batches with default batch size', function () {
             $executionOrder = [];

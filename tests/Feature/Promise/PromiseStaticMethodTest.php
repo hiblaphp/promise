@@ -2,10 +2,9 @@
 
 use Hibla\Promise\Promise;
 
+use function Hibla\delay;
+
 describe('Promise Static Methods', function () {
-    beforeEach(function () {
-        resetTest();
-    });
 
     describe('Promise::all', function () {
         it('resolves when all promises resolve', function () {

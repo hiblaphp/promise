@@ -1,6 +1,6 @@
 <?php
 
-use Hibla\Async\Handlers\ConcurrencyHandler;
+use Hibla\Promise\Handlers\ConcurrencyHandler;
 use Hibla\Promise\Promise;
 
 describe('ConcurrencyHandler', function () {

@@ -3,10 +3,6 @@
 use Hibla\Promise\CancellablePromise;
 
 describe('CancellablePromise Real-World Examples', function () {
-    beforeEach(function () {
-        resetTest();
-    });
-
     it('file upload with progress tracking', function () {
         $uploadProgress = 0;
         $uploadCancelled = false;
