@@ -1,11 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
+use function Hibla\delay;
+
 use Hibla\Promise\Promise;
 
 describe('Promise Static Methods', function () {
-    beforeEach(function () {
-        resetTest();
-    });
 
     describe('Promise::all', function () {
         it('resolves when all promises resolve', function () {

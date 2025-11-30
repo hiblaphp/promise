@@ -1,12 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Promise\CancellablePromise;
 
 describe('CancellablePromise Cancel Handler', function () {
-    beforeEach(function () {
-        resetTest();
-    });
-
     it('executes cancel handler when cancelled', function () {
         $promise = new CancellablePromise();
         $handlerExecuted = false;

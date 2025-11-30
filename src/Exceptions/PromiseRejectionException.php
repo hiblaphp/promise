@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hibla\Promise\Exceptions;
 
 use Exception;
@@ -23,11 +25,11 @@ class PromiseRejectionException extends Exception
             return 'Promise rejected with null';
         }
 
-        if (is_scalar($reason)) {
+        if (\is_scalar($reason)) {
             return "{$reason}";
         }
 
-        if (is_object($reason) && method_exists($reason, '__toString')) {
+        if (\is_object($reason) && method_exists($reason, '__toString')) {
             return "{$reason}";
         }
 

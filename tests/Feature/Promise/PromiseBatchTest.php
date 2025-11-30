@@ -1,12 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
+use function Hibla\delay;
+
 use Hibla\Promise\Promise;
 
 describe('Promise Batch Processing', function () {
-    beforeEach(function () {
-        resetTest();
-    });
-
     describe('Promise::batch', function () {
         it('processes tasks in batches with default batch size', function () {
             $executionOrder = [];

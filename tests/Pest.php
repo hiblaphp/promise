@@ -1,74 +1,38 @@
 <?php
 
-/*
-|--------------------------------------------------------------------------
-| Test Case
-|--------------------------------------------------------------------------
-*/
+declare(strict_types=1);
 
-use Hibla\Async\Async;
-use Hibla\EventLoop\EventLoop;
-use Hibla\Promise\Handlers\CallbackHandler;
-use Hibla\Promise\Handlers\ChainHandler;
-use Hibla\Promise\Handlers\ExecutorHandler;
-use Hibla\Promise\Handlers\ResolutionHandler;
-use Hibla\Promise\Handlers\StateHandler;
+use Hibla\EventLoop\Loop;
+use Hibla\Promise\Interfaces\CancellablePromiseInterface;
+use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
-use Tests\TestCase;
-
-pest()->extend(TestCase::class)->in('Feature');
-pest()->extend(TestCase::class)->in('Unit');
-
-/*
-|--------------------------------------------------------------------------
-| Expectations
-|--------------------------------------------------------------------------
-*/
 
 expect()->extend('toBeOne', function () {
     return $this->toBe(1);
 });
 
-/*
-|--------------------------------------------------------------------------
-| Functions
-|--------------------------------------------------------------------------
-*/
+expect()->extend('toBePromise', function () {
+    return $this->toBeInstanceOf(PromiseInterface::class);
+});
 
-function chainHandler(): ChainHandler
+expect()->extend('toBeCancellablePromise', function () {
+    return $this->toBeInstanceOf(CancellablePromiseInterface::class);
+});
+
+function delayedValue($value, $delayMs)
 {
-    return new ChainHandler();
+    return new Promise(function ($resolve) use ($value, $delayMs) {
+        Loop::addTimer($delayMs / 1000, function () use ($resolve, $value) {
+            $resolve($value);
+        });
+    });
 }
 
-function executorHandler(): ExecutorHandler
+function delayedReject($error, $delayMs)
 {
-    return new ExecutorHandler();
-}
-
-function stateHandler(): StateHandler
-{
-    return new StateHandler();
-}
-
-function callbackHandler(): CallbackHandler
-{
-    return new CallbackHandler();
-}
-
-function resolutionHandler(StateHandler $stateHandler, CallbackHandler $callbackHandler): ResolutionHandler
-{
-    return new ResolutionHandler($stateHandler, $callbackHandler);
-}
-
-/**
- * Resets all core singletons and clears test state.
- *
- * This function is the single source of truth for test setup. By calling it
- * in each test file's `beforeEach` hook, we ensure perfect test isolation.
- */
-function resetTest()
-{
-    EventLoop::reset();
-    Async::reset();
-    Promise::reset();
+    return new Promise(function ($resolve, $reject) use ($error, $delayMs) {
+        Loop::addTimer($delayMs / 1000, function () use ($reject, $error) {
+            $reject($error);
+        });
+    });
 }

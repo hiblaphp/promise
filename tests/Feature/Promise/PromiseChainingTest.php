@@ -1,14 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\EventLoop\Loop;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 
 describe('Promise Chaining', function () {
-    beforeEach(function () {
-        resetTest();
-    });
-
     describe('Then method', function () {
         it('calls onFulfilled when promise is resolved', function () {
             $called = false;

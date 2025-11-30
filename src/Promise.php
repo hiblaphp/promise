@@ -1,13 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hibla\Promise;
 
-use Hibla\Async\AsyncOperations;
-use Hibla\EventLoop\EventLoop;
+use Hibla\EventLoop\Loop;
 use Hibla\Promise\Exceptions\PromiseRejectionException;
+use Hibla\Promise\Handlers\ConcurrencyHandler;
+use Hibla\Promise\Handlers\PromiseCollectionHandler;
 use Hibla\Promise\Interfaces\CancellablePromiseInterface;
-use Hibla\Promise\Interfaces\PromiseCollectionInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Promise\Interfaces\PromiseStaticInterface;
 
 /**
  * A Promise/A+ compliant implementation for managing asynchronous operations.
@@ -20,40 +23,40 @@ use Hibla\Promise\Interfaces\PromiseInterface;
  *
  * @implements PromiseInterface<TValue>
  */
-class Promise implements PromiseCollectionInterface, PromiseInterface
+class Promise implements PromiseStaticInterface, PromiseInterface
 {
     /**
-     * @var bool Whether the Promise has been resolved
+     * @var bool
      */
     private bool $resolved = false;
 
     /**
-     * @var bool Whether the Promise has been rejected
+     * @var bool
      */
     private bool $rejected = false;
 
     /**
-     * @var mixed The resolved value (if resolved)
+     * @var mixed
      */
     private mixed $value = null;
 
     /**
-     * @var mixed The rejection reason (if rejected)
+     * @var mixed
      */
     private mixed $reason = null;
 
     /**
-     * @var array<callable> Callbacks to execute when Promise resolves
+     * @var array<callable>
      */
     private array $thenCallbacks = [];
 
     /**
-     * @var array<callable> Callbacks to execute when Promise rejects
+     * @var array<callable>
      */
     private array $catchCallbacks = [];
 
     /**
-     * @var array<callable> Callbacks to execute when Promise settles (resolve or reject)
+     * @var array<callable>
      */
     private array $finallyCallbacks = [];
 
@@ -63,9 +66,14 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     protected ?CancellablePromiseInterface $rootCancellable = null;
 
     /**
-     * @var AsyncOperations|null Static instance for collection operations
+     * @var PromiseCollectionHandler|null
      */
-    private static ?AsyncOperations $asyncOps = null;
+    private static ?PromiseCollectionHandler $collectionHandler = null;
+
+    /**
+     * @var ConcurrencyHandler|null
+     */
+    private static ?ConcurrencyHandler $concurrencyHandler = null;
 
     private bool $hasRejectionHandler = false;
     private bool $valueAccessed = false;
@@ -84,8 +92,8 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn($value = null) => $this->resolve($value),
-                    fn($reason = null) => $this->reject($reason)
+                    fn ($value = null) => $this->resolve($value),
+                    fn ($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -132,7 +140,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
             ;
 
             while (! $completed) {
-                EventLoop::getInstance()->run();
+                Loop::run();
             }
 
             if ($error !== null) {
@@ -144,7 +152,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
             return $result;
         } finally {
             if ($resetEventLoop) {
-                EventLoop::reset();
+                Loop::reset();
             }
         }
     }
@@ -185,7 +193,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
         $this->resolved = true;
         $this->value = $value;
 
-        EventLoop::getInstance()->nextTick(function () use ($value) {
+        Loop::nextTick(function () use ($value) {
             $callbacks = $this->thenCallbacks;
             $this->thenCallbacks = [];
 
@@ -223,7 +231,7 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
             ? $reason
             : new PromiseRejectionException($reason);
 
-        EventLoop::getInstance()->nextTick(function () {
+        Loop::nextTick(function () {
             $callbacks = $this->catchCallbacks;
             $this->catchCallbacks = [];
 
@@ -304,9 +312,9 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
             };
 
             if ($this->resolved) {
-                EventLoop::getInstance()->nextTick(fn() => $handleResolve($this->value));
+                Loop::nextTick(fn () => $handleResolve($this->value));
             } elseif ($this->rejected) {
-                EventLoop::getInstance()->nextTick(fn() => $handleReject($this->reason));
+                Loop::nextTick(fn () => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -420,31 +428,25 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     }
 
     /**
-     * Get or create the AsyncOperations instance for static methods.
-     */
-    private static function getAsyncOps(): AsyncOperations
-    {
-        return self::$asyncOps ??= new AsyncOperations();
-    }
-
-    /**
      * {@inheritdoc}
      */
     public static function reset(): void
     {
-        self::$asyncOps = null;
+        self::$collectionHandler = null;
+        self::$concurrencyHandler = null;
     }
 
     /**
-     * {@inheritdoc}
+     * Create a resolved promise with the given value.
      *
-     * @template TResolvedValue
-     * @param TResolvedValue $value
-     * @return PromiseInterface<TResolvedValue>
+     * @template TResolveValue
+     *
+     * @param  TResolveValue  $value  The value to resolve the promise with
+     * @return PromiseInterface<TResolveValue> A promise resolved with the provided value
      */
     public static function resolved(mixed $value): PromiseInterface
     {
-        /** @var Promise<TResolvedValue> $promise */
+        /** @var Promise<TResolveValue> $promise */
         $promise = new self();
         $promise->resolve($value);
 
@@ -452,7 +454,10 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Create a rejected promise with the given reason.
+     *
+     * @param  mixed  $reason  The reason for rejection (typically an exception)
+     * @return PromiseInterface<mixed> A promise rejected with the provided reason
      */
     public static function rejected(mixed $reason): PromiseInterface
     {
@@ -463,118 +468,125 @@ class Promise implements PromiseCollectionInterface, PromiseInterface
     }
 
     /**
-     * {@inheritdoc}
-     *
+     * @inheritDoc
      * @template TAllValue
-     * @param  array<int|string, PromiseInterface<TAllValue>|callable(): PromiseInterface<TAllValue>>  $promises
-     * @return PromiseInterface<array<int|string, TAllValue>>
+     * @param  array<int|string, PromiseInterface<TAllValue>>  $promises  Array of PromiseInterface instances.
+     * @return PromiseInterface<array<int|string, TAllValue>> A promise that resolves with an array of results.
      */
     public static function all(array $promises): PromiseInterface
     {
-        return self::getAsyncOps()->all($promises);
+        return self::getCollectionHandler()->all($promises);
     }
 
     /**
-     * {@inheritdoc}
-     *
+     * @inheritDoc
      * @template TAllSettledValue
-     * @param  array<int|string, PromiseInterface<TAllSettledValue>|callable(): PromiseInterface<TAllSettledValue>>  $promises
+     * @param  array<int|string, PromiseInterface<TAllSettledValue>>  $promises
      * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TAllSettledValue, reason?: mixed}>>
      */
     public static function allSettled(array $promises): PromiseInterface
     {
-        return self::getAsyncOps()->allSettled($promises);
+        return self::getCollectionHandler()->allSettled($promises);
     }
 
     /**
-     * {@inheritdoc}
-     *
+     * @inheritDoc
      * @template TRaceValue
-     * @param  array<int|string, PromiseInterface<TRaceValue>|callable(): PromiseInterface<TRaceValue>>  $promises
-     * @return PromiseInterface<TRaceValue>
+     * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
+     * @return CancellablePromiseInterface<TRaceValue> A promise that settles with the first settled promise.
      */
-    public static function race(array $promises): PromiseInterface
+    public static function race(array $promises): CancellablePromiseInterface
     {
-        return self::getAsyncOps()->race($promises);
+        return self::getCollectionHandler()->race($promises);
     }
 
     /**
-     * {@inheritdoc}
-     *
+     * @inheritDoc
      * @template TAnyValue
-     * @param  array<int|string, PromiseInterface<TAnyValue>|callable(): PromiseInterface<TAnyValue>>  $promises
-     * @return PromiseInterface<TAnyValue>
+     * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
+     * @return CancellablePromiseInterface<TAnyValue> A promise that resolves with the first settled value
      */
-    public static function any(array $promises): PromiseInterface
+    public static function any(array $promises): CancellablePromiseInterface
     {
-        return self::getAsyncOps()->any($promises);
+        return self::getCollectionHandler()->any($promises);
     }
 
     /**
-     * {@inheritdoc}
-     *
+     * @inheritDoc
      * @template TTimeoutValue
-     * @param  PromiseInterface<TTimeoutValue>  $promise
-     * @param  float  $seconds
-     * @return PromiseInterface<TTimeoutValue>
+     * @param  PromiseInterface<TTimeoutValue>  $promise  The promise to add timeout to
+     * @param  float  $seconds  Timeout duration in seconds
+     * @return CancellablePromiseInterface<TTimeoutValue>
      */
-    public static function timeout(PromiseInterface $promise, float $seconds): PromiseInterface
+    public static function timeout(PromiseInterface $promise, float $seconds): CancellablePromiseInterface
     {
-        return self::getAsyncOps()->timeout($promise, $seconds);
+        return self::getCollectionHandler()->timeout($promise, $seconds);
     }
 
     /**
-     * {@inheritdoc}
-     *
+     * @inheritDoc
      * @template TConcurrentValue
-     * @param  array<int|string, callable(): (TConcurrentValue|PromiseInterface<TConcurrentValue>)>  $tasks
-     * @param  int  $concurrency
-     * @return PromiseInterface<array<int|string, TConcurrentValue>>
+     * @param  array<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks  Array of callable tasks that return promises. Must be callables for proper concurrency control.
+     * @param  int  $concurrency  Maximum number of concurrent executions (default: 10).
+     * @return PromiseInterface<array<int|string, TConcurrentValue>> A promise that resolves with an array of all results.
      */
     public static function concurrent(array $tasks, int $concurrency = 10): PromiseInterface
     {
-        return self::getAsyncOps()->concurrent($tasks, $concurrency);
+        return self::getConcurrencyHandler()->concurrent($tasks, $concurrency);
     }
 
     /**
-     * {@inheritdoc}
-     *
+     * @inheritDoc
      * @template TBatchValue
-     * @param  array<int|string, callable(): (TBatchValue|PromiseInterface<TBatchValue>)>  $tasks
-     * @param  int  $batchSize
-     * @param  int|null  $concurrency
-     * @return PromiseInterface<array<int|string, TBatchValue>>
+     * @param  array<int|string, callable(): PromiseInterface<TBatchValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
+     * @param  int  $batchSize  Size of each batch to process concurrently.
+     * @param  int|null  $concurrency  Maximum number of concurrent executions per batch.
+     * @return PromiseInterface<array<int|string, TBatchValue>> A promise that resolves with all results.
      */
     public static function batch(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
-        return self::getAsyncOps()->batch($tasks, $batchSize, $concurrency);
+        return self::getConcurrencyHandler()->batch($tasks, $batchSize, $concurrency);
     }
 
     /**
-     * {@inheritdoc}
-     *
+     * @inheritDoc
      * @template TConcurrentSettledValue
-     * @param  array<int|string, callable(): (TConcurrentSettledValue|PromiseInterface<TConcurrentSettledValue>)>  $tasks
-     * @param  int  $concurrency
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TConcurrentSettledValue, reason?: mixed}>>
+     * @param  array<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
+     * @param  int  $concurrency  Maximum number of concurrent executions
+     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TConcurrentSettledValue, reason?: mixed}>> A promise that resolves with settlement results
      */
     public static function concurrentSettled(array $tasks, int $concurrency = 10): PromiseInterface
     {
-        return self::getAsyncOps()->concurrentSettled($tasks, $concurrency);
+        return self::getConcurrencyHandler()->concurrentSettled($tasks, $concurrency);
     }
 
     /**
-     * {@inheritdoc}
-     *
+     * @inheritDoc
      * @template TBatchSettledValue
-     * @param  array<int|string, callable(): (TBatchSettledValue|PromiseInterface<TBatchSettledValue>)>  $tasks
-     * @param  int  $batchSize
-     * @param  int|null  $concurrency
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TBatchSettledValue, reason?: mixed}>>
+     * @param  array<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
+     * @param  int  $batchSize  Size of each batch to process concurrently
+     * @param  int|null  $concurrency  Maximum number of concurrent executions per batch
+     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TBatchSettledValue, reason?: mixed}>> A promise that resolves with settlement results
      */
     public static function batchSettled(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
-        return self::getAsyncOps()->batchSettled($tasks, $batchSize, $concurrency);
+        return self::getConcurrencyHandler()->batchSettled($tasks, $batchSize, $concurrency);
+    }
+
+    /**
+     * Get or create the PromiseCollectionHandler instance.
+     */
+    private static function getCollectionHandler(): PromiseCollectionHandler
+    {
+        return self::$collectionHandler ??= new PromiseCollectionHandler();
+    }
+
+    /**
+     * Get or create the ConcurrencyHandler instance.
+     */
+    private static function getConcurrencyHandler(): ConcurrencyHandler
+    {
+        return self::$concurrencyHandler ??= new ConcurrencyHandler();
     }
 
     /**

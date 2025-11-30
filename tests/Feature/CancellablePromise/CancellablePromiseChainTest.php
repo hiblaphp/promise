@@ -1,14 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Promise\CancellablePromise;
 use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
 
 describe('CancellablePromise Chaining', function () {
-    beforeEach(function () {
-        resetTest();
-    });
-
     it('supports promise chaining', function () {
         $promise = new CancellablePromise();
 

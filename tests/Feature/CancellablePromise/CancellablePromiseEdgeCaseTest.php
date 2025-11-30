@@ -1,12 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Promise\CancellablePromise;
 
 describe('CancellablePromise Edge Cases', function () {
-    beforeEach(function () {
-        resetTest();
-    });
-
     it('handles rapid cancel and resolve attempts', function () {
         $promise = new CancellablePromise();
 
