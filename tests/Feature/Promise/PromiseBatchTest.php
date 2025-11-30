@@ -1,8 +1,10 @@
 <?php
 
-use Hibla\Promise\Promise;
+declare(strict_types=1);
 
 use function Hibla\delay;
+
+use Hibla\Promise\Promise;
 
 describe('Promise Batch Processing', function () {
     describe('Promise::batch', function () {

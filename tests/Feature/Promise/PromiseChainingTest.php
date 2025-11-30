@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\EventLoop\Loop;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;

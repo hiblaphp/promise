@@ -1,8 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
+use Hibla\Promise\Exceptions\PromiseRejectionException;
 use Hibla\Promise\Handlers\ConcurrencyHandler;
 use Hibla\Promise\Handlers\PromiseCollectionHandler;
-use Hibla\Promise\Exceptions\PromiseRejectionException;
 
 describe('Array Ordering and Key Preservation', function () {
 

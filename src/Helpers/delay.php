@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hibla;
 
 use Hibla\Promise\Handlers\TimerHandler;
@@ -15,8 +17,8 @@ function delay(float $seconds): CancellablePromiseInterface
 {
     /** @var TimerHandler|null $timerHandler */
     static $timerHandler = null;
-    
+
     $timerHandler ??= new TimerHandler();
-    
+
     return $timerHandler->delay($seconds);
 }

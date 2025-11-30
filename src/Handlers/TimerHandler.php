@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hibla\Promise\Handlers;
 
 use Hibla\EventLoop\EventLoop;

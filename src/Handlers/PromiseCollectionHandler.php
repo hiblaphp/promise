@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hibla\Promise\Handlers;
 
+use Hibla\Promise\CancellablePromise;
 use Hibla\Promise\Exceptions\AggregateErrorException;
 use Hibla\Promise\Exceptions\TimeoutException;
-use Hibla\Promise\CancellablePromise;
 use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;

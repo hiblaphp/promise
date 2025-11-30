@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Promise\Exceptions\AggregateErrorException;
 use Hibla\Promise\Exceptions\TimeoutException;
 use Hibla\Promise\Handlers\PromiseCollectionHandler;

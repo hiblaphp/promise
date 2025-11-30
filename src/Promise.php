@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hibla\Promise;
 
 use Hibla\EventLoop\EventLoop;
@@ -7,8 +9,8 @@ use Hibla\Promise\Exceptions\PromiseRejectionException;
 use Hibla\Promise\Handlers\ConcurrencyHandler;
 use Hibla\Promise\Handlers\PromiseCollectionHandler;
 use Hibla\Promise\Interfaces\CancellablePromiseInterface;
-use Hibla\Promise\Interfaces\PromiseStaticInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Promise\Interfaces\PromiseStaticInterface;
 
 /**
  * A Promise/A+ compliant implementation for managing asynchronous operations.
@@ -34,12 +36,12 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     private bool $rejected = false;
 
     /**
-     * @var mixed 
+     * @var mixed
      */
     private mixed $value = null;
 
     /**
-     * @var mixed 
+     * @var mixed
      */
     private mixed $reason = null;
 
@@ -49,12 +51,12 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     private array $thenCallbacks = [];
 
     /**
-     * @var array<callable> 
+     * @var array<callable>
      */
     private array $catchCallbacks = [];
 
     /**
-     * @var array<callable> 
+     * @var array<callable>
      */
     private array $finallyCallbacks = [];
 
@@ -64,12 +66,12 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     protected ?CancellablePromiseInterface $rootCancellable = null;
 
     /**
-     * @var PromiseCollectionHandler|null 
+     * @var PromiseCollectionHandler|null
      */
     private static ?PromiseCollectionHandler $collectionHandler = null;
 
     /**
-     * @var ConcurrencyHandler|null 
+     * @var ConcurrencyHandler|null
      */
     private static ?ConcurrencyHandler $concurrencyHandler = null;
 
@@ -90,8 +92,8 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn($value = null) => $this->resolve($value),
-                    fn($reason = null) => $this->reject($reason)
+                    fn ($value = null) => $this->resolve($value),
+                    fn ($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -310,9 +312,9 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             };
 
             if ($this->resolved) {
-                EventLoop::getInstance()->nextTick(fn() => $handleResolve($this->value));
+                EventLoop::getInstance()->nextTick(fn () => $handleResolve($this->value));
             } elseif ($this->rejected) {
-                EventLoop::getInstance()->nextTick(fn() => $handleReject($this->reason));
+                EventLoop::getInstance()->nextTick(fn () => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;

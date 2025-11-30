@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
+use function Hibla\delay;
+
 use Hibla\Promise\Exceptions\AggregateErrorException;
 use Hibla\Promise\Exceptions\TimeoutException;
 use Hibla\Promise\Interfaces\PromiseInterface;
-use Hibla\Promise\Promise;
 
-use function Hibla\delay;
+use Hibla\Promise\Promise;
 
 describe('Promise Static Methods Integration', function () {
     describe('Promise::resolved() and Promise::rejected()', function () {
@@ -28,8 +31,9 @@ describe('Promise Static Methods Integration', function () {
             expect($promise->isRejected())->toBeTrue();
             expect($promise->getReason())->toBe($error);
 
-            expect(fn() => $promise->await())
-                ->toThrow(RuntimeException::class, 'test error');
+            expect(fn () => $promise->await())
+                ->toThrow(RuntimeException::class, 'test error')
+            ;
         });
     });
 
@@ -73,8 +77,9 @@ describe('Promise Static Methods Integration', function () {
 
             $promise = Promise::all($promises);
 
-            expect(fn() => $promise->await())
-                ->toThrow(RuntimeException::class, 'all error');
+            expect(fn () => $promise->await())
+                ->toThrow(RuntimeException::class, 'all error')
+            ;
         });
 
         it('works with async functions', function () {
@@ -189,8 +194,9 @@ describe('Promise Static Methods Integration', function () {
 
             $promise = Promise::race($promises);
 
-            expect(fn() => $promise->await())
-                ->toThrow(RuntimeException::class, 'fast error');
+            expect(fn () => $promise->await())
+                ->toThrow(RuntimeException::class, 'fast error')
+            ;
         });
 
         it('cancels cancellable promises when race settles', function () {
@@ -348,8 +354,9 @@ describe('Promise Static Methods Integration', function () {
 
             $promise = Promise::timeout($slowPromise, 0.05); // 50ms timeout
 
-            expect(fn() => $promise->await())
-                ->toThrow(TimeoutException::class);
+            expect(fn () => $promise->await())
+                ->toThrow(TimeoutException::class)
+            ;
         });
 
         it('handles promise rejection before timeout', function () {
@@ -359,8 +366,9 @@ describe('Promise Static Methods Integration', function () {
 
             $promise = Promise::timeout($errorPromise, 0.2);
 
-            expect(fn() => $promise->await())
-                ->toThrow(RuntimeException::class, 'promise error');
+            expect(fn () => $promise->await())
+                ->toThrow(RuntimeException::class, 'promise error')
+            ;
         });
     });
 
@@ -370,7 +378,7 @@ describe('Promise Static Methods Integration', function () {
 
             $tasks = [];
             for ($i = 0; $i < 5; $i++) {
-                $tasks[] = fn() => delay(0.1)->then(function () use ($i) {
+                $tasks[] = fn () => delay(0.1)->then(function () use ($i) {
                     return "task-$i";
                 });
             }
@@ -394,7 +402,7 @@ describe('Promise Static Methods Integration', function () {
 
             $tasks = [];
             for ($i = 0; $i < 10; $i++) {
-                $tasks[] = fn() => delay(0.05)->then(function () use ($i, &$running, &$maxConcurrent) {
+                $tasks[] = fn () => delay(0.05)->then(function () use ($i, &$running, &$maxConcurrent) {
                     $running++;
                     $maxConcurrent = max($maxConcurrent, $running);
 
@@ -419,14 +427,15 @@ describe('Promise Static Methods Integration', function () {
 
             $tasks = [];
             for ($i = 0; $i < 6; $i++) {
-                $tasks[] = fn() => delay(0.05)->then(function () use ($i, &$batchOrder) {
+                $tasks[] = fn () => delay(0.05)->then(function () use ($i, &$batchOrder) {
                     $batchOrder[] = "start-$i";
                     $batchOrder[] = "end-$i";
+
                     return "task-$i";
                 });
             }
 
-            $promise = Promise::batch($tasks, 3); 
+            $promise = Promise::batch($tasks, 3);
             $results = $promise->await();
 
             expect($results)->toHaveCount(6);

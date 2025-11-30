@@ -1,10 +1,13 @@
 <?php
 
-use Hibla\Promise\Interfaces\CancellablePromiseInterface;
-use Hibla\Promise\Interfaces\PromiseInterface;
+declare(strict_types=1);
 
 use function Hibla\delay;
 use function Hibla\Promise\concurrent;
+
+use Hibla\Promise\Interfaces\CancellablePromiseInterface;
+use Hibla\Promise\Interfaces\PromiseInterface;
+
 use function Hibla\Promise\timeout;
 
 describe('CancellablePromise Integration', function () {
