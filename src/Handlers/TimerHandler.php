@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hibla\Promise\Handlers;
 
-use Hibla\EventLoop\EventLoop;
+use Hibla\EventLoop\Loop;
 use Hibla\Promise\CancellablePromise;
 use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 
@@ -19,7 +19,7 @@ final readonly class TimerHandler
         /** @var CancellablePromise<null> $promise */
         $promise = new CancellablePromise();
 
-        $timerId = EventLoop::getInstance()->addTimer($seconds, function () use ($promise): void {
+        $timerId = Loop::addTimer($seconds, function () use ($promise): void {
             if (! $promise->isCancelled()) {
                 $promise->resolve(null);
             }

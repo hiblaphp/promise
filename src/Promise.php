@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hibla\Promise;
 
-use Hibla\EventLoop\EventLoop;
+use Hibla\EventLoop\Loop;
 use Hibla\Promise\Exceptions\PromiseRejectionException;
 use Hibla\Promise\Handlers\ConcurrencyHandler;
 use Hibla\Promise\Handlers\PromiseCollectionHandler;
@@ -140,7 +140,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             ;
 
             while (! $completed) {
-                EventLoop::getInstance()->run();
+                Loop::run();
             }
 
             if ($error !== null) {
@@ -193,7 +193,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         $this->resolved = true;
         $this->value = $value;
 
-        EventLoop::getInstance()->nextTick(function () use ($value) {
+        Loop::nextTick(function () use ($value) {
             $callbacks = $this->thenCallbacks;
             $this->thenCallbacks = [];
 
@@ -231,7 +231,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             ? $reason
             : new PromiseRejectionException($reason);
 
-        EventLoop::getInstance()->nextTick(function () {
+        Loop::nextTick(function () {
             $callbacks = $this->catchCallbacks;
             $this->catchCallbacks = [];
 
@@ -312,9 +312,9 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             };
 
             if ($this->resolved) {
-                EventLoop::getInstance()->nextTick(fn () => $handleResolve($this->value));
+                Loop::nextTick(fn () => $handleResolve($this->value));
             } elseif ($this->rejected) {
-                EventLoop::getInstance()->nextTick(fn () => $handleReject($this->reason));
+                Loop::nextTick(fn () => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;

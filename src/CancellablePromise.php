@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hibla\Promise;
 
-use Hibla\EventLoop\EventLoop;
+use Hibla\EventLoop\Loop;
 use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
 
@@ -52,7 +52,7 @@ class CancellablePromise extends Promise implements CancellablePromiseInterface
             }
 
             if ($this->timerId !== null) {
-                EventLoop::getInstance()->cancelTimer($this->timerId);
+                Loop::cancelTimer($this->timerId);
             }
 
             $this->reject(new \Exception('Promise cancelled'));

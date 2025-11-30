@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hibla\Promise\Handlers;
 
-use Hibla\EventLoop\EventLoop;
+use Hibla\EventLoop\Loop;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use InvalidArgumentException;
@@ -100,7 +100,7 @@ final readonly class ConcurrencyHandler
                             if ($completed === $total) {
                                 $resolve($this->orderResultsByKeys($results, $originalKeys));
                             } else {
-                                EventLoop::getInstance()->nextTick($processNext);
+                                Loop::nextTick($processNext);
                             }
                         })
                         ->catch(function ($error) use ($reject): void {
@@ -110,7 +110,7 @@ final readonly class ConcurrencyHandler
                 }
             };
 
-            EventLoop::getInstance()->nextTick($processNext);
+            Loop::nextTick($processNext);
         });
     }
 
@@ -214,7 +214,7 @@ final readonly class ConcurrencyHandler
                             if ($completed === $total) {
                                 $resolve($this->orderResultsByKeys($results, $originalKeys));
                             } else {
-                                EventLoop::getInstance()->nextTick($processNext);
+                                Loop::nextTick($processNext);
                             }
                         })
                         ->catch(function ($error) use (
@@ -237,14 +237,14 @@ final readonly class ConcurrencyHandler
                             if ($completed === $total) {
                                 $resolve($this->orderResultsByKeys($results, $originalKeys));
                             } else {
-                                EventLoop::getInstance()->nextTick($processNext);
+                                Loop::nextTick($processNext);
                             }
                         })
                     ;
                 }
             };
 
-            EventLoop::getInstance()->nextTick($processNext);
+            Loop::nextTick($processNext);
         });
     }
 
@@ -324,13 +324,13 @@ final readonly class ConcurrencyHandler
                             $allResults[$key] = $result;
                         }
                         $batchIndex++;
-                        EventLoop::getInstance()->nextTick($processNextBatch);
+                        Loop::nextTick($processNextBatch);
                     })
                     ->catch($reject)
                 ;
             };
 
-            EventLoop::getInstance()->nextTick($processNextBatch);
+            Loop::nextTick($processNextBatch);
         });
     }
 
@@ -409,12 +409,12 @@ final readonly class ConcurrencyHandler
                             $allResults[$key] = $result;
                         }
                         $batchIndex++;
-                        EventLoop::getInstance()->nextTick($processNextBatch);
+                        Loop::nextTick($processNextBatch);
                     })
                 ;
             };
 
-            EventLoop::getInstance()->nextTick($processNextBatch);
+            Loop::nextTick($processNextBatch);
         });
     }
 
