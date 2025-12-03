@@ -193,7 +193,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         $this->resolved = true;
         $this->value = $value;
 
-        Loop::nextTick(function () use ($value) {
+        Loop::microTask(function () use ($value) {
             $callbacks = $this->thenCallbacks;
             $this->thenCallbacks = [];
 
@@ -231,7 +231,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             ? $reason
             : new PromiseRejectionException($reason);
 
-        Loop::nextTick(function () {
+        Loop::microTask(function () {
             $callbacks = $this->catchCallbacks;
             $this->catchCallbacks = [];
 
@@ -312,9 +312,9 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             };
 
             if ($this->resolved) {
-                Loop::nextTick(fn () => $handleResolve($this->value));
+                Loop::microTask(fn () => $handleResolve($this->value));
             } elseif ($this->rejected) {
-                Loop::nextTick(fn () => $handleReject($this->reason));
+                Loop::microTask(fn () => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -444,7 +444,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
      * @param  TResolveValue  $value  The value to resolve the promise with
      * @return PromiseInterface<TResolveValue> A promise resolved with the provided value
      */
-    public static function resolved(mixed $value): PromiseInterface
+    public static function resolved(mixed $value = null): PromiseInterface
     {
         /** @var Promise<TResolveValue> $promise */
         $promise = new self();
