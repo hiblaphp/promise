@@ -100,7 +100,7 @@ final readonly class ConcurrencyHandler
                             if ($completed === $total) {
                                 $resolve($this->orderResultsByKeys($results, $originalKeys));
                             } else {
-                                Loop::nextTick($processNext);
+                                Loop::microTask($processNext);
                             }
                         })
                         ->catch(function ($error) use ($reject): void {
@@ -110,7 +110,7 @@ final readonly class ConcurrencyHandler
                 }
             };
 
-            Loop::nextTick($processNext);
+            Loop::microTask($processNext);
         });
     }
 
@@ -214,7 +214,7 @@ final readonly class ConcurrencyHandler
                             if ($completed === $total) {
                                 $resolve($this->orderResultsByKeys($results, $originalKeys));
                             } else {
-                                Loop::nextTick($processNext);
+                                Loop::microTask($processNext);
                             }
                         })
                         ->catch(function ($error) use (
@@ -237,14 +237,14 @@ final readonly class ConcurrencyHandler
                             if ($completed === $total) {
                                 $resolve($this->orderResultsByKeys($results, $originalKeys));
                             } else {
-                                Loop::nextTick($processNext);
+                                Loop::microTask($processNext);
                             }
                         })
                     ;
                 }
             };
 
-            Loop::nextTick($processNext);
+            Loop::microTask($processNext);
         });
     }
 
@@ -324,13 +324,13 @@ final readonly class ConcurrencyHandler
                             $allResults[$key] = $result;
                         }
                         $batchIndex++;
-                        Loop::nextTick($processNextBatch);
+                        Loop::microTask($processNextBatch);
                     })
                     ->catch($reject)
                 ;
             };
 
-            Loop::nextTick($processNextBatch);
+            Loop::microTask($processNextBatch);
         });
     }
 
@@ -409,12 +409,12 @@ final readonly class ConcurrencyHandler
                             $allResults[$key] = $result;
                         }
                         $batchIndex++;
-                        Loop::nextTick($processNextBatch);
+                        Loop::microTask($processNextBatch);
                     })
                 ;
             };
 
-            Loop::nextTick($processNextBatch);
+            Loop::microTask($processNextBatch);
         });
     }
 
