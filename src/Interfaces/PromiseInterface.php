@@ -54,6 +54,13 @@ interface PromiseInterface
     public function finally(callable $onFinally): PromiseInterface;
 
     /**
+     * Checks if the promise has been settled (resolved or rejected).
+     *
+     * @return bool True if the promise is settled, false otherwise.
+     */
+    public function isSettled(): bool;
+
+    /**
      * Checks if the promise has been resolved with a value.
      *
      * @return bool True if resolved, false otherwise.
