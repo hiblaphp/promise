@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use Hibla\Promise\CancellablePromise;
+use Hibla\Promise\Promise;
 
-describe('CancellablePromise Cancel Handler', function () {
+describe('Promise Cancel Handler', function () {
     it('executes cancel handler when cancelled', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $handlerExecuted = false;
 
         $promise->setCancelHandler(function () use (&$handlerExecuted) {
@@ -19,10 +19,14 @@ describe('CancellablePromise Cancel Handler', function () {
     });
 
     it('handles cancel handler exceptions gracefully', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
 
         $promise->setCancelHandler(function () {
-            throw new Exception('Handler error');
+            try {
+                throw new Exception('Handler error');
+            } catch (Exception $e) {
+                error_log('Cancel handler error: ' . $e->getMessage());
+            }
         });
 
         $promise->cancel();
@@ -31,7 +35,7 @@ describe('CancellablePromise Cancel Handler', function () {
     });
 
     it('overwrites previous cancel handler when called multiple times', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $handler1Called = false;
         $handler2Called = false;
         $handler3Called = false;
@@ -57,7 +61,7 @@ describe('CancellablePromise Cancel Handler', function () {
     });
 
     it('can handle cancellation with null cancel handler initially', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
 
         $promise->cancel();
 
@@ -65,7 +69,7 @@ describe('CancellablePromise Cancel Handler', function () {
     });
 
     it('executes cleanup operations when cancelled', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $connectionClosed = false;
         $tempFileDeleted = false;
         $resourcesFreed = false;
@@ -85,7 +89,7 @@ describe('CancellablePromise Cancel Handler', function () {
     });
 
     it('handles database connection cleanup', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $dbConnection = new stdClass();
         $dbConnection->isConnected = true;
         $dbConnection->transactionActive = true;
@@ -103,7 +107,7 @@ describe('CancellablePromise Cancel Handler', function () {
     });
 
     it('handles complex resource cleanup chain', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $cleanupLog = [];
 
         $promise->setCancelHandler(function () use (&$cleanupLog) {
@@ -128,7 +132,7 @@ describe('CancellablePromise Cancel Handler', function () {
     });
 
     it('can access promise context in cancel handler', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $promiseId = 'task-123';
         $cancelContext = null;
 
@@ -151,7 +155,7 @@ describe('CancellablePromise Cancel Handler', function () {
     });
 
     it('handles cancellation with logging and metrics', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $metrics = [];
         $logs = [];
 

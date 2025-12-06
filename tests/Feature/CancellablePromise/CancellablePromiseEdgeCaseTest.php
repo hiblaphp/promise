@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use Hibla\Promise\CancellablePromise;
+use Hibla\Promise\Promise;
 
-describe('CancellablePromise Edge Cases', function () {
+describe('Promise Edge Cases', function () {
     it('handles rapid cancel and resolve attempts', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
 
         $promise->cancel();
         $promise->resolve('value');
@@ -20,7 +20,7 @@ describe('CancellablePromise Edge Cases', function () {
     });
 
     it('handles multiple cancel handlers', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $callCount = 0;
 
         $promise->setCancelHandler(function () use (&$callCount) {
@@ -40,7 +40,7 @@ describe('CancellablePromise Edge Cases', function () {
         $promises = [];
 
         for ($i = 0; $i < 10; $i++) {
-            $promises[] = new CancellablePromise();
+            $promises[] = new Promise();
         }
 
         foreach ($promises as $promise) {

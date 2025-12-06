@@ -66,9 +66,9 @@ interface PromiseStaticInterface
      *
      * @template TRaceValue
      * @param  array<int|string, PromiseInterface<TRaceValue>|callable(): PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
-     * @return CancellablePromiseInterface<TRaceValue> A promise that settles with the first settled promise.
+     * @return PromiseInterface<TRaceValue> A promise that settles with the first settled promise.
      */
-    public static function race(array $promises): CancellablePromiseInterface;
+    public static function race(array $promises): PromiseInterface;
 
     /**
      * Wait for any promise in the collection to resolve.
@@ -80,9 +80,9 @@ interface PromiseStaticInterface
      *
      * @template TAnyValue
      * @param  array<int|string, PromiseInterface<TAnyValue>|callable(): PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
-     * @return CancellablePromiseInterface<TAnyValue> A promise that resolves with the first settled value
+     * @return PromiseInterface<TAnyValue> A promise that resolves with the first settled value
      */
-    public static function any(array $promises): CancellablePromiseInterface;
+    public static function any(array $promises): PromiseInterface;
 
     /**
      * Create a promise that resolves or rejects with a timeout.
@@ -90,9 +90,9 @@ interface PromiseStaticInterface
      * @template TTimeoutValue
      * @param  PromiseInterface<TTimeoutValue>  $promise  The promise to add timeout to
      * @param  float  $seconds  Timeout duration in seconds
-     * @return CancellablePromiseInterface<TTimeoutValue>
+     * @return PromiseInterface<TTimeoutValue>
      */
-    public static function timeout(PromiseInterface $promise, float $seconds): CancellablePromiseInterface;
+    public static function timeout(PromiseInterface $promise, float $seconds): PromiseInterface;
 
     /**
      * Execute multiple tasks with a concurrency limit.

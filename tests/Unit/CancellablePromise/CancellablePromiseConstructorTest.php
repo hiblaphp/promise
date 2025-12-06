@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-use Hibla\Promise\CancellablePromise;
+use Hibla\Promise\Promise;
 
-describe('CancellablePromise Constructor', function () {
+describe('Promise Constructor', function () {
     it('works with executor function', function () {
         $resolved = false;
 
-        $promise = new CancellablePromise(function ($resolve, $reject) use (&$resolved) {
+        $promise = new Promise(function ($resolve, $reject) use (&$resolved) {
             $resolve('executor result');
             $resolved = true;
         });
@@ -19,8 +19,8 @@ describe('CancellablePromise Constructor', function () {
         ;
     });
 
-    it('can be cancelled even after executor resolved it', function () {
-        $promise = new CancellablePromise(function ($resolve, $reject) {
+    it('cannot be cancelled after executor resolved it', function () {
+        $promise = new Promise(function ($resolve, $reject) {
             $resolve('executor result');
         });
 
@@ -30,7 +30,7 @@ describe('CancellablePromise Constructor', function () {
 
         $promise->cancel();
 
-        expect($promise->isCancelled())->toBeTrue()
+        expect($promise->isCancelled())->toBeFalse()
             ->and($promise->isResolved())->toBeTrue()
             ->and($promise->isRejected())->toBeFalse()
             ->and($promise->getValue())->toBe('executor result')
@@ -40,7 +40,7 @@ describe('CancellablePromise Constructor', function () {
     it('can be cancelled before executor resolves', function () {
         $resolveCallback = null;
 
-        $promise = new CancellablePromise(function ($resolve, $reject) use (&$resolveCallback) {
+        $promise = new Promise(function ($resolve, $reject) use (&$resolveCallback) {
             $resolveCallback = $resolve;
         });
 

@@ -8,7 +8,6 @@ use Hibla\EventLoop\Loop;
 use Hibla\Promise\Exceptions\PromiseRejectionException;
 use Hibla\Promise\Handlers\ConcurrencyHandler;
 use Hibla\Promise\Handlers\PromiseCollectionHandler;
-use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Interfaces\PromiseStaticInterface;
 
@@ -17,7 +16,9 @@ use Hibla\Promise\Interfaces\PromiseStaticInterface;
  *
  * This class provides a robust mechanism for handling eventual results or
  * failures from asynchronous tasks. It supports chaining, error handling,
- * and a clear lifecycle (pending, fulfilled, rejected).
+ * cancellation, and a clear lifecycle (pending, fulfilled, rejected, cancelled).
+ *
+ * All promises are cancellable. Cancelling a settled promise is a no-op.
  *
  * @template TValue
  *
@@ -25,25 +26,6 @@ use Hibla\Promise\Interfaces\PromiseStaticInterface;
  */
 class Promise implements PromiseStaticInterface, PromiseInterface
 {
-    /**
-     * @var bool
-     */
-    private bool $resolved = false;
-
-    /**
-     * @var bool
-     */
-    private bool $rejected = false;
-
-    /**
-     * @var mixed
-     */
-    private mixed $value = null;
-
-    /**
-     * @var mixed
-     */
-    private mixed $reason = null;
 
     /**
      * @var array<callable>
@@ -61,20 +43,31 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     private array $finallyCallbacks = [];
 
     /**
-     * @var CancellablePromiseInterface<mixed>|null
+     * @var array<PromiseInterface<mixed>>
      */
-    protected ?CancellablePromiseInterface $rootCancellable = null;
+    protected array $childPromises = [];
 
     /**
-     * @var PromiseCollectionHandler|null
+     * @var PromiseInterface<mixed>|null
+     * @phpstan-ignore-next-line property.onlyWritten This property is read by Promise Collection Handler via clousre  binding.
      */
+    private ?PromiseInterface $parentPromise = null;
+
+    /**
+     * @var callable|null
+     */
+    private $cancelHandler = null;
+
     private static ?PromiseCollectionHandler $collectionHandler = null;
 
-    /**
-     * @var ConcurrencyHandler|null
-     */
+
     private static ?ConcurrencyHandler $concurrencyHandler = null;
 
+    private bool $resolved = false;
+    private bool $rejected = false;
+    private bool $cancelled = false;
+    private mixed $value = null;
+    private mixed $reason = null;
     private bool $hasRejectionHandler = false;
     private bool $valueAccessed = false;
 
@@ -92,8 +85,8 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn ($value = null) => $this->resolve($value),
-                    fn ($reason = null) => $this->reject($reason)
+                    fn($value = null) => $this->resolve($value),
+                    fn($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -250,6 +243,98 @@ class Promise implements PromiseStaticInterface, PromiseInterface
 
     /**
      * {@inheritdoc}
+     */
+    public function cancel(): void
+    {
+        if ($this->isSettled()) {
+            return;
+        }
+
+        if ($this->cancelled) {
+            return;
+        }
+
+        $this->cancelled = true;
+
+        $this->thenCallbacks = [];
+        $this->catchCallbacks = [];
+        $this->finallyCallbacks = [];
+
+        if ($this->cancelHandler !== null) {
+            ($this->cancelHandler)();
+            $this->cancelHandler = null;
+        }
+
+        $this->cancelChildren();
+        $this->reject(new \Exception('Promise cancelled'));
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function isCancelled(): bool
+    {
+        return $this->cancelled;
+    }
+
+    /**
+     * Set a handler to be called when the promise is cancelled.
+     * 
+     * This is useful for cleanup operations like:
+     * - Cancelling timers
+     * - Aborting HTTP requests
+     * - Closing file handles
+     * - Releasing resources
+     *
+     * @param callable $handler The cleanup handler to execute on cancellation
+     * @return void
+     */
+    public function setCancelHandler(callable $handler): void
+    {
+        if ($this->cancelled) {
+            $handler();
+            return;
+        }
+
+        $this->cancelHandler = $handler;
+    }
+
+    /**
+     * Cancel all child promises (forward propagation).
+     * This is called when a parent promise is cancelled.
+     *
+     * @return void
+     */
+    private function cancelChildren(): void
+    {
+        foreach ($this->childPromises as $child) {
+            if (!$child->isCancelled()) {
+                $child->cancel();
+            }
+        }
+        $this->childPromises = [];
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @template TResult
+     *
+     * @param  callable(TValue): (TResult|PromiseInterface<TResult>)|null  $onFulfilled
+     * @param  callable(mixed): (TResult|PromiseInterface<TResult>)|null  $onRejected
+     * @return PromiseInterface<TResult>
+     */
+    /**
+     * {@inheritdoc}
+     *
+     * @template TResult
+     *
+     * @param  callable(TValue): (TResult|PromiseInterface<TResult>)|null  $onFulfilled
+     * @param  callable(mixed): (TResult|PromiseInterface<TResult>)|null  $onRejected
+     * @return PromiseInterface<TResult>
+     */
+    /**
+     * {@inheritdoc}
      *
      * @template TResult
      *
@@ -259,18 +344,22 @@ class Promise implements PromiseStaticInterface, PromiseInterface
      */
     public function then(?callable $onFulfilled = null, ?callable $onRejected = null): PromiseInterface
     {
-        if ($onRejected !== null) {
+        if ($onRejected !== null || $onFulfilled !== null) {
             $this->hasRejectionHandler = true;
         }
 
-        // Determine the root cancellable promise
-        $root = $this instanceof CancellablePromiseInterface
-            ? $this
-            : $this->rootCancellable;
+        /** @var Promise<TResult>|null $newPromise */
+        $newPromise = null;
 
-        $executor = function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected, $root) {
-            $handleResolve = function ($value) use ($onFulfilled, $resolve, $reject, $root) {
-                if ($root !== null && $root->isCancelled()) {
+        $executor = function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected, &$newPromise) {
+            $handleResolve = function ($value) use ($onFulfilled, $resolve, $reject, &$newPromise) {
+                if ($this->isCancelled()) {
+                    $reject(new \Exception('Promise cancelled'));
+                    return;
+                }
+
+                assert($newPromise instanceof PromiseInterface);
+                if ($newPromise->isCancelled()) {
                     return;
                 }
 
@@ -290,8 +379,14 @@ class Promise implements PromiseStaticInterface, PromiseInterface
                 }
             };
 
-            $handleReject = function ($reason) use ($onRejected, $resolve, $reject, $root) {
-                if ($root !== null && $root->isCancelled()) {
+            $handleReject = function ($reason) use ($onRejected, $resolve, $reject, &$newPromise) {
+                if ($this->isCancelled()) {
+                    $reject(new \Exception('Promise cancelled'));
+                    return;
+                }
+
+                assert($newPromise instanceof PromiseInterface);
+                if ($newPromise->isCancelled()) {
                     return;
                 }
 
@@ -311,10 +406,15 @@ class Promise implements PromiseStaticInterface, PromiseInterface
                 }
             };
 
+            if ($this->isCancelled()) {
+                Loop::microTask(fn() => $reject(new \Exception('Promise cancelled')));
+                return;
+            }
+
             if ($this->resolved) {
-                Loop::microTask(fn () => $handleResolve($this->value));
+                Loop::microTask(fn() => $handleResolve($this->value));
             } elseif ($this->rejected) {
-                Loop::microTask(fn () => $handleReject($this->reason));
+                Loop::microTask(fn() => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -322,37 +422,14 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         };
 
         /** @var Promise<TResult> $newPromise */
-        $newPromise = $root !== null
-            ? new CancellablePromise($executor)
-            : new self($executor);
+        $newPromise = new self($executor);
 
-        // Set root cancellable reference
-        if ($this instanceof CancellablePromiseInterface) {
-            $newPromise->rootCancellable = $this;
-        } elseif ($this->rootCancellable !== null) {
-            $newPromise->rootCancellable = $this->rootCancellable;
-        }
+        // Set parent-child relationship for backward cancellation propagation for any() and race() promise combinator only
+        $newPromise->parentPromise = $this;
 
-        // If new promise is cancellable, forward cancellation to root
-        if ($newPromise instanceof CancellablePromise && $root !== null) {
-            $newPromise->setCancelHandler(function () use ($root) {
-                $root->cancel();
-            });
-        }
-
-        if ($onRejected !== null || $onFulfilled !== null) {
-            $this->hasRejectionHandler = true;
-        }
+        $this->childPromises[] = $newPromise;
 
         return $newPromise;
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function getRootCancellable(): ?CancellablePromiseInterface
-    {
-        return $this->rootCancellable;
     }
 
     /**
@@ -493,9 +570,9 @@ class Promise implements PromiseStaticInterface, PromiseInterface
      * @inheritDoc
      * @template TRaceValue
      * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
-     * @return CancellablePromiseInterface<TRaceValue> A promise that settles with the first settled promise.
+     * @return PromiseInterface<TRaceValue> A promise that settles with the first settled promise.
      */
-    public static function race(array $promises): CancellablePromiseInterface
+    public static function race(array $promises): PromiseInterface
     {
         return self::getCollectionHandler()->race($promises);
     }
@@ -504,9 +581,9 @@ class Promise implements PromiseStaticInterface, PromiseInterface
      * @inheritDoc
      * @template TAnyValue
      * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
-     * @return CancellablePromiseInterface<TAnyValue> A promise that resolves with the first settled value
+     * @return PromiseInterface<TAnyValue> A promise that resolves with the first settled value
      */
-    public static function any(array $promises): CancellablePromiseInterface
+    public static function any(array $promises): PromiseInterface
     {
         return self::getCollectionHandler()->any($promises);
     }
@@ -516,9 +593,9 @@ class Promise implements PromiseStaticInterface, PromiseInterface
      * @template TTimeoutValue
      * @param  PromiseInterface<TTimeoutValue>  $promise  The promise to add timeout to
      * @param  float  $seconds  Timeout duration in seconds
-     * @return CancellablePromiseInterface<TTimeoutValue>
+     * @return PromiseInterface<TTimeoutValue>
      */
-    public static function timeout(PromiseInterface $promise, float $seconds): CancellablePromiseInterface
+    public static function timeout(PromiseInterface $promise, float $seconds): PromiseInterface
     {
         return self::getCollectionHandler()->timeout($promise, $seconds);
     }
@@ -607,16 +684,11 @@ class Promise implements PromiseStaticInterface, PromiseInterface
 
     public function __destruct()
     {
-        // Don't report if value/reason was directly accessed (e.g., in tests or directly awaiting the promise)
         if ($this->valueAccessed) {
             return;
         }
 
-        if ($this->rejected && ! $this->hasRejectionHandler) {
-            if ($this instanceof CancellablePromiseInterface && $this->isCancelled()) {
-                return;
-            }
-
+        if ($this->rejected && ! $this->hasRejectionHandler && !$this->cancelled) {
             $reason = $this->reason;
             $message = $reason instanceof \Throwable
                 ? \sprintf(

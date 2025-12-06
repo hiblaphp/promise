@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hibla\Promise\Handlers;
 
-use Hibla\Promise\CancellablePromise;
 use Hibla\Promise\Exceptions\AggregateErrorException;
 use Hibla\Promise\Exceptions\TimeoutException;
-use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use InvalidArgumentException;
@@ -16,8 +14,8 @@ final readonly class PromiseCollectionHandler
 {
     /**
      * @template TAllValue
-     * @param  array<int|string, PromiseInterface<TAllValue>>  $promises  Array of PromiseInterface instances.
-     * @return PromiseInterface<array<int|string, TAllValue>> A promise that resolves with an array of results.
+     * @param  array<int|string, PromiseInterface<TAllValue>>  $promises 
+     * @return PromiseInterface<array<int|string, TAllValue>>
      */
     public function all(array $promises): PromiseInterface
     {
@@ -187,19 +185,19 @@ final readonly class PromiseCollectionHandler
 
     /**
      * @template TRaceValue
-     * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
-     * @return CancellablePromiseInterface<TRaceValue> A promise that settles with the first settled promise.
+     * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises 
+     * @return PromiseInterface<TRaceValue>
      */
-    public function race(array $promises): CancellablePromiseInterface
+    public function race(array $promises): PromiseInterface
     {
         /** @var array<int|string, PromiseInterface<mixed>> $promiseInstances */
         $promiseInstances = [];
         $settled = false;
 
         /**
-         * @var CancellablePromise<TRaceValue> $cancellablePromise
+         * @var Promise<TRaceValue> $racePromise
          */
-        $cancellablePromise = new CancellablePromise(
+        $racePromise = new Promise(
             /** @param callable(TRaceValue): void $resolve */
             function (callable $resolve, callable $reject) use ($promises, &$promiseInstances, &$settled): void {
                 if ($promises === []) {
@@ -237,23 +235,24 @@ final readonly class PromiseCollectionHandler
             }
         );
 
-        $cancellablePromise->setCancelHandler(function () use (&$promiseInstances, &$settled): void {
+        $racePromise->setCancelHandler(function () use (&$promiseInstances, &$settled): void {
             $settled = true;
             foreach ($promiseInstances as $promise) {
-                $this->cancelPromiseIfPossible($promise);
+                $this->cancelPromiseAndParents($promise);
             }
         });
 
-        return $cancellablePromise;
+        return $racePromise;
     }
 
     /**
+     * {@inheritdoc}
      * @template TTimeoutValue
-     * @param  PromiseInterface<TTimeoutValue>  $promise  The promise to add timeout to
-     * @param  float  $seconds  Timeout duration in seconds
-     * @return CancellablePromiseInterface<TTimeoutValue>
+     * @param  PromiseInterface<TTimeoutValue>  $promise 
+     * @param  float  $seconds 
+     * @return PromiseInterface<TTimeoutValue>
      */
-    public function timeout(PromiseInterface $promise, float $seconds): CancellablePromiseInterface
+    public function timeout(PromiseInterface $promise, float $seconds): PromiseInterface
     {
         if ($seconds <= 0) {
             throw new InvalidArgumentException('Timeout must be greater than zero');
@@ -261,8 +260,7 @@ final readonly class PromiseCollectionHandler
 
         $timeoutPromise = (new TimerHandler())
             ->delay($seconds)
-            ->then(fn () => throw new TimeoutException($seconds))
-        ;
+            ->then(fn() => throw new TimeoutException($seconds));
 
         return $this->race([$promise, $timeoutPromise]);
     }
@@ -270,16 +268,16 @@ final readonly class PromiseCollectionHandler
     /**
      * @template TAnyValue
      * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
-     * @return CancellablePromiseInterface<TAnyValue> A promise that resolves with the first settled value
+     * @return PromiseInterface<TAnyValue> A promise that resolves with the first settled value
      */
-    public function any(array $promises): CancellablePromiseInterface
+    public function any(array $promises): PromiseInterface
     {
         /** @var array<int|string, PromiseInterface<mixed>> $promiseInstances */
         $promiseInstances = [];
         $settled = false;
 
-        /** @var CancellablePromise<TAnyValue> $cancellablePromise */
-        $cancellablePromise = new CancellablePromise(
+        /** @var Promise<TAnyValue> $anyPromise */
+        $anyPromise = new Promise(
             function (callable $resolve, callable $reject) use ($promises, &$promiseInstances, &$settled): void {
                 if ($promises === []) {
                     $reject(new AggregateErrorException([], 'No promises provided'));
@@ -336,23 +334,23 @@ final readonly class PromiseCollectionHandler
             }
         );
 
-        $cancellablePromise->setCancelHandler(
+        $anyPromise->setCancelHandler(
             function () use (&$promiseInstances, &$settled): void {
                 $settled = true;
                 foreach ($promiseInstances as $promise) {
-                    $this->cancelPromiseIfPossible($promise);
+                    $this->cancelPromiseAndParents($promise);
                 }
             }
         );
 
-        return $cancellablePromise;
+        return $anyPromise;
     }
 
     /**
-     * @param  mixed  $promise  The item to validate
-     * @param  int|string  $index  The index/key of the item in the original array
-     * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances  Previously validated promises to cancel on failure
-     * @param  callable  $reject  Rejection callback to call on validation failure
+     * @param  mixed  $promise  
+     * @param  int|string  $index 
+     * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances  
+     * @param  callable  $reject 
      * @return bool True if valid, false if invalid (and rejection was triggered)
      */
     private function validatePromiseInstance(
@@ -363,7 +361,7 @@ final readonly class PromiseCollectionHandler
     ): bool {
         if (! ($promise instanceof PromiseInterface)) {
             foreach ($promiseInstances as $p) {
-                $this->cancelPromiseIfPossible($p);
+                $p->cancel();
             }
 
             $reject(new InvalidArgumentException(
@@ -381,7 +379,10 @@ final readonly class PromiseCollectionHandler
     }
 
     /**
+     * @param  bool  $settled
      * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances
+     * @param  int|string  $winnerIndex
+     * @return void
      */
     private function handleAnySettlement(bool &$settled, array &$promiseInstances, int|string $winnerIndex): void
     {
@@ -391,12 +392,15 @@ final readonly class PromiseCollectionHandler
             if ($index === $winnerIndex) {
                 continue;
             }
-            $this->cancelPromiseIfPossible($promise);
+            $this->cancelPromiseAndParents($promise);
         }
     }
 
     /**
+     * @param  bool  $settled
      * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances
+     * @param  int|string  $winnerIndex
+     * @return void
      */
     private function handleRaceSettlement(bool &$settled, array &$promiseInstances, int|string $winnerIndex): void
     {
@@ -406,38 +410,56 @@ final readonly class PromiseCollectionHandler
             if ($index === $winnerIndex) {
                 continue;
             }
-            $this->cancelPromiseIfPossible($promise);
+            $this->cancelPromiseAndParents($promise);
         }
     }
 
     /**
-     * @param  PromiseInterface<mixed>  $promise
+     * Cancel a promise and recursively cancel its parent promise (backward propagation).
+     * This is specifically for race/any scenarios where we need to cancel
+     * the underlying promise that a child was created from via then().
+     * 
+     * Only used in race() and any() - not in general cancel flow.
+     * This ensures that when we cancel a child promise created by then(),
+     * we also cancel the parent delay/timer promise that it was chained from.
+     *
+     * @param  PromiseInterface<mixed>  $promise  The promise to cancel
      */
-    private function cancelPromiseIfPossible(PromiseInterface $promise): void
+    private function cancelPromiseAndParents(PromiseInterface $promise): void
     {
-        if ($promise instanceof CancellablePromise && ! $promise->isCancelled()) {
-            $promise->cancel();
-        } elseif ($promise instanceof Promise) {
-            $rootCancellable = $promise->getRootCancellable();
-            if ($rootCancellable !== null && ! $rootCancellable->isCancelled()) {
-                $rootCancellable->cancel();
+        if ($promise->isCancelled()) {
+            return;
+        }
+
+        if ($promise instanceof Promise) {
+            // Access private property via closure binding
+            $getParent = function () {
+                return $this->parentPromise; // @phpstan-ignore-line This property is called in a closure binding to avoid polluting promise class with getters
+            };
+
+            /** @var Promise<mixed>|null $parent */
+            $parent = $getParent->call($promise);
+
+            if ($parent !== null && !$parent->isCancelled()) {
+                $this->cancelPromiseAndParents($parent);
             }
         }
+
+        $promise->cancel();
     }
 
     /**
      * @param  array<int|string, mixed>  $array
+     * @return bool
      */
     private function shouldPreserveKeys(array $array): bool
     {
         $keys = array_keys($array);
 
-        // If any key is a string, preserve keys
         if (\count(array_filter($keys, 'is_string')) > 0) {
             return true;
         }
 
-        // If numeric keys are not sequential starting from 0, preserve them
         $expectedKeys = range(0, \count($array) - 1);
 
         return $keys !== $expectedKeys;

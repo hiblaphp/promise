@@ -556,3 +556,280 @@ describe('Array Ordering and Key Preservation', function () {
         });
     });
 });
+
+describe('Edge Cases for Ordering', function () {
+    it('preserves order with unicode string keys', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            'café' => delayedValue('coffee', 30),
+            'naïve' => delayedValue('innocent', 10),
+            '日本' => delayedValue('japan', 20),
+            '🚀' => delayedValue('rocket', 5),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe(['café', 'naïve', '日本', '🚀']);
+        expect($results['café'])->toBe('coffee');
+        expect($results['🚀'])->toBe('rocket');
+    });
+
+    it('handles numeric string keys correctly', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            '5' => delayedValue('five', 30),
+            '10' => delayedValue('ten', 10),
+            '15' => delayedValue('fifteen', 20),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe([5, 10, 15]);
+    });
+
+    it('preserves order with empty string key', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            '' => delayedValue('empty', 30),
+            'a' => delayedValue('letter_a', 10),
+            'b' => delayedValue('letter_b', 20),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe(['', 'a', 'b']);
+        expect($results[''])->toBe('empty');
+    });
+
+    it('preserves order with very long string keys', function () {
+        $handler = new PromiseCollectionHandler();
+        $longKey1 = str_repeat('a', 1000);
+        $longKey2 = str_repeat('b', 1000);
+        $longKey3 = str_repeat('c', 1000);
+
+        $promises = [
+            $longKey1 => delayedValue('long_a', 30),
+            $longKey2 => delayedValue('long_b', 10),
+            $longKey3 => delayedValue('long_c', 20),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe([$longKey1, $longKey2, $longKey3]);
+    });
+
+    it('preserves order with special character keys', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            '$money' => delayedValue('cash', 30),
+            '#hashtag' => delayedValue('social', 10),
+            '@mention' => delayedValue('user', 20),
+            'dot.notation' => delayedValue('path', 5),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe(['$money', '#hashtag', '@mention', 'dot.notation']);
+    });
+
+    it('preserves order with null values in results', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            'first' => delayedValue(null, 30),
+            'second' => delayedValue('value', 10),
+            'third' => delayedValue(null, 20),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect($results['first'])->toBeNull();
+        expect($results['second'])->toBe('value');
+        expect($results['third'])->toBeNull();
+        expect(array_keys($results))->toBe(['first', 'second', 'third']);
+    });
+
+    it('preserves order with extreme timing differences', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            'slow' => delayedValue('10000ms', 10000),  
+            'fast' => delayedValue('1ms', 1),        
+            'medium' => delayedValue('100ms', 100),    
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect($results)->toBe([
+            'slow' => '10000ms',
+            'fast' => '1ms',
+            'medium' => '100ms',
+        ]);
+        expect(array_keys($results))->toBe(['slow', 'fast', 'medium']);
+    });
+
+    it('preserves order with duplicate values across different keys', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            'key_a' => delayedValue('same_value', 30),
+            'key_b' => delayedValue('same_value', 10),
+            'key_c' => delayedValue('same_value', 20),
+            'key_d' => delayedValue('different', 5),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect($results['key_a'])->toBe('same_value');
+        expect($results['key_b'])->toBe('same_value');
+        expect($results['key_c'])->toBe('same_value');
+        expect($results['key_d'])->toBe('different');
+        expect(array_keys($results))->toBe(['key_a', 'key_b', 'key_c', 'key_d']);
+    });
+
+    it('preserves order with very large numeric keys', function () {
+        $handler = new PromiseCollectionHandler();
+        $largeKey1 = PHP_INT_MAX - 2;
+        $largeKey2 = PHP_INT_MAX - 1;
+        $largeKey3 = PHP_INT_MAX;
+
+        $promises = [
+            $largeKey1 => delayedValue('max_minus_2', 30),
+            $largeKey2 => delayedValue('max_minus_1', 10),
+            $largeKey3 => delayedValue('max', 20),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe([$largeKey1, $largeKey2, $largeKey3]);
+    });
+
+    it('preserves order with zero, positive, and negative keys mixed', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            -100 => delayedValue('very_negative', 30),
+            -1 => delayedValue('negative_one', 10),
+            0 => delayedValue('zero', 20),
+            1 => delayedValue('positive_one', 5),
+            100 => delayedValue('very_positive', 15),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe([-100, -1, 0, 1, 100]);
+    });
+
+    it('preserves order with promises resolving to complex types', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            'array' => delayedValue(['nested' => ['deep' => 'value']], 30),
+            'object' => delayedValue((object)['prop' => 'value'], 10),
+            'resource_like' => delayedValue(['type' => 'resource'], 20),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect($results['array'])->toBe(['nested' => ['deep' => 'value']]);
+        expect($results['object']->prop)->toBe('value');
+        expect(array_keys($results))->toBe(['array', 'object', 'resource_like']);
+    });
+
+    it('preserves order with single promise', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            'only' => delayedValue('lonely', 50),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect($results)->toBe(['only' => 'lonely']);
+        expect(array_keys($results))->toBe(['only']);
+    });
+
+    it('preserves order with JSON-like string keys', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            '{"key": "value"}' => delayedValue('json_key', 30),
+            '[1, 2, 3]' => delayedValue('array_key', 10),
+            'key="value"' => delayedValue('xml_key', 20),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe(['{"key": "value"}', '[1, 2, 3]', 'key="value"']);
+    });
+
+    it('preserves order in allSettled with mixed rejections and types', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            'null_result' => delayedValue(null, 30),
+            'rejection' => delayedReject('error', 10),
+            'array_result' => delayedValue(['data' => 'value'], 20),
+            'another_rejection' => delayedReject('error2', 5),
+            'string_result' => delayedValue('success', 15),
+        ];
+
+        $results = $handler->allSettled($promises)->await();
+
+        expect($results['null_result']['status'])->toBe('fulfilled');
+        expect($results['null_result']['value'])->toBeNull();
+        expect($results['rejection']['status'])->toBe('rejected');
+        expect(array_keys($results))->toBe(['null_result', 'rejection', 'array_result', 'another_rejection', 'string_result']);
+    });
+
+    it('preserves order with whitespace in string keys', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            'key with spaces' => delayedValue('value1', 30),
+            "key\twith\ttabs" => delayedValue('value2', 10),
+            "key\nwith\nnewlines" => delayedValue('value3', 20),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe([
+            'key with spaces',
+            "key\twith\ttabs",
+            "key\nwith\nnewlines",
+        ]);
+    });
+
+    it('handles promises completing at exact same time', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            'a' => delayedValue('first', 5),
+            'b' => delayedValue('second', 5),
+            'c' => delayedValue('third', 5),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe(['a', 'b', 'c']);
+    });
+
+    it('preserves order with very small numeric keys', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            -1000 => delayedValue('very_negative', 30),
+            -500 => delayedValue('negative', 10),
+            -1 => delayedValue('almost_zero', 20),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe([-1000, -500, -1]);
+    });
+    
+    it('preserves order with case-sensitive string keys', function () {
+        $handler = new PromiseCollectionHandler();
+        $promises = [
+            'Key' => delayedValue('capitalized', 30),
+            'key' => delayedValue('lowercase', 10),
+            'KEY' => delayedValue('uppercase', 20),
+        ];
+
+        $results = $handler->all($promises)->await();
+
+        expect(array_keys($results))->toBe(['Key', 'key', 'KEY']);
+        expect($results['Key'])->toBe('capitalized');
+        expect($results['key'])->toBe('lowercase');
+        expect($results['KEY'])->toBe('uppercase');
+    });
+});

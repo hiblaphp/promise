@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hibla\Promise;
 
-use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
 
 /**
@@ -48,9 +47,9 @@ function allSettled(array $promises): PromiseInterface
  *
  * @template TRaceValue
  * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
- * @return CancellablePromiseInterface<TRaceValue> A promise that settles with the first settled promise.
+ * @return PromiseInterface<TRaceValue> A promise that settles with the first settled promise.
  */
-function race(array $promises): CancellablePromiseInterface
+function race(array $promises): PromiseInterface
 {
     return Promise::race($promises);
 }
@@ -65,9 +64,9 @@ function race(array $promises): CancellablePromiseInterface
  *
  * @template TAnyValue
  * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
- * @return CancellablePromiseInterface<TAnyValue> A promise that resolves with the first settled value
+ * @return PromiseInterface<TAnyValue> A promise that resolves with the first settled value
  */
-function any(array $promises): CancellablePromiseInterface
+function any(array $promises): PromiseInterface
 {
     return Promise::any($promises);
 }
@@ -78,9 +77,9 @@ function any(array $promises): CancellablePromiseInterface
  * @template TTimeoutValue
  * @param  PromiseInterface<TTimeoutValue>  $promise  The promise to add timeout to
  * @param  float  $seconds  Timeout duration in seconds
- * @return CancellablePromiseInterface<TTimeoutValue>
+ * @return PromiseInterface<TTimeoutValue>
  */
-function timeout(PromiseInterface $promise, float $seconds): CancellablePromiseInterface
+function timeout(PromiseInterface $promise, float $seconds): PromiseInterface
 {
     return Promise::timeout($promise, $seconds);
 }

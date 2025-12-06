@@ -12,6 +12,10 @@ use LogicException;
  * A Promise is an object representing a value that may not be available yet,
  * but will be resolved at some point in the future.
  *
+ * All promises are cancellable. Cancelling a settled promise is a no-op.
+ * Cancellation propagates forward through promise chains (child promises are
+ * cancelled when parent is cancelled).
+ *
  * @template TValue The type of the value that the promise will resolve with.
  */
 interface PromiseInterface
@@ -23,10 +27,16 @@ interface PromiseInterface
      * the return value of the executed handler. This allows for chaining and
      * transforming values.
      *
+     * A promise makes the following guarantees about handlers registered in
+     * the same call to then():
+     *
+     *  1. Only one of $onFulfilled or $onRejected will be called, never both.
+     *  2. $onFulfilled and $onRejected will never be called more than once.
+     *
      * @template TResult
      *
-     * @param  callable(TValue): (TResult|PromiseInterface<TResult>)  $onFulfilled  Handler for successful resolution.
-     * @param  callable(mixed): (TResult|PromiseInterface<TResult>)  $onRejected  Handler for rejection.
+     * @param  callable(TValue): (TResult|PromiseInterface<TResult>)|null  $onFulfilled  Handler for successful resolution.
+     * @param  callable(mixed): (TResult|PromiseInterface<TResult>)|null  $onRejected  Handler for rejection.
      * @return PromiseInterface<TResult> A new promise for method chaining.
      */
     public function then(?callable $onFulfilled = null, ?callable $onRejected = null): PromiseInterface;
@@ -35,6 +45,9 @@ interface PromiseInterface
      * Attaches a handler for promise rejection only.
      *
      * Equivalent to calling then(null, $onRejected).
+     *
+     * Additionally, you can type hint the $reason argument of $onRejected to catch
+     * only specific error types.
      *
      * @template TResult
      *
@@ -49,12 +62,73 @@ interface PromiseInterface
      * The finally handler receives no arguments and its return value
      * does not affect the promise chain unless it throws an exception.
      *
+     * finally() behaves similarly to the synchronous finally statement. When combined
+     * with catch(), finally() allows you to write code that is similar to the familiar
+     * synchronous catch/finally pair.
+     *
+     * * If $promise fulfills, and $onFulfilledOrRejected returns successfully,
+     *   the returned promise will fulfill with the same value as $promise.
+     * * If $promise fulfills, and $onFulfilledOrRejected throws or returns a
+     *   rejected promise, the returned promise will reject with the thrown exception or
+     *   rejected promise's reason.
+     * * If $promise rejects, and $onFulfilledOrRejected returns successfully,
+     *   the returned promise will reject with the same reason as $promise.
+     * * If $promise rejects, and $onFulfilledOrRejected throws or returns a
+     *   rejected promise, the returned promise will reject with the thrown exception or
+     *   rejected promise's reason.
+     *
+     * @param callable(): (void|PromiseInterface<void>) $onFulfilledOrRejected
      * @return PromiseInterface<TValue> A new promise that will settle with the same outcome as the original.
      */
-    public function finally(callable $onFinally): PromiseInterface;
+    public function finally(callable $onFulfilledOrRejected): PromiseInterface;
+
+    /**
+     * The cancel() method notifies the creator of the promise that there is no
+     * further interest in the results of the operation.
+     *
+     * Once a promise is settled (either fulfilled or rejected), calling cancel() on
+     * a promise has no effect (no-op).
+     *
+     * Cancelling a pending promise will:
+     * - Mark the promise as cancelled
+     * - Execute any registered cancel handlers (for cleanup)
+     * - Cancel all child promises in the chain (forward propagation)
+     * - Reject the promise with a cancellation exception
+     *
+     * Example use cases:
+     * ```php
+     * // Cancel a timeout
+     * $promise = Promise::timeout($operation, 5.0);
+     * $promise->cancel();  // Cancels timer and operation
+     *
+     * // Cancel HTTP request
+     * $promise = $http->get('https://api.example.com');
+     * $promise->cancel();  // Aborts the HTTP request
+     *
+     * // Cancel all losing promises in a race
+     * $winner = Promise::race([$promise1, $promise2, $promise3]);
+     * // When one wins, others are automatically cancelled
+     * ```
+     *
+     * @return void
+     */
+    public function cancel(): void;
+
+    /**
+     * Check if the promise has been cancelled.
+     *
+     * A cancelled promise will also be rejected, but this method allows you
+     * to distinguish between a regular rejection and a cancellation.
+     *
+     * @return bool True if cancel() was called on this promise, false otherwise.
+     */
+    public function isCancelled(): bool;
 
     /**
      * Checks if the promise has been settled (resolved or rejected).
+     *
+     * A settled promise is one that is no longer pending - it has either
+     * been fulfilled with a value or rejected with a reason.
      *
      * @return bool True if the promise is settled, false otherwise.
      */
@@ -69,6 +143,8 @@ interface PromiseInterface
 
     /**
      * Checks if the promise has been rejected with a reason.
+     *
+     * Note: A cancelled promise will also be rejected.
      *
      * @return bool True if rejected, false otherwise.
      */
@@ -87,9 +163,10 @@ interface PromiseInterface
      * This method should only be called after confirming the promise
      * is resolved using isResolved().
      *
-     * @return TValue The resolved value.
+     * Calling this method marks the value as accessed for unhandled
+     * rejection tracking purposes.
      *
-     * @throws LogicException If called on a non-resolved promise.
+     * @return TValue|null The resolved value, or null if not resolved.
      */
     public function getValue(): mixed;
 
@@ -99,27 +176,12 @@ interface PromiseInterface
      * This method should only be called after confirming the promise
      * is rejected using isRejected().
      *
-     * @return mixed The rejection reason.
+     * Calling this method marks the reason as accessed for unhandled
+     * rejection tracking purposes.
      *
-     * @throws LogicException If called on a non-rejected promise.
+     * @return mixed The rejection reason, or null if not rejected.
      */
     public function getReason(): mixed;
-
-    /**
-     * Get the root cancellable promise in the chain, if any.
-     *
-     * this method is primarily intended for advanced use cases and debugging and testing.
-     *
-     * If the promise is not a CancellablePromise or is not part of a chain,
-     * this method will return null.
-     *
-     * Note: Typically, only the creator of the CancellablePromise should
-     * call cancel(). This method is provided for advanced use cases and
-     * debugging. Use with care.
-     *
-     * @return CancellablePromiseInterface<mixed>|null
-     */
-    public function getRootCancellable(): ?CancellablePromiseInterface;
 
     /**
      * **[BLOCKING]** Wait for the promise to resolve synchronously.
@@ -145,9 +207,12 @@ interface PromiseInterface
      * $result = $promise->await();  // Blocks to get result
      * ```
      *
-     * @param  bool  $resetEventLoop  Reset event loop after completion
-     * @return TValue
-     * @throws \Throwable
+     * If the promise is rejected, this method will throw the rejection reason.
+     * If the promise is resolved, this method will return the resolved value.
+     *
+     * @param  bool  $resetEventLoop  Reset event loop after completion (default: false)
+     * @return TValue The resolved value
+     * @throws \Throwable If the promise is rejected
      */
-    public function await(bool $resetEventLoop = true): mixed;
+    public function await(bool $resetEventLoop = false): mixed;
 }
