@@ -12,13 +12,15 @@ use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Interfaces\PromiseStaticInterface;
 
 /**
- * A Promise/A+ compliant implementation for managing asynchronous operations.
+ * A Promise implementation inspired by Promise/A+ with first-class
+ * cancellation support. Extends the standard 3-state model with a
+ * distinct cancelled state for better resource management.
  *
- * This class provides a robust mechanism for handling eventual results or
- * failures from asynchronous tasks. It supports chaining, error handling,
- * cancellation, and a clear lifecycle (pending, fulfilled, rejected, cancelled).
+ * Differences from Promise/A+:
+ * - Adds cancelled state (pending/fulfilled/rejected/cancelled)
+ * - Cancelled promises don't settle to rejected
+ * - Provides setCancelHandler() for cleanup or execution on cancellation
  *
- * All promises are cancellable. Cancelling a settled promise is a no-op.
  *
  * @template TValue
  *

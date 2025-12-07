@@ -81,34 +81,36 @@ interface PromiseInterface
     public function finally(callable $onFulfilledOrRejected): PromiseInterface;
 
     /**
-     * The cancel() method notifies the creator of the promise that there is no
-     * further interest in the results of the operation.
+     * Cancel a pending promise and all child promises in the chain.
      *
-     * Backward propagation is not supported and only allowed in Promise::race() and Promise::any().
+     * Cancelling a promise notifies that there is no further interest in its result
+     * and triggers cleanup through registered cancel handlers. This is distinct from
+     * rejection - a cancelled promise has a separate cancelled state.
      *
-     * Once a promise is settled (either fulfilled or rejected), calling cancel() on
-     * a promise has no effect (no-op).
+     * **Propagation:**
+     * - Forward: Child promises created via then() are automatically cancelled
+     * - Backward: NOT supported in normal chains (only in race() and any())
+     * - Settled: Calling cancel() on an already settled promise is a no-op
      *
-     * Cancelling a pending promise will:
-     * - Mark the promise as cancelled
-     * - Execute any registered cancel handlers (for cleanup)
-     * - Cancel all child promises in the chain (forward propagation)
-     * - Reject the promise with a cancellation exception
+     * **Important:** Always cancel at the source promise, not at intermediate chain points.
+     * Cancelling a child promise does not cancel the parent or underlying operation.
      *
-     * Example use cases:
      * ```php
-     * // Cancel a timeout
-     * $promise = Promise::timeout($operation, 5.0);
-     * $promise->cancel();  // Cancels timer and operation
+     * // CORRECT: Cancel the source
+     * $download = downloadFile($url);
+     * $result = $download->then(fn($file) => processFile($file));
+     * $download->cancel();  // Cancels download AND processFile chain
      *
-     * // Cancel HTTP request
-     * $promise = $http->get('https://api.example.com');
-     * $promise->cancel();  // Aborts the HTTP request
-     *
-     * // Cancel all losing promises in a race
-     * $winner = Promise::race([$promise1, $promise2, $promise3]);
-     * // When one wins, others are automatically cancelled
+     * // WRONG: Cancelling child doesn't stop the download
+     * $result = downloadFile($url)->then(fn($file) => processFile($file));
+     * $result->cancel();  // Download continues, only child is cancelled
      * ```
+     *
+     * **Use cases:**
+     * - User clicks "Stop" button on long-running operation
+     * - Timeout expires and you want to stop related async work
+     * - Switching views/pages and need to abort pending requests
+     * - Race condition resolved: cancel all losing competitors
      *
      * @return void
      */
@@ -116,12 +118,17 @@ interface PromiseInterface
 
     /**
      * Set a handler to be called when the promise is cancelled.
+     * You can register multiple cancel handlers, and they will be called in reverse order of registration.
      *
      * This is useful for cleanup operations like:
      * - Cancelling timers
      * - Aborting HTTP requests
      * - Closing file handles
      * - Releasing resources
+     *
+     * Note:
+     * - Cancel handlers are executed in reverse order of registration (LIFO).
+     * - By default, cancel handlers execute synchronously.
      *
      * @param callable $handler The cleanup handler to execute on cancellation
      * @return void
