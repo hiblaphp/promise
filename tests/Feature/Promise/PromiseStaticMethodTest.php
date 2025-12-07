@@ -498,13 +498,4 @@ describe('Promise Static Methods', function () {
             expect($promise->getReason())->toBe($exception);
         });
     });
-
-    describe('Promise::reset', function () {
-        it('resets the static AsyncOperations instance', function () {
-            Promise::reset();
-
-            $result = Promise::resolved('after reset')->await();
-            expect($result)->toBe('after reset');
-        });
-    });
 });

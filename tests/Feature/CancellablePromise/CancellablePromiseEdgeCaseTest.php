@@ -14,7 +14,7 @@ describe('Promise Edge Cases', function () {
         $promise->reject(new Exception('error'));
 
         expect($promise->isCancelled())->toBeTrue()
-            ->and($promise->isRejected())->toBeTrue()
+            ->and($promise->isRejected())->toBeFalse()
             ->and($promise->isResolved())->toBeFalse()
         ;
     });
@@ -33,7 +33,7 @@ describe('Promise Edge Cases', function () {
         $promise->cancel();
 
         expect($promise->isCancelled())->toBeTrue();
-        expect($callCount)->toBe(10);
+        expect($callCount)->toBe(11);
     });
 
     it('maintains state consistency under stress', function () {

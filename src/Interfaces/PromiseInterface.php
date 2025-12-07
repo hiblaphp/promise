@@ -83,7 +83,7 @@ interface PromiseInterface
     /**
      * The cancel() method notifies the creator of the promise that there is no
      * further interest in the results of the operation.
-     * 
+     *
      * Backward propagation is not supported and only allowed in Promise::race() and Promise::any().
      *
      * Once a promise is settled (either fulfilled or rejected), calling cancel() on
@@ -113,6 +113,7 @@ interface PromiseInterface
      * @return void
      */
     public function cancel(): void;
+
     /**
      * Set a handler to be called when the promise is cancelled.
      *

@@ -34,7 +34,7 @@ describe('Promise Cancel Handler', function () {
         expect($promise->isCancelled())->toBeTrue();
     });
 
-    it('overwrites previous cancel handler when called multiple times', function () {
+    it('does not overwrite previous cancel handler when called multiple times', function () {
         $promise = new Promise();
         $handler1Called = false;
         $handler2Called = false;
@@ -54,10 +54,35 @@ describe('Promise Cancel Handler', function () {
 
         $promise->cancel();
 
-        expect($handler1Called)->toBeFalse()
-            ->and($handler2Called)->toBeFalse()
+        expect($handler1Called)->toBeTrue()
+            ->and($handler2Called)->toBeTrue()
             ->and($handler3Called)->toBeTrue()
         ;
+    });
+
+    it('executes cancel handlers in LIFO order (reverse order of registration)', function () {
+        $promise = new Promise();
+        $executionOrder = [];
+
+        $promise->setCancelHandler(function () use (&$executionOrder) {
+            $executionOrder[] = 'first handler';
+        });
+
+        $promise->setCancelHandler(function () use (&$executionOrder) {
+            $executionOrder[] = 'second handler';
+        });
+
+        $promise->setCancelHandler(function () use (&$executionOrder) {
+            $executionOrder[] = 'third handler';
+        });
+
+        $promise->cancel();
+
+        expect($executionOrder)->toBe([
+            'third handler',
+            'second handler',
+            'first handler',
+        ]);
     });
 
     it('can handle cancellation with null cancel handler initially', function () {

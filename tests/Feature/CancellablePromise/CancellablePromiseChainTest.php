@@ -37,7 +37,7 @@ describe('Promise Chaining', function () {
         $promise->cancel();
 
         expect($promise->isCancelled())->toBeTrue()
-            ->and($promise->isRejected())->toBeTrue()
+            ->and($promise->isRejected())->toBeFalse()
         ;
         expect($chainedPromise)->toBeInstanceOf(PromiseInterface::class);
     });

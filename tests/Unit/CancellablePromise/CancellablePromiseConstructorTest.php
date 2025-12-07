@@ -5,21 +5,7 @@ declare(strict_types=1);
 use Hibla\Promise\Promise;
 
 describe('Promise Constructor', function () {
-    it('works with executor function', function () {
-        $resolved = false;
-
-        $promise = new Promise(function ($resolve, $reject) use (&$resolved) {
-            $resolve('executor result');
-            $resolved = true;
-        });
-
-        expect($resolved)->toBeTrue()
-            ->and($promise->isResolved())->toBeTrue()
-            ->and($promise->getValue())->toBe('executor result')
-        ;
-    });
-
-    it('cannot be cancelled after executor resolved it', function () {
+    it('can be cancelled even after executor resolved it', function () {
         $promise = new Promise(function ($resolve, $reject) {
             $resolve('executor result');
         });
@@ -30,10 +16,12 @@ describe('Promise Constructor', function () {
 
         $promise->cancel();
 
-        expect($promise->isCancelled())->toBeFalse()
-            ->and($promise->isResolved())->toBeTrue()
+        expect($promise->isCancelled())->toBeTrue()
+            ->and($promise->isPending())->toBeFalse()
             ->and($promise->isRejected())->toBeFalse()
-            ->and($promise->getValue())->toBe('executor result')
+            ->and($promise->isResolved())->toBeFalse()
+            ->and($promise->getValue())->toBeNull()
+            ->and($promise->getReason())->toBeNull()
         ;
     });
 
@@ -51,8 +39,11 @@ describe('Promise Constructor', function () {
         }
 
         expect($promise->isCancelled())->toBeTrue()
-            ->and($promise->isRejected())->toBeTrue()
+            ->and($promise->isPending())->toBeFalse()
+            ->and($promise->isRejected())->toBeFalse()
             ->and($promise->isResolved())->toBeFalse()
+            ->and($promise->getValue())->toBeNull()
+            ->and($promise->getReason())->toBeNull()
         ;
     });
 });

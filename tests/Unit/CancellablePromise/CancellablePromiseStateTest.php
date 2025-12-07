@@ -54,19 +54,19 @@ describe('Promise State Management', function () {
         $promise->cancel();
 
         expect($promise->isCancelled())->toBeTrue()
-            ->and($promise->isRejected())->toBeTrue()
+            ->and($promise->isRejected())->toBeFalse()
             ->and($promise->isPending())->toBeFalse()
         ;
     });
 
-    it('becomes rejected when cancelled', function () {
+    it('cannot be rejected when cancelled', function () {
         $promise = new Promise();
 
         $promise->cancel();
 
-        expect($promise->isRejected())->toBeTrue();
-        expect($promise->getReason())->toBeInstanceOf(Exception::class);
-        expect($promise->getReason()->getMessage())->toBe('Promise cancelled');
+        expect($promise->isRejected())->toBeFalse();
+        expect($promise->getReason())->toBeNull();
+        expect($promise->getReason())->toBeNull();
     });
 
     it('cannot be resolved after cancellation', function () {
@@ -77,7 +77,7 @@ describe('Promise State Management', function () {
 
         expect($promise->isCancelled())->toBeTrue()
             ->and($promise->isResolved())->toBeFalse()
-            ->and($promise->isRejected())->toBeTrue()
+            ->and($promise->isRejected())->toBeFalse()
         ;
     });
 
@@ -88,9 +88,9 @@ describe('Promise State Management', function () {
         $promise->reject(new Exception('new error'));
 
         expect($promise->isCancelled())->toBeTrue()
-            ->and($promise->isRejected())->toBeTrue()
+            ->and($promise->isRejected())->toBeFalse()
         ;
-        expect($promise->getReason()->getMessage())->toBe('Promise cancelled');
+        expect($promise->getReason())->toBeNull();
     });
 
     it('ignores multiple cancellation attempts', function () {
