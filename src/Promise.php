@@ -26,7 +26,6 @@ use Hibla\Promise\Interfaces\PromiseStaticInterface;
  */
 class Promise implements PromiseStaticInterface, PromiseInterface
 {
-
     /**
      * @var array<callable>
      */
@@ -59,7 +58,6 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     private $cancelHandler = null;
 
     private static ?PromiseCollectionHandler $collectionHandler = null;
-
 
     private static ?ConcurrencyHandler $concurrencyHandler = null;
 
@@ -156,16 +154,6 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     public function isSettled(): bool
     {
         return $this->resolved || $this->rejected;
-    }
-
-    /**
-     * Check if the Promise can be settled (resolved or rejected).
-     *
-     * @return bool True if the Promise can be settled, false if already settled
-     */
-    private function canSettle(): bool
-    {
-        return ! $this->resolved && ! $this->rejected;
     }
 
     /**
@@ -279,7 +267,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
 
     /**
      * Set a handler to be called when the promise is cancelled.
-     * 
+     *
      * This is useful for cleanup operations like:
      * - Cancelling timers
      * - Aborting HTTP requests
@@ -293,26 +281,11 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     {
         if ($this->cancelled) {
             $handler();
+
             return;
         }
 
         $this->cancelHandler = $handler;
-    }
-
-    /**
-     * Cancel all child promises (forward propagation).
-     * This is called when a parent promise is cancelled.
-     *
-     * @return void
-     */
-    private function cancelChildren(): void
-    {
-        foreach ($this->childPromises as $child) {
-            if (!$child->isCancelled()) {
-                $child->cancel();
-            }
-        }
-        $this->childPromises = [];
     }
 
     /**
@@ -355,6 +328,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             $handleResolve = function ($value) use ($onFulfilled, $resolve, $reject, &$newPromise) {
                 if ($this->isCancelled()) {
                     $reject(new \Exception('Promise cancelled'));
+
                     return;
                 }
 
@@ -382,6 +356,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             $handleReject = function ($reason) use ($onRejected, $resolve, $reject, &$newPromise) {
                 if ($this->isCancelled()) {
                     $reject(new \Exception('Promise cancelled'));
+
                     return;
                 }
 
@@ -408,6 +383,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
 
             if ($this->isCancelled()) {
                 Loop::microTask(fn() => $reject(new \Exception('Promise cancelled')));
+
                 return;
             }
 
@@ -667,6 +643,33 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     }
 
     /**
+     * Check if the Promise can be settled (resolved or rejected).
+     *
+     * @return bool True if the Promise can be settled, false if already settled
+     */
+    private function canSettle(): bool
+    {
+        return ! $this->resolved && ! $this->rejected;
+    }
+
+    /**
+     * Cancel all child promises (forward propagation). 
+     * Backward propagation is not supported and only allowed in Promise::race() and Promise::any().
+     * This is called when a parent promise is cancelled.
+     *
+     * @return void
+     */
+    private function cancelChildren(): void
+    {
+        foreach ($this->childPromises as $child) {
+            if (! $child->isCancelled()) {
+                $child->cancel();
+            }
+        }
+        $this->childPromises = [];
+    }
+
+    /**
      * Safely convert mixed value to string for error messages
      */
     private function safeStringCast(mixed $value): string
@@ -688,7 +691,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             return;
         }
 
-        if ($this->rejected && ! $this->hasRejectionHandler && !$this->cancelled) {
+        if ($this->rejected && ! $this->hasRejectionHandler && ! $this->cancelled) {
             $reason = $this->reason;
             $message = $reason instanceof \Throwable
                 ? \sprintf(

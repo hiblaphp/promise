@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hibla\Promise\Interfaces;
 
-use LogicException;
-
 /**
  * Represents the eventual result of an asynchronous operation.
  *
@@ -85,6 +83,8 @@ interface PromiseInterface
     /**
      * The cancel() method notifies the creator of the promise that there is no
      * further interest in the results of the operation.
+     * 
+     * Backward propagation is not supported and only allowed in Promise::race() and Promise::any().
      *
      * Once a promise is settled (either fulfilled or rejected), calling cancel() on
      * a promise has no effect (no-op).
@@ -113,6 +113,19 @@ interface PromiseInterface
      * @return void
      */
     public function cancel(): void;
+    /**
+     * Set a handler to be called when the promise is cancelled.
+     *
+     * This is useful for cleanup operations like:
+     * - Cancelling timers
+     * - Aborting HTTP requests
+     * - Closing file handles
+     * - Releasing resources
+     *
+     * @param callable $handler The cleanup handler to execute on cancellation
+     * @return void
+     */
+    public function setCancelHandler(callable $handler): void;
 
     /**
      * Check if the promise has been cancelled.

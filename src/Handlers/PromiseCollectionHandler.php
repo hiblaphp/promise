@@ -14,7 +14,7 @@ final readonly class PromiseCollectionHandler
 {
     /**
      * @template TAllValue
-     * @param  array<int|string, PromiseInterface<TAllValue>>  $promises 
+     * @param  array<int|string, PromiseInterface<TAllValue>>  $promises
      * @return PromiseInterface<array<int|string, TAllValue>>
      */
     public function all(array $promises): PromiseInterface
@@ -185,7 +185,7 @@ final readonly class PromiseCollectionHandler
 
     /**
      * @template TRaceValue
-     * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises 
+     * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises
      * @return PromiseInterface<TRaceValue>
      */
     public function race(array $promises): PromiseInterface
@@ -248,8 +248,8 @@ final readonly class PromiseCollectionHandler
     /**
      * {@inheritdoc}
      * @template TTimeoutValue
-     * @param  PromiseInterface<TTimeoutValue>  $promise 
-     * @param  float  $seconds 
+     * @param  PromiseInterface<TTimeoutValue>  $promise
+     * @param  float  $seconds
      * @return PromiseInterface<TTimeoutValue>
      */
     public function timeout(PromiseInterface $promise, float $seconds): PromiseInterface
@@ -260,7 +260,8 @@ final readonly class PromiseCollectionHandler
 
         $timeoutPromise = (new TimerHandler())
             ->delay($seconds)
-            ->then(fn() => throw new TimeoutException($seconds));
+            ->then(fn () => throw new TimeoutException($seconds))
+        ;
 
         return $this->race([$promise, $timeoutPromise]);
     }
@@ -347,10 +348,10 @@ final readonly class PromiseCollectionHandler
     }
 
     /**
-     * @param  mixed  $promise  
-     * @param  int|string  $index 
-     * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances  
-     * @param  callable  $reject 
+     * @param  mixed  $promise
+     * @param  int|string  $index
+     * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances
+     * @param  callable  $reject
      * @return bool True if valid, false if invalid (and rejection was triggered)
      */
     private function validatePromiseInstance(
@@ -418,7 +419,7 @@ final readonly class PromiseCollectionHandler
      * Cancel a promise and recursively cancel its parent promise (backward propagation).
      * This is specifically for race/any scenarios where we need to cancel
      * the underlying promise that a child was created from via then().
-     * 
+     *
      * Only used in race() and any() - not in general cancel flow.
      * This ensures that when we cancel a child promise created by then(),
      * we also cancel the parent delay/timer promise that it was chained from.
@@ -440,7 +441,7 @@ final readonly class PromiseCollectionHandler
             /** @var Promise<mixed>|null $parent */
             $parent = $getParent->call($promise);
 
-            if ($parent !== null && !$parent->isCancelled()) {
+            if ($parent !== null && ! $parent->isCancelled()) {
                 $this->cancelPromiseAndParents($parent);
             }
         }

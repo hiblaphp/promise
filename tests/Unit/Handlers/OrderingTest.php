@@ -651,9 +651,9 @@ describe('Edge Cases for Ordering', function () {
     it('preserves order with extreme timing differences', function () {
         $handler = new PromiseCollectionHandler();
         $promises = [
-            'slow' => delayedValue('10000ms', 10000),  
-            'fast' => delayedValue('1ms', 1),        
-            'medium' => delayedValue('100ms', 100),    
+            'slow' => delayedValue('10000ms', 10000),
+            'fast' => delayedValue('1ms', 1),
+            'medium' => delayedValue('100ms', 100),
         ];
 
         $results = $handler->all($promises)->await();
@@ -816,7 +816,7 @@ describe('Edge Cases for Ordering', function () {
 
         expect(array_keys($results))->toBe([-1000, -500, -1]);
     });
-    
+
     it('preserves order with case-sensitive string keys', function () {
         $handler = new PromiseCollectionHandler();
         $promises = [

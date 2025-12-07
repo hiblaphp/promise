@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Hibla\Promise\Promise;
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Promise\Promise;
 
 describe('Promise State Management', function () {
     it('implements PromiseInterface', function () {

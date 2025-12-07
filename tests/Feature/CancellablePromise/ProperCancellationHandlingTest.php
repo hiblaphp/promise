@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\EventLoop\Loop;
 use Hibla\Promise\Handlers\TimerHandler;
 
@@ -10,11 +12,11 @@ describe('Promise Cancellation Chain Propagation', function () {
         $parent = $timerHandler->delay(5.0);
 
         $child1 = $parent->then(function () {
-            return "child1 done";
+            return 'child1 done';
         });
 
         $child2 = $parent->then(function () {
-            return "child2 done";
+            return 'child2 done';
         });
 
         Loop::addTimer(1.0, function () use ($child1) {
@@ -33,7 +35,7 @@ describe('Promise Cancellation Chain Propagation', function () {
             $completed = true;
         });
 
-        while (!$completed) {
+        while (! $completed) {
             Loop::run();
         }
     });
@@ -43,11 +45,11 @@ describe('Promise Cancellation Chain Propagation', function () {
         $parent2 = $timerHandler->delay(5.0);
 
         $child1_2 = $parent2->then(function () {
-            return "child1_2 done";
+            return 'child1_2 done';
         });
 
         $child2_2 = $parent2->then(function () {
-            return "child2_2 done";
+            return 'child2_2 done';
         });
 
         Loop::addTimer(1.0, function () use ($parent2) {
@@ -66,7 +68,7 @@ describe('Promise Cancellation Chain Propagation', function () {
             $completed2 = true;
         });
 
-        while (!$completed2) {
+        while (! $completed2) {
             Loop::run();
         }
     });
@@ -76,19 +78,19 @@ describe('Promise Cancellation Chain Propagation', function () {
         $parent3 = $timerHandler->delay(5.0);
 
         $chain1 = $parent3->then(function () {
-            return "chain1";
+            return 'chain1';
         });
 
         $chain2 = $chain1->then(function () {
-            return "chain2";
+            return 'chain2';
         });
 
         $chain3 = $chain2->then(function () {
-            return "chain3";
+            return 'chain3';
         });
 
         $chain4 = $chain3->then(function () {
-            return "chain4";
+            return 'chain4';
         });
 
         Loop::addTimer(1.0, function () use ($parent3) {
@@ -108,7 +110,7 @@ describe('Promise Cancellation Chain Propagation', function () {
             $completed3 = true;
         });
 
-        while (!$completed3) {
+        while (! $completed3) {
             Loop::run();
         }
     });
@@ -118,15 +120,15 @@ describe('Promise Cancellation Chain Propagation', function () {
         $parent4 = $timerHandler->delay(5.0);
 
         $chain1_4 = $parent4->then(function () {
-            return "chain1_4";
+            return 'chain1_4';
         });
 
         $chain2_4 = $chain1_4->then(function () {
-            return "chain2_4";
+            return 'chain2_4';
         });
 
         $chain3_4 = $chain2_4->then(function () {
-            return "chain3_4";
+            return 'chain3_4';
         });
 
         Loop::addTimer(1.0, function () use ($chain2_4) {
@@ -145,7 +147,7 @@ describe('Promise Cancellation Chain Propagation', function () {
             $completed4 = true;
         });
 
-        while (!$completed4) {
+        while (! $completed4) {
             Loop::run();
         }
     });
@@ -155,23 +157,23 @@ describe('Promise Cancellation Chain Propagation', function () {
         $parent5 = $timerHandler->delay(5.0);
 
         $branchA1 = $parent5->then(function () {
-            return "branchA1";
+            return 'branchA1';
         });
 
         $branchA2 = $branchA1->then(function () {
-            return "branchA2";
+            return 'branchA2';
         });
 
         $branchB1 = $parent5->then(function () {
-            return "branchB1";
+            return 'branchB1';
         });
 
         $branchB2 = $branchB1->then(function () {
-            return "branchB2";
+            return 'branchB2';
         });
 
         $branchC1 = $parent5->then(function () {
-            return "branchC1";
+            return 'branchC1';
         });
 
         Loop::addTimer(1.0, function () use ($branchA1) {
@@ -192,7 +194,7 @@ describe('Promise Cancellation Chain Propagation', function () {
             $completed5 = true;
         });
 
-        while (!$completed5) {
+        while (! $completed5) {
             Loop::run();
         }
     });
@@ -202,15 +204,15 @@ describe('Promise Cancellation Chain Propagation', function () {
         $parent6 = $timerHandler->delay(5.0);
 
         $chain1_6 = $parent6->then(function () {
-            return "chain1_6";
+            return 'chain1_6';
         });
 
         $chain2_6 = $chain1_6->then(function () {
-            return "chain2_6";
+            return 'chain2_6';
         });
 
         $leaf = $chain2_6->then(function () {
-            return "leaf";
+            return 'leaf';
         });
 
         Loop::addTimer(1.0, function () use ($leaf) {
@@ -229,7 +231,7 @@ describe('Promise Cancellation Chain Propagation', function () {
             $completed6 = true;
         });
 
-        while (!$completed6) {
+        while (! $completed6) {
             Loop::run();
         }
     });
