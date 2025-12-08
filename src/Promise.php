@@ -46,11 +46,6 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     /**
      * @var array<callable>
      */
-    private array $finallyCallbacks = [];
-
-    /**
-     * @var array<callable>
-     */
     private array $cancelHandlers = [];
 
     /**
@@ -83,8 +78,8 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn ($value = null) => $this->resolve($value),
-                    fn ($reason = null) => $this->reject($reason)
+                    fn($value = null) => $this->resolve($value),
+                    fn($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -181,13 +176,6 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             foreach ($callbacks as $callback) {
                 $callback($value);
             }
-
-            $finallyCallbacks = $this->finallyCallbacks;
-            $this->finallyCallbacks = [];
-
-            foreach ($finallyCallbacks as $callback) {
-                $callback();
-            }
         });
     }
 
@@ -219,14 +207,21 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             foreach ($callbacks as $callback) {
                 $callback($this->reason);
             }
-
-            $finallyCallbacks = $this->finallyCallbacks;
-            $this->finallyCallbacks = [];
-
-            foreach ($finallyCallbacks as $callback) {
-                $callback();
-            }
         });
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function cancelChain(): void
+    {
+        $root = $this;
+
+        while ($root->parentPromise !== null && !$root->parentPromise->isCancelled()) {
+            $root = $root->parentPromise;
+        }
+
+        $root->cancel();
     }
 
     /**
@@ -243,7 +238,6 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         $this->rejected = false;
         $this->thenCallbacks = [];
         $this->catchCallbacks = [];
-        $this->finallyCallbacks = [];
 
         foreach (array_reverse($this->cancelHandlers) as $handler) {
             $handler();
@@ -378,15 +372,15 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             };
 
             if ($this->isCancelled()) {
-                Loop::microTask(fn () => $reject(new \Exception('Promise cancelled')));
+                Loop::microTask(fn() => $reject(new \Exception('Promise cancelled')));
 
                 return;
             }
 
             if ($this->resolved) {
-                Loop::microTask(fn () => $handleResolve($this->value));
+                Loop::microTask(fn() => $handleResolve($this->value));
             } elseif ($this->rejected) {
-                Loop::microTask(fn () => $handleReject($this->reason));
+                Loop::microTask(fn() => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -426,10 +420,22 @@ class Promise implements PromiseStaticInterface, PromiseInterface
      */
     public function finally(callable $onFinally): PromiseInterface
     {
-        $this->finallyCallbacks[] = $onFinally;
-        $this->hasRejectionHandler = true;
-
-        return $this;
+        return $this->then(
+            function ($value) use ($onFinally) {
+                $result = $onFinally();
+                if ($result instanceof PromiseInterface) {
+                    return $result->then(fn() => $value);
+                }
+                return $value;
+            },
+            function ($reason) use ($onFinally): PromiseInterface {
+                $result = $onFinally();
+                if ($result instanceof PromiseInterface) {
+                    return $result->then(fn() => throw $reason);
+                }
+                throw $reason;
+            }
+        );
     }
 
     /**

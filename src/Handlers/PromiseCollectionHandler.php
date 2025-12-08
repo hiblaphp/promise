@@ -96,7 +96,7 @@ final readonly class PromiseCollectionHandler
                     $results[$key] = null;
                 }
             } else {
-                $results = array_fill(0, count($promises), null);
+                $results = array_fill(0, \count($promises), null);
             }
 
             $completed = 0;
@@ -219,7 +219,7 @@ final readonly class PromiseCollectionHandler
                                 return;
                             }
 
-                            $this->handleRaceSettlement($settled, $promiseInstances, $index);
+                            $this->handleWinnerSettlement($settled, $promiseInstances, $index);
                             $resolve($value);
                         })
                         ->catch(function ($reason) use ($reject, &$settled, &$promiseInstances, $index): void {
@@ -227,7 +227,7 @@ final readonly class PromiseCollectionHandler
                                 return;
                             }
 
-                            $this->handleRaceSettlement($settled, $promiseInstances, $index);
+                            $this->handleWinnerSettlement($settled, $promiseInstances, $index);
                             $reject($reason);
                         })
                     ;
@@ -238,7 +238,7 @@ final readonly class PromiseCollectionHandler
         $racePromise->setCancelHandler(function () use (&$promiseInstances, &$settled): void {
             $settled = true;
             foreach ($promiseInstances as $promise) {
-                $this->cancelPromiseAndParents($promise);
+                $promise->cancelChain();
             }
         });
 
@@ -246,7 +246,6 @@ final readonly class PromiseCollectionHandler
     }
 
     /**
-     * {@inheritdoc}
      * @template TTimeoutValue
      * @param  PromiseInterface<TTimeoutValue>  $promise
      * @param  float  $seconds
@@ -260,16 +259,15 @@ final readonly class PromiseCollectionHandler
 
         $timeoutPromise = (new TimerHandler())
             ->delay($seconds)
-            ->then(fn () => throw new TimeoutException($seconds))
-        ;
+            ->then(fn() => throw new TimeoutException($seconds));
 
         return $this->race([$promise, $timeoutPromise]);
     }
 
     /**
      * @template TAnyValue
-     * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
-     * @return PromiseInterface<TAnyValue> A promise that resolves with the first settled value
+     * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises
+     * @return PromiseInterface<TAnyValue> 
      */
     public function any(array $promises): PromiseInterface
     {
@@ -304,7 +302,7 @@ final readonly class PromiseCollectionHandler
                                     return;
                                 }
 
-                                $this->handleAnySettlement($settled, $promiseInstances, $index);
+                                $this->handleWinnerSettlement($settled, $promiseInstances, $index);
                                 $resolve($value);
                             }
                         )
@@ -339,7 +337,7 @@ final readonly class PromiseCollectionHandler
             function () use (&$promiseInstances, &$settled): void {
                 $settled = true;
                 foreach ($promiseInstances as $promise) {
-                    $this->cancelPromiseAndParents($promise);
+                    $promise->cancelChain();
                 }
             }
         );
@@ -385,7 +383,7 @@ final readonly class PromiseCollectionHandler
      * @param  int|string  $winnerIndex
      * @return void
      */
-    private function handleAnySettlement(bool &$settled, array &$promiseInstances, int|string $winnerIndex): void
+    private function handleWinnerSettlement(bool &$settled, array &$promiseInstances, int|string $winnerIndex): void
     {
         $settled = true;
 
@@ -393,60 +391,9 @@ final readonly class PromiseCollectionHandler
             if ($index === $winnerIndex) {
                 continue;
             }
-            $this->cancelPromiseAndParents($promise);
+
+            $promise->cancelChain();
         }
-    }
-
-    /**
-     * @param  bool  $settled
-     * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances
-     * @param  int|string  $winnerIndex
-     * @return void
-     */
-    private function handleRaceSettlement(bool &$settled, array &$promiseInstances, int|string $winnerIndex): void
-    {
-        $settled = true;
-
-        foreach ($promiseInstances as $index => $promise) {
-            if ($index === $winnerIndex) {
-                continue;
-            }
-            $this->cancelPromiseAndParents($promise);
-        }
-    }
-
-    /**
-     * Cancel a promise and recursively cancel its parent promise (backward propagation).
-     * This is specifically for race/any scenarios where we need to cancel
-     * the underlying promise that a child was created from via then().
-     *
-     * Only used in race() and any() - not in general cancel flow.
-     * This ensures that when we cancel a child promise created by then(),
-     * we also cancel the parent delay/timer promise that it was chained from.
-     *
-     * @param  PromiseInterface<mixed>  $promise  The promise to cancel
-     */
-    private function cancelPromiseAndParents(PromiseInterface $promise): void
-    {
-        if ($promise->isCancelled()) {
-            return;
-        }
-
-        if ($promise instanceof Promise) {
-            // Access private property via closure binding
-            $getParent = function () {
-                return $this->parentPromise; // @phpstan-ignore-line This property is called in a closure binding to avoid polluting promise class with getters
-            };
-
-            /** @var Promise<mixed>|null $parent */
-            $parent = $getParent->call($promise);
-
-            if ($parent !== null && ! $parent->isCancelled()) {
-                $this->cancelPromiseAndParents($parent);
-            }
-        }
-
-        $promise->cancel();
     }
 
     /**

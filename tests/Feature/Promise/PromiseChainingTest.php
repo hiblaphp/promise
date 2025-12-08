@@ -82,7 +82,6 @@ describe('Promise Chaining', function () {
             });
 
             $promise->resolve('original');
-            // At this point chainedPromise should be pending
 
             $innerPromise->resolve('inner value');
 
@@ -244,13 +243,15 @@ describe('Promise Chaining', function () {
             expect($called)->toBeTrue();
         });
 
-        it('returns the same promise', function () {
+        it('returns a new promise', function () {
             $promise = new Promise();
             $finallyPromise = $promise->finally(function () {
                 // cleanup
             });
 
-            expect($finallyPromise)->toBe($promise);
+            expect($finallyPromise)->toBeInstanceOf(Promise::class)
+                ->and($finallyPromise)->not->toBe($promise)
+            ;
         });
     });
 });

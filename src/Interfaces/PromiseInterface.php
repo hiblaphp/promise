@@ -89,7 +89,7 @@ interface PromiseInterface
      *
      * **Propagation:**
      * - Forward: Child promises created via then() are automatically cancelled
-     * - Backward: NOT supported in normal chains (only in race() and any())
+     * - Backward: NOT supported in normal chains (only in race() and any() and cancelChain())
      * - Settled: Calling cancel() on an already settled promise is a no-op
      *
      * **Important:** Always cancel at the source promise, not at intermediate chain points.
@@ -115,6 +115,43 @@ interface PromiseInterface
      * @return void
      */
     public function cancel(): void;
+
+
+    /**
+     * Cancel the entire promise chain from this point up to the root, then downward to all descendants.
+     *
+     * This method walks upward through parent promises to find the root, then cancels
+     * the entire chain starting from the root. This is useful when you only have a
+     * reference to a child promise but need to cancel the entire operation.
+     *
+     * **Propagation:**
+     * - Upward: Walks to the root promise
+     * - Downward: Cancels root and all descendants via forward propagation
+     * - Settled: Calling cancelChain() on a settled promise is a no-op
+     *
+     * **Use cases:**
+     * - Cancel an operation from any point in the promise chain
+     * - Stop a complex multi-step async workflow from an intermediate step
+     * - No need to keep a reference to the root promise
+     *
+     * ```php
+     * // Without cancelChain() - must keep root reference
+     * $root = downloadFile($url);
+     * $processed = $root->then(fn($file) => processFile($file));
+     * $root->cancel();  // Must use root, not processed
+     *
+     * // With cancelChain() - cancel from any point
+     * $processed = downloadFile($url)->then(fn($file) => processFile($file));
+     * $processed->cancelChain();  // Works from child, cancels entire chain
+     * ```
+     *
+     * **Difference from cancel():**
+     * - `cancel()` - Only cancels forward to children (safe default)
+     * - `cancelChain()` - Cancels upward to root, then downward to all descendants
+     *
+     * @return void
+     */
+    public function cancelChain(): void;
 
     /**
      * Set a handler to be called when the promise is cancelled.

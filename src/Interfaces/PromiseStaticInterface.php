@@ -14,7 +14,7 @@ namespace Hibla\Promise\Interfaces;
  * !! IMPORTANT: All methods in this interface are STATIC methods.
  * They must be called on the Promise class, NOT on promise instances.
  *
- * @example
+ * ```php
  * // ✓ Correct usage:
  * Promise::all([$promise1, $promise2]);
  * Promise::race([$promise1, $promise2]);
@@ -24,6 +24,8 @@ namespace Hibla\Promise\Interfaces;
  * $promise->all([$promise1, $promise2]);
  * $promise->race([$promise1, $promise2]);
  * $promise->resolved('value');
+ * !!!! DO NOT CALL STATIC METHODS ON PROMISE INSTANCES !!!!
+ * ```
  */
 interface PromiseStaticInterface
 {
