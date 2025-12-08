@@ -97,7 +97,7 @@ describe('Promise State Management', function () {
         $promise = new Promise();
         $cancelCount = 0;
 
-        $promise->setCancelHandler(function () use (&$cancelCount) {
+        $promise->onCancel(function () use (&$cancelCount) {
             $cancelCount++;
         });
 

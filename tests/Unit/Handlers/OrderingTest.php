@@ -17,7 +17,7 @@ describe('Array Ordering and Key Preservation', function () {
                 fn () => delayedValue('third', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect($results)->toBe(['first', 'second', 'third']);
             expect(array_keys($results))->toBe([0, 1, 2]);
@@ -31,7 +31,7 @@ describe('Array Ordering and Key Preservation', function () {
                 'task_c' => fn () => delayedValue('result_c', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect($results)->toBe([
                 'task_a' => 'result_a',
@@ -49,7 +49,7 @@ describe('Array Ordering and Key Preservation', function () {
                 15 => fn () => delayedValue('fifteenth', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect($results)->toBe([
                 5 => 'fifth',
@@ -69,7 +69,7 @@ describe('Array Ordering and Key Preservation', function () {
                 fn () => delayedValue('very_slow', 100),
             ];
 
-            $results = $handler->concurrent($tasks, 2)->await();
+            $results = $handler->concurrent($tasks, 2)->wait();
 
             expect($results)->toBe(['slow', 'fast', 'medium', 'very_fast', 'very_slow']);
         });
@@ -83,7 +83,7 @@ describe('Array Ordering and Key Preservation', function () {
                 fn () => delayedValue('batch2_item2', 5),
             ];
 
-            $results = $handler->batch($tasks, 2, 2)->await();
+            $results = $handler->batch($tasks, 2, 2)->wait();
 
             expect($results)->toBe(['batch1_item1', 'batch1_item2', 'batch2_item1', 'batch2_item2']);
         });
@@ -97,7 +97,7 @@ describe('Array Ordering and Key Preservation', function () {
                 'user_4' => fn () => delayedValue(['id' => 4, 'name' => 'Diana'], 5),
             ];
 
-            $results = $handler->batch($tasks, 2, 2)->await();
+            $results = $handler->batch($tasks, 2, 2)->wait();
 
             expect($results)->toBe([
                 'user_1' => ['id' => 1, 'name' => 'Alice'],
@@ -117,7 +117,7 @@ describe('Array Ordering and Key Preservation', function () {
                 400 => fn () => delayedValue('four_hundred', 5),
             ];
 
-            $results = $handler->batch($tasks, 2, 2)->await();
+            $results = $handler->batch($tasks, 2, 2)->wait();
 
             expect($results)->toBe([
                 100 => 'hundred',
@@ -137,7 +137,7 @@ describe('Array Ordering and Key Preservation', function () {
                 fn () => delayedReject('error_2', 5),
             ];
 
-            $results = $handler->concurrentSettled($tasks, 4)->await();
+            $results = $handler->concurrentSettled($tasks, 4)->wait();
 
             expect($results[0])->toBe(['status' => 'fulfilled', 'value' => 'success_1']);
             expect($results[1]['status'])->toBe('rejected');
@@ -157,7 +157,7 @@ describe('Array Ordering and Key Preservation', function () {
                 'api_call_3' => fn () => delayedValue('response_3', 35),
             ];
 
-            $results = $handler->concurrentSettled($tasks, 3)->await();
+            $results = $handler->concurrentSettled($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe(['api_call_1', 'api_call_2', 'api_call_3']);
             expect($results['api_call_1']['status'])->toBe('fulfilled');
@@ -173,7 +173,7 @@ describe('Array Ordering and Key Preservation', function () {
                 21 => fn () => delayedValue('twenty_one', 35),
             ];
 
-            $results = $handler->concurrentSettled($tasks, 3)->await();
+            $results = $handler->concurrentSettled($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe([7, 13, 21]);
             expect($results[7]['status'])->toBe('fulfilled');
@@ -186,20 +186,20 @@ describe('Array Ordering and Key Preservation', function () {
         it('handles empty arrays correctly', function () {
             $handler = new ConcurrencyHandler();
 
-            $results = $handler->concurrent([], 5)->await();
+            $results = $handler->concurrent([], 5)->wait();
             expect($results)->toBe([]);
 
-            $results = $handler->batch([], 5)->await();
+            $results = $handler->batch([], 5)->wait();
             expect($results)->toBe([]);
 
-            $results = $handler->concurrentSettled([], 5)->await();
+            $results = $handler->concurrentSettled([], 5)->wait();
             expect($results)->toBe([]);
         });
 
         it('handles single item arrays correctly', function () {
             $handler = new ConcurrencyHandler();
             $tasks = ['single' => fn () => delayedValue('result', 10)];
-            $results = $handler->concurrent($tasks, 1)->await();
+            $results = $handler->concurrent($tasks, 1)->wait();
 
             expect($results)->toBe(['single' => 'result']);
         });
@@ -207,7 +207,7 @@ describe('Array Ordering and Key Preservation', function () {
         it('handles single item with numeric key correctly', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [42 => fn () => delayedValue('answer', 10)];
-            $results = $handler->concurrent($tasks, 1)->await();
+            $results = $handler->concurrent($tasks, 1)->wait();
 
             expect($results)->toBe([42 => 'answer']);
             expect(array_keys($results))->toBe([42]);
@@ -221,7 +221,7 @@ describe('Array Ordering and Key Preservation', function () {
                 fn () => delayedValue('promise_3', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect($results)->toBe(['promise_1', 'promise_2', 'promise_3']);
         });
@@ -234,7 +234,7 @@ describe('Array Ordering and Key Preservation', function () {
                 75 => fn () => delayedValue('three_quarters', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect($results)->toBe([
                 25 => 'quarter',
@@ -254,7 +254,7 @@ describe('Array Ordering and Key Preservation', function () {
                 delayedValue('third', 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results)->toBe(['first', 'second', 'third']);
         });
@@ -267,7 +267,7 @@ describe('Array Ordering and Key Preservation', function () {
                 'key_c' => delayedValue('value_c', 35),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results)->toBe([
                 'key_a' => 'value_a',
@@ -284,7 +284,7 @@ describe('Array Ordering and Key Preservation', function () {
                 15 => delayedValue('fifteenth', 35),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results)->toBe([
                 5 => 'fifth',
@@ -302,7 +302,7 @@ describe('Array Ordering and Key Preservation', function () {
                 2 => delayedValue('two', 35),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results)->toBe(['zero', 'one', 'two']);
             expect(array_keys($results))->toBe([0, 1, 2]);
@@ -316,7 +316,7 @@ describe('Array Ordering and Key Preservation', function () {
                 3 => delayedValue('three', 35),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results)->toBe([
                 1 => 'one',
@@ -334,7 +334,7 @@ describe('Array Ordering and Key Preservation', function () {
                 delayedValue('success_2', 30),
             ];
 
-            $results = $handler->allSettled($promises)->await();
+            $results = $handler->allSettled($promises)->wait();
 
             expect($results[0]['status'])->toBe('fulfilled');
             expect($results[0]['value'])->toBe('success_1');
@@ -351,7 +351,7 @@ describe('Array Ordering and Key Preservation', function () {
                 'operation_3' => delayedValue('done_3', 5),
             ];
 
-            $results = $handler->allSettled($promises)->await();
+            $results = $handler->allSettled($promises)->wait();
 
             expect(array_keys($results))->toBe(['operation_1', 'operation_2', 'operation_3']);
             expect($results['operation_1']['status'])->toBe('fulfilled');
@@ -367,7 +367,7 @@ describe('Array Ordering and Key Preservation', function () {
                 9 => delayedValue('ninth', 5),
             ];
 
-            $results = $handler->allSettled($promises)->await();
+            $results = $handler->allSettled($promises)->wait();
 
             expect(array_keys($results))->toBe([3, 6, 9]);
             expect($results[3]['status'])->toBe('fulfilled');
@@ -385,7 +385,7 @@ describe('Array Ordering and Key Preservation', function () {
                 4 => delayedValue('four', 5),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results)->toBe([
                 0 => 'zero',
@@ -403,7 +403,7 @@ describe('Array Ordering and Key Preservation', function () {
                 1 => delayedValue('positive_one', 5),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results)->toBe([
                 -1 => 'negative_one',
@@ -424,7 +424,7 @@ describe('Array Ordering and Key Preservation', function () {
                 '2' => fn () => delayedValue('two', 30),
             ];
 
-            $results = $concurrencyHandler->concurrent($tasks, 3)->await();
+            $results = $concurrencyHandler->concurrent($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe([0, 1, 2]);
             expect($results)->toBe([0 => 'zero', 1 => 'one', 2 => 'two']);
@@ -440,7 +440,7 @@ describe('Array Ordering and Key Preservation', function () {
                 'another' => fn () => delayedValue('another_string', 15),
             ];
 
-            $results = $concurrencyHandler->concurrent($tasks, 4)->await();
+            $results = $concurrencyHandler->concurrent($tasks, 4)->wait();
 
             expect(array_keys($results))->toBe([0, 'string_key', 5, 'another']);
             expect($results[0])->toBe('numeric_zero');
@@ -458,7 +458,7 @@ describe('Array Ordering and Key Preservation', function () {
                 3000 => delayedValue('three_thousand', 20),
             ];
 
-            $results = $collectionHandler->all($tasks)->await();
+            $results = $collectionHandler->all($tasks)->wait();
 
             expect($results)->toBe([
                 1000 => 'thousand',
@@ -481,7 +481,7 @@ describe('Array Ordering and Key Preservation', function () {
                 $expected[] = $value;
             }
 
-            $results = $concurrencyHandler->concurrent($tasks, 10)->await();
+            $results = $concurrencyHandler->concurrent($tasks, 10)->wait();
 
             expect($results)->toBe($expected);
         });
@@ -497,7 +497,7 @@ describe('Array Ordering and Key Preservation', function () {
                 fn () => delayedValue(null, 15),
             ];
 
-            $results = $concurrencyHandler->concurrent($tasks, 5)->await();
+            $results = $concurrencyHandler->concurrent($tasks, 5)->wait();
 
             expect($results[0])->toBe(['array' => 'data']);
             expect($results[1])->toBe(42);
@@ -516,7 +516,7 @@ describe('Array Ordering and Key Preservation', function () {
                 1 => delayedValue('one', 20),
             ];
 
-            $results = $collectionHandler->all($promises)->await();
+            $results = $collectionHandler->all($promises)->wait();
 
             expect($results)->toBe([
                 10 => 'ten',
@@ -536,7 +536,7 @@ describe('Array Ordering and Key Preservation', function () {
                 2 => delayedValue('two', 15),
             ];
 
-            $sequentialResults = $collectionHandler->all($sequential)->await();
+            $sequentialResults = $collectionHandler->all($sequential)->wait();
             expect($sequentialResults)->toBe(['zero', 'one', 'two']);
             expect(array_keys($sequentialResults))->toBe([0, 1, 2]);
 
@@ -546,7 +546,7 @@ describe('Array Ordering and Key Preservation', function () {
                 3 => delayedValue('three', 15),
             ];
 
-            $nonSequentialResults = $collectionHandler->all($nonSequential)->await();
+            $nonSequentialResults = $collectionHandler->all($nonSequential)->wait();
             expect($nonSequentialResults)->toBe([
                 0 => 'zero',
                 1 => 'one',
@@ -569,7 +569,7 @@ describe('Edge Cases for Ordering', function () {
                 '🚀' => fn () => delayedValue('rocket', 5),
             ];
 
-            $results = $handler->concurrent($tasks, 4)->await();
+            $results = $handler->concurrent($tasks, 4)->wait();
 
             expect(array_keys($results))->toBe(['café', 'naïve', '日本', '🚀']);
             expect($results['café'])->toBe('coffee');
@@ -584,7 +584,7 @@ describe('Edge Cases for Ordering', function () {
                 '15' => fn () => delayedValue('fifteen', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe([5, 10, 15]);
         });
@@ -597,7 +597,7 @@ describe('Edge Cases for Ordering', function () {
                 'b' => fn () => delayedValue('letter_b', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe(['', 'a', 'b']);
             expect($results[''])->toBe('empty');
@@ -615,7 +615,7 @@ describe('Edge Cases for Ordering', function () {
                 $longKey3 => fn () => delayedValue('long_c', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe([$longKey1, $longKey2, $longKey3]);
         });
@@ -629,7 +629,7 @@ describe('Edge Cases for Ordering', function () {
                 'dot.notation' => fn () => delayedValue('path', 5),
             ];
 
-            $results = $handler->concurrent($tasks, 4)->await();
+            $results = $handler->concurrent($tasks, 4)->wait();
 
             expect(array_keys($results))->toBe(['$money', '#hashtag', '@mention', 'dot.notation']);
         });
@@ -642,7 +642,7 @@ describe('Edge Cases for Ordering', function () {
                 'third' => fn () => delayedValue(null, 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect($results['first'])->toBeNull();
             expect($results['second'])->toBe('value');
@@ -658,7 +658,7 @@ describe('Edge Cases for Ordering', function () {
                 'medium' => fn () => delayedValue('100ms', 100),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect($results)->toBe([
                 'slow' => '10000ms',
@@ -677,7 +677,7 @@ describe('Edge Cases for Ordering', function () {
                 'key_d' => fn () => delayedValue('different', 5),
             ];
 
-            $results = $handler->concurrent($tasks, 4)->await();
+            $results = $handler->concurrent($tasks, 4)->wait();
 
             expect($results['key_a'])->toBe('same_value');
             expect($results['key_b'])->toBe('same_value');
@@ -698,7 +698,7 @@ describe('Edge Cases for Ordering', function () {
                 $largeKey3 => fn () => delayedValue('max', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe([$largeKey1, $largeKey2, $largeKey3]);
         });
@@ -713,7 +713,7 @@ describe('Edge Cases for Ordering', function () {
                 100 => fn () => delayedValue('very_positive', 15),
             ];
 
-            $results = $handler->concurrent($tasks, 5)->await();
+            $results = $handler->concurrent($tasks, 5)->wait();
 
             expect(array_keys($results))->toBe([-100, -1, 0, 1, 100]);
         });
@@ -726,7 +726,7 @@ describe('Edge Cases for Ordering', function () {
                 'resource_like' => fn () => delayedValue(['type' => 'resource'], 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect($results['array'])->toBe(['nested' => ['deep' => 'value']]);
             expect($results['object']->prop)->toBe('value');
@@ -739,7 +739,7 @@ describe('Edge Cases for Ordering', function () {
                 'only' => fn () => delayedValue('lonely', 50),
             ];
 
-            $results = $handler->concurrent($tasks, 1)->await();
+            $results = $handler->concurrent($tasks, 1)->wait();
 
             expect($results)->toBe(['only' => 'lonely']);
             expect(array_keys($results))->toBe(['only']);
@@ -753,7 +753,7 @@ describe('Edge Cases for Ordering', function () {
                 'key="value"' => fn () => delayedValue('xml_key', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe(['{"key": "value"}', '[1, 2, 3]', 'key="value"']);
         });
@@ -768,7 +768,7 @@ describe('Edge Cases for Ordering', function () {
                 'string_result' => fn () => delayedValue('success', 15),
             ];
 
-            $results = $handler->concurrentSettled($tasks, 5)->await();
+            $results = $handler->concurrentSettled($tasks, 5)->wait();
 
             expect($results['null_result']['status'])->toBe('fulfilled');
             expect($results['null_result']['value'])->toBeNull();
@@ -784,7 +784,7 @@ describe('Edge Cases for Ordering', function () {
                 "key\nwith\nnewlines" => fn () => delayedValue('value3', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe([
                 'key with spaces',
@@ -801,7 +801,7 @@ describe('Edge Cases for Ordering', function () {
                 'c' => fn () => delayedValue('third', 5),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe(['a', 'b', 'c']);
         });
@@ -814,7 +814,7 @@ describe('Edge Cases for Ordering', function () {
                 -1 => fn () => delayedValue('almost_zero', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe([-1000, -500, -1]);
         });
@@ -827,7 +827,7 @@ describe('Edge Cases for Ordering', function () {
                 'KEY' => fn () => delayedValue('uppercase', 20),
             ];
 
-            $results = $handler->concurrent($tasks, 3)->await();
+            $results = $handler->concurrent($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe(['Key', 'key', 'KEY']);
             expect($results['Key'])->toBe('capitalized');
@@ -844,7 +844,7 @@ describe('Edge Cases for Ordering', function () {
                 'normal' => fn () => delayedValue('regular', 5),
             ];
 
-            $results = $handler->batch($tasks, 2, 2)->await();
+            $results = $handler->batch($tasks, 2, 2)->wait();
 
             expect(array_keys($results))->toBe(['', '🎯', -5, 'normal']);
         });
@@ -860,7 +860,7 @@ describe('Edge Cases for Ordering', function () {
                 '🚀' => delayedValue('rocket', 5),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe(['café', 'naïve', '日本', '🚀']);
             expect($results['café'])->toBe('coffee');
@@ -875,7 +875,7 @@ describe('Edge Cases for Ordering', function () {
                 '15' => delayedValue('fifteen', 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe([5, 10, 15]);
         });
@@ -888,7 +888,7 @@ describe('Edge Cases for Ordering', function () {
                 'b' => delayedValue('letter_b', 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe(['', 'a', 'b']);
             expect($results[''])->toBe('empty');
@@ -906,7 +906,7 @@ describe('Edge Cases for Ordering', function () {
                 $longKey3 => delayedValue('long_c', 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe([$longKey1, $longKey2, $longKey3]);
         });
@@ -920,7 +920,7 @@ describe('Edge Cases for Ordering', function () {
                 'dot.notation' => delayedValue('path', 5),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe(['$money', '#hashtag', '@mention', 'dot.notation']);
         });
@@ -933,7 +933,7 @@ describe('Edge Cases for Ordering', function () {
                 'third' => delayedValue(null, 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results['first'])->toBeNull();
             expect($results['second'])->toBe('value');
@@ -949,7 +949,7 @@ describe('Edge Cases for Ordering', function () {
                 'medium' => delayedValue('100ms', 100),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results)->toBe([
                 'slow' => '10000ms',
@@ -968,7 +968,7 @@ describe('Edge Cases for Ordering', function () {
                 'key_d' => delayedValue('different', 5),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results['key_a'])->toBe('same_value');
             expect($results['key_b'])->toBe('same_value');
@@ -989,7 +989,7 @@ describe('Edge Cases for Ordering', function () {
                 $largeKey3 => delayedValue('max', 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe([$largeKey1, $largeKey2, $largeKey3]);
         });
@@ -1004,7 +1004,7 @@ describe('Edge Cases for Ordering', function () {
                 100 => delayedValue('very_positive', 15),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe([-100, -1, 0, 1, 100]);
         });
@@ -1017,7 +1017,7 @@ describe('Edge Cases for Ordering', function () {
                 'resource_like' => delayedValue(['type' => 'resource'], 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results['array'])->toBe(['nested' => ['deep' => 'value']]);
             expect($results['object']->prop)->toBe('value');
@@ -1030,7 +1030,7 @@ describe('Edge Cases for Ordering', function () {
                 'only' => delayedValue('lonely', 50),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect($results)->toBe(['only' => 'lonely']);
             expect(array_keys($results))->toBe(['only']);
@@ -1044,7 +1044,7 @@ describe('Edge Cases for Ordering', function () {
                 'key="value"' => delayedValue('xml_key', 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe(['{"key": "value"}', '[1, 2, 3]', 'key="value"']);
         });
@@ -1059,7 +1059,7 @@ describe('Edge Cases for Ordering', function () {
                 'string_result' => delayedValue('success', 15),
             ];
 
-            $results = $handler->allSettled($promises)->await();
+            $results = $handler->allSettled($promises)->wait();
 
             expect($results['null_result']['status'])->toBe('fulfilled');
             expect($results['null_result']['value'])->toBeNull();
@@ -1075,7 +1075,7 @@ describe('Edge Cases for Ordering', function () {
                 "key\nwith\nnewlines" => delayedValue('value3', 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe([
                 'key with spaces',
@@ -1092,7 +1092,7 @@ describe('Edge Cases for Ordering', function () {
                 'c' => delayedValue('third', 5),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe(['a', 'b', 'c']);
         });
@@ -1105,7 +1105,7 @@ describe('Edge Cases for Ordering', function () {
                 -1 => delayedValue('almost_zero', 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe([-1000, -500, -1]);
         });
@@ -1118,7 +1118,7 @@ describe('Edge Cases for Ordering', function () {
                 'KEY' => delayedValue('uppercase', 20),
             ];
 
-            $results = $handler->all($promises)->await();
+            $results = $handler->all($promises)->wait();
 
             expect(array_keys($results))->toBe(['Key', 'key', 'KEY']);
             expect($results['Key'])->toBe('capitalized');

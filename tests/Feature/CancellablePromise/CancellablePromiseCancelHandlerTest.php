@@ -9,7 +9,7 @@ describe('Promise Cancel Handler', function () {
         $promise = new Promise();
         $handlerExecuted = false;
 
-        $promise->setCancelHandler(function () use (&$handlerExecuted) {
+        $promise->onCancel(function () use (&$handlerExecuted) {
             $handlerExecuted = true;
         });
 
@@ -21,7 +21,7 @@ describe('Promise Cancel Handler', function () {
     it('handles cancel handler exceptions gracefully', function () {
         $promise = new Promise();
 
-        $promise->setCancelHandler(function () {
+        $promise->onCancel(function () {
             try {
                 throw new Exception('Handler error');
             } catch (Exception $e) {
@@ -40,15 +40,15 @@ describe('Promise Cancel Handler', function () {
         $handler2Called = false;
         $handler3Called = false;
 
-        $promise->setCancelHandler(function () use (&$handler1Called) {
+        $promise->onCancel(function () use (&$handler1Called) {
             $handler1Called = true;
         });
 
-        $promise->setCancelHandler(function () use (&$handler2Called) {
+        $promise->onCancel(function () use (&$handler2Called) {
             $handler2Called = true;
         });
 
-        $promise->setCancelHandler(function () use (&$handler3Called) {
+        $promise->onCancel(function () use (&$handler3Called) {
             $handler3Called = true;
         });
 
@@ -64,15 +64,15 @@ describe('Promise Cancel Handler', function () {
         $promise = new Promise();
         $executionOrder = [];
 
-        $promise->setCancelHandler(function () use (&$executionOrder) {
+        $promise->onCancel(function () use (&$executionOrder) {
             $executionOrder[] = 'first handler';
         });
 
-        $promise->setCancelHandler(function () use (&$executionOrder) {
+        $promise->onCancel(function () use (&$executionOrder) {
             $executionOrder[] = 'second handler';
         });
 
-        $promise->setCancelHandler(function () use (&$executionOrder) {
+        $promise->onCancel(function () use (&$executionOrder) {
             $executionOrder[] = 'third handler';
         });
 
@@ -99,7 +99,7 @@ describe('Promise Cancel Handler', function () {
         $tempFileDeleted = false;
         $resourcesFreed = false;
 
-        $promise->setCancelHandler(function () use (&$connectionClosed, &$tempFileDeleted, &$resourcesFreed) {
+        $promise->onCancel(function () use (&$connectionClosed, &$tempFileDeleted, &$resourcesFreed) {
             $connectionClosed = true;
             $tempFileDeleted = true;
             $resourcesFreed = true;
@@ -119,7 +119,7 @@ describe('Promise Cancel Handler', function () {
         $dbConnection->isConnected = true;
         $dbConnection->transactionActive = true;
 
-        $promise->setCancelHandler(function () use ($dbConnection) {
+        $promise->onCancel(function () use ($dbConnection) {
             $dbConnection->transactionActive = false;
             $dbConnection->isConnected = false;
         });
@@ -135,7 +135,7 @@ describe('Promise Cancel Handler', function () {
         $promise = new Promise();
         $cleanupLog = [];
 
-        $promise->setCancelHandler(function () use (&$cleanupLog) {
+        $promise->onCancel(function () use (&$cleanupLog) {
             $cleanupLog[] = '1. Saving current state';
             $cleanupLog[] = '2. Rolling back database transaction';
             $cleanupLog[] = '3. Closing network connections';
@@ -163,7 +163,7 @@ describe('Promise Cancel Handler', function () {
 
         $contextData = ['id' => $promiseId, 'type' => 'file-upload'];
 
-        $promise->setCancelHandler(function () use ($contextData, &$cancelContext) {
+        $promise->onCancel(function () use ($contextData, &$cancelContext) {
             $cancelContext = [
                 'cancelled_task' => $contextData['id'],
                 'task_type' => $contextData['type'],
@@ -184,7 +184,7 @@ describe('Promise Cancel Handler', function () {
         $metrics = [];
         $logs = [];
 
-        $promise->setCancelHandler(function () use (&$metrics, &$logs) {
+        $promise->onCancel(function () use (&$metrics, &$logs) {
             $logs[] = '[WARN] Promise cancelled by user';
             $logs[] = '[INFO] Cleaning up resources';
 

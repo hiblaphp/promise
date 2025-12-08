@@ -77,8 +77,8 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn ($value = null) => $this->resolve($value),
-                    fn ($reason = null) => $this->reject($reason)
+                    fn($value = null) => $this->resolve($value),
+                    fn($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -89,7 +89,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     /**
      * {@inheritdoc}
      */
-    public function await(bool $resetEventLoop = false): mixed
+    public function wait(bool $resetEventLoop = false): mixed
     {
         try {
             if ($this->resolved) {
@@ -99,7 +99,6 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             if ($this->rejected) {
                 $this->valueAccessed = true;
                 $reason = $this->reason;
-
                 throw $reason instanceof \Throwable
                     ? $reason
                     : new \Exception($this->safeStringCast($reason));
@@ -107,26 +106,18 @@ class Promise implements PromiseStaticInterface, PromiseInterface
 
             $result = null;
             $error = null;
-            $completed = false;
 
             $this
-                ->then(function ($value) use (&$result, &$completed) {
+                ->then(function ($value) use (&$result) {
                     $result = $value;
-                    $completed = true;
-
                     return $value;
                 })
-                ->catch(function ($reason) use (&$error, &$completed) {
+                ->catch(function ($reason) use (&$error) {
                     $error = $reason;
-                    $completed = true;
-
                     return $reason;
-                })
-            ;
+                });
 
-            while (! $completed) {
-                Loop::run();
-            }
+            Loop::run();
 
             if ($error !== null) {
                 throw $error instanceof \Throwable
@@ -256,26 +247,17 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     }
 
     /**
-     * Set a handler to be called when the promise is cancelled.
-     *
-     * This is useful for cleanup operations like:
-     * - Cancelling timers
-     * - Aborting HTTP requests
-     * - Closing file handles
-     * - Releasing resources
-     *
-     * @param callable $handler The cleanup handler to execute on cancellation
-     * @return void
+     * @inheritdoc
      */
-    public function setCancelHandler(callable $handler): void
+    public function onCancel(callable $handler): PromiseInterface
     {
         if ($this->cancelled) {
             $handler();
-
-            return;
+            return $this;
         }
 
         $this->cancelHandlers[] = $handler;
+        return $this;
     }
 
     /**
@@ -317,7 +299,6 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         $executor = function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected, &$newPromise) {
             $handleResolve = function ($value) use ($onFulfilled, $resolve, $reject, &$newPromise) {
                 if ($this->isCancelled()) {
-                    $reject(new \Exception('Promise cancelled'));
 
                     return;
                 }
@@ -345,7 +326,6 @@ class Promise implements PromiseStaticInterface, PromiseInterface
 
             $handleReject = function ($reason) use ($onRejected, $resolve, $reject, &$newPromise) {
                 if ($this->isCancelled()) {
-                    $reject(new \Exception('Promise cancelled'));
 
                     return;
                 }
@@ -372,15 +352,15 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             };
 
             if ($this->isCancelled()) {
-                Loop::microTask(fn () => $reject(new \Exception('Promise cancelled')));
+                Loop::microTask(fn() => $reject(new \Exception('Promise cancelled')));
 
                 return;
             }
 
             if ($this->resolved) {
-                Loop::microTask(fn () => $handleResolve($this->value));
+                Loop::microTask(fn() => $handleResolve($this->value));
             } elseif ($this->rejected) {
-                Loop::microTask(fn () => $handleReject($this->reason));
+                Loop::microTask(fn() => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -390,7 +370,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         /** @var Promise<TResult> $newPromise */
         $newPromise = new self($executor);
 
-        // Set parent-child relationship for backward cancellation propagation for any() and race() promise combinator only
+        // Set parent-child relationship for backward cancellation propagation 
         $newPromise->parentPromise = $this;
 
         $this->childPromises[] = $newPromise;
@@ -424,7 +404,7 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             function ($value) use ($onFinally) {
                 $result = $onFinally();
                 if ($result instanceof PromiseInterface) {
-                    return $result->then(fn () => $value);
+                    return $result->then(fn() => $value);
                 }
 
                 return $value;

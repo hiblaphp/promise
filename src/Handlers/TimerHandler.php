@@ -23,7 +23,7 @@ final readonly class TimerHandler
             $promise->resolve(null);
         });
 
-        $promise->setCancelHandler(function () use ($timerId): void {
+        $promise->onCancel(function () use ($timerId): void {
             Loop::cancelTimer($timerId);
         });
 

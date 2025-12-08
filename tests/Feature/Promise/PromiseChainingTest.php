@@ -68,7 +68,7 @@ describe('Promise Chaining', function () {
 
             $promise->resolve(5);
 
-            $result = $finalPromise->await();
+            $result = $finalPromise->wait();
 
             expect($result)->toBe(11); // (5 * 2) + 1
         });
@@ -85,7 +85,7 @@ describe('Promise Chaining', function () {
 
             $innerPromise->resolve('inner value');
 
-            $result = $chainedPromise->await();
+            $result = $chainedPromise->wait();
 
             expect($result)->toBe('inner value');
         });
@@ -101,7 +101,7 @@ describe('Promise Chaining', function () {
             $promise->resolve('value');
 
             try {
-                $chainedPromise->await();
+                $chainedPromise->wait();
                 expect(false)->toBeTrue('Expected exception to be thrown');
             } catch (Exception $e) {
                 expect($e)->toBeInstanceOf(Exception::class)
@@ -204,7 +204,7 @@ describe('Promise Chaining', function () {
 
             $promise->reject($exception);
 
-            $result = $recoveredPromise->await();
+            $result = $recoveredPromise->wait();
 
             expect($result)->toBe('recovered value');
         });

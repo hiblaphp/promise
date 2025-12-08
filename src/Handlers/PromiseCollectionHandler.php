@@ -217,7 +217,7 @@ final readonly class PromiseCollectionHandler
             }
         );
 
-        $racePromise->setCancelHandler(function () use (&$promiseInstances, &$settled): void {
+        $racePromise->onCancel(function () use (&$promiseInstances, &$settled): void {
             $settled = true;
             foreach ($promiseInstances as $promise) {
                 $promise->cancelChain();
@@ -316,7 +316,7 @@ final readonly class PromiseCollectionHandler
             }
         );
 
-        $anyPromise->setCancelHandler(
+        $anyPromise->onCancel(
             function () use (&$promiseInstances, &$settled): void {
                 $settled = true;
                 foreach ($promiseInstances as $promise) {

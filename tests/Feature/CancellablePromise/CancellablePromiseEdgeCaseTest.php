@@ -23,10 +23,10 @@ describe('Promise Edge Cases', function () {
         $promise = new Promise();
         $callCount = 0;
 
-        $promise->setCancelHandler(function () use (&$callCount) {
+        $promise->onCancel(function () use (&$callCount) {
             $callCount += 1;
         });
-        $promise->setCancelHandler(function () use (&$callCount) {
+        $promise->onCancel(function () use (&$callCount) {
             $callCount += 10;
         });
 

@@ -167,9 +167,9 @@ interface PromiseInterface
      * - By default, cancel handlers execute synchronously.
      *
      * @param callable $handler The cleanup handler to execute on cancellation
-     * @return void
+     * @return PromiseInterface<TValue> The promise instance for chaining
      */
-    public function setCancelHandler(callable $handler): void;
+    public function onCancel(callable $handler): PromiseInterface;
 
     /**
      * Check if the promise has been cancelled.
@@ -252,7 +252,7 @@ interface PromiseInterface
      * ```php
      * // ❌ Don't use inside async blocks
      * async(function() {
-     *     return $promise->await();  // Blocks unnecessarily!
+     *     return $promise->wait();  // Blocks unnecessarily!
      * });
      *
      * // ✅ Use await() function instead
@@ -260,8 +260,8 @@ interface PromiseInterface
      *     return await($promise);  // Suspends fiber properly
      * });
      *
-     * // ✅ Use ->await() at top-level
-     * $result = $promise->await();  // Blocks to get result
+     * // ✅ Use ->wait() at top-level
+     * $result = $promise->wait();  // Blocks to get result
      * ```
      *
      * If the promise is rejected, this method will throw the rejection reason.
@@ -271,5 +271,5 @@ interface PromiseInterface
      * @return TValue The resolved value
      * @throws \Throwable If the promise is rejected
      */
-    public function await(bool $resetEventLoop = false): mixed;
+    public function wait(bool $resetEventLoop = false): mixed;
 }

@@ -14,7 +14,7 @@ describe('Promise Real-World Examples', function () {
             $uploadProgress = 25;
         });
 
-        $uploadPromise->setCancelHandler(function () use (&$uploadCancelled, &$tempFileDeleted) {
+        $uploadPromise->onCancel(function () use (&$uploadCancelled, &$tempFileDeleted) {
             $uploadCancelled = true;
             $tempFileDeleted = true;
         });
@@ -35,7 +35,7 @@ describe('Promise Real-World Examples', function () {
             $transactionStarted = true;
         });
 
-        $dbPromise->setCancelHandler(function () use (&$transactionRolledBack) {
+        $dbPromise->onCancel(function () use (&$transactionRolledBack) {
             $transactionRolledBack = true;
         });
 
@@ -56,7 +56,7 @@ describe('Promise Real-World Examples', function () {
             $requestSent = true;
         });
 
-        $apiPromise->setCancelHandler(function () use (&$connectionClosed, &$cacheCleared) {
+        $apiPromise->onCancel(function () use (&$connectionClosed, &$cacheCleared) {
             $connectionClosed = true;
             $cacheCleared = true;
         });

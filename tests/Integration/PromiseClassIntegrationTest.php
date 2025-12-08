@@ -19,7 +19,7 @@ describe('Promise Static Methods Integration', function () {
             expect($promise->isResolved())->toBeTrue();
             expect($promise->getValue())->toBe('test value');
 
-            $result = $promise->await();
+            $result = $promise->wait();
             expect($result)->toBe('test value');
         });
 
@@ -31,7 +31,7 @@ describe('Promise Static Methods Integration', function () {
             expect($promise->isRejected())->toBeTrue();
             expect($promise->getReason())->toBe($error);
 
-            expect(fn () => $promise->await())
+            expect(fn () => $promise->wait())
                 ->toThrow(RuntimeException::class, 'test error')
             ;
         });
@@ -46,7 +46,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::all($promises);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toBe(['first', 'second', 'third']);
         });
@@ -59,7 +59,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::all($promises);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toEqual([
                 'a' => 'first',
@@ -77,7 +77,7 @@ describe('Promise Static Methods Integration', function () {
 
             $promise = Promise::all($promises);
 
-            expect(fn () => $promise->await())
+            expect(fn () => $promise->wait())
                 ->toThrow(RuntimeException::class, 'all error')
             ;
         });
@@ -92,14 +92,14 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::all($promises);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toBe(['async-first', 'async-second', 'async-delayed']);
         });
 
         it('handles empty array', function () {
             $promise = Promise::all([]);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toBe([]);
         });
@@ -114,7 +114,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::allSettled($promises);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toHaveCount(3);
 
@@ -140,7 +140,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::allSettled($promises);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toHaveKey('success');
             expect($results)->toHaveKey('failure');
@@ -157,7 +157,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::allSettled($promises);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toHaveCount(3);
             expect($results[0]['status'])->toBe('fulfilled');
@@ -179,7 +179,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::race($promises);
-            $result = $promise->await();
+            $result = $promise->wait();
 
             expect($result)->toBe('fast');
         });
@@ -194,7 +194,7 @@ describe('Promise Static Methods Integration', function () {
 
             $promise = Promise::race($promises);
 
-            expect(fn () => $promise->await())
+            expect(fn () => $promise->wait())
                 ->toThrow(RuntimeException::class, 'fast error')
             ;
         });
@@ -221,7 +221,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::race($promises);
-            $result = $promise->await();
+            $result = $promise->wait();
 
             expect($result)->toBe('immediate');
 
@@ -265,7 +265,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::race($promises);
-            $result = $promise->await();
+            $result = $promise->wait();
 
             expect($result)->toBe('immediate');
 
@@ -291,7 +291,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::any($promises);
-            $result = $promise->await();
+            $result = $promise->wait();
 
             expect($result)->toBe('first success');
         });
@@ -306,7 +306,7 @@ describe('Promise Static Methods Integration', function () {
             $promise = Promise::any($promises);
 
             try {
-                $promise->await();
+                $promise->wait();
                 expect(false)->toBeTrue('Expected AggregateErrorException to be thrown');
             } catch (AggregateErrorException $e) {
                 expect($e->getMessage())->toContain('All promises were rejected');
@@ -329,7 +329,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::any($promises);
-            $result = $promise->await();
+            $result = $promise->wait();
 
             expect($result)->toBe('fast success');
         });
@@ -342,7 +342,7 @@ describe('Promise Static Methods Integration', function () {
             });
 
             $promise = Promise::timeout($fastPromise, 0.2); // 200ms timeout
-            $result = $promise->await();
+            $result = $promise->wait();
 
             expect($result)->toBe('completed in time');
         });
@@ -354,7 +354,7 @@ describe('Promise Static Methods Integration', function () {
 
             $promise = Promise::timeout($slowPromise, 0.05); // 50ms timeout
 
-            expect(fn () => $promise->await())
+            expect(fn () => $promise->wait())
                 ->toThrow(TimeoutException::class)
             ;
         });
@@ -366,7 +366,7 @@ describe('Promise Static Methods Integration', function () {
 
             $promise = Promise::timeout($errorPromise, 0.2);
 
-            expect(fn () => $promise->await())
+            expect(fn () => $promise->wait())
                 ->toThrow(RuntimeException::class, 'promise error')
             ;
         });
@@ -384,7 +384,7 @@ describe('Promise Static Methods Integration', function () {
             }
 
             $promise = Promise::concurrent($tasks);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             $elapsed = microtime(true) - $start;
 
@@ -414,7 +414,7 @@ describe('Promise Static Methods Integration', function () {
             }
 
             $promise = Promise::concurrent($tasks, 3); // Limit to 3 concurrent
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toHaveCount(10);
             expect($maxConcurrent)->toBeLessThanOrEqual(3);
@@ -436,7 +436,7 @@ describe('Promise Static Methods Integration', function () {
             }
 
             $promise = Promise::batch($tasks, 3);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toHaveCount(6);
         });
@@ -451,7 +451,7 @@ describe('Promise Static Methods Integration', function () {
             ];
 
             $promise = Promise::concurrentSettled($tasks);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toHaveCount(3);
 
@@ -476,7 +476,7 @@ describe('Promise Static Methods Integration', function () {
             }
 
             $promise = Promise::batchSettled($tasks, 3);
-            $results = $promise->await();
+            $results = $promise->wait();
 
             expect($results)->toHaveCount(6);
 
