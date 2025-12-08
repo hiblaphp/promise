@@ -50,7 +50,6 @@ class Promise implements PromiseStaticInterface, PromiseInterface
 
     /**
      * @var PromiseInterface<mixed>|null
-     * @phpstan-ignore-next-line property.onlyWritten This property is read by Promise Collection Handler via clousre  binding.
      */
     private ?PromiseInterface $parentPromise = null;
 
@@ -78,8 +77,8 @@ class Promise implements PromiseStaticInterface, PromiseInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn($value = null) => $this->resolve($value),
-                    fn($reason = null) => $this->reject($reason)
+                    fn ($value = null) => $this->resolve($value),
+                    fn ($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -211,17 +210,18 @@ class Promise implements PromiseStaticInterface, PromiseInterface
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function cancelChain(): void
     {
-        $root = $this;
+        $current = $this;
 
-        while ($root->parentPromise !== null && !$root->parentPromise->isCancelled()) {
-            $root = $root->parentPromise;
+        while ($current->parentPromise !== null && ! $current->parentPromise->isCancelled()) {
+            assert($current->parentPromise instanceof Promise);
+            $current = $current->parentPromise;
         }
 
-        $root->cancel();
+        $current->cancel();
     }
 
     /**
@@ -372,15 +372,15 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             };
 
             if ($this->isCancelled()) {
-                Loop::microTask(fn() => $reject(new \Exception('Promise cancelled')));
+                Loop::microTask(fn () => $reject(new \Exception('Promise cancelled')));
 
                 return;
             }
 
             if ($this->resolved) {
-                Loop::microTask(fn() => $handleResolve($this->value));
+                Loop::microTask(fn () => $handleResolve($this->value));
             } elseif ($this->rejected) {
-                Loop::microTask(fn() => $handleReject($this->reason));
+                Loop::microTask(fn () => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -424,16 +424,28 @@ class Promise implements PromiseStaticInterface, PromiseInterface
             function ($value) use ($onFinally) {
                 $result = $onFinally();
                 if ($result instanceof PromiseInterface) {
-                    return $result->then(fn() => $value);
+                    return $result->then(fn () => $value);
                 }
+
                 return $value;
             },
             function ($reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
                 if ($result instanceof PromiseInterface) {
-                    return $result->then(fn() => throw $reason);
+                    return $result->then(function () use ($reason): void {
+                        if ($reason instanceof \Throwable) {
+                            throw $reason;
+                        }
+
+                        throw new \Exception($this->safeStringCast($reason));
+                    });
                 }
-                throw $reason;
+
+                if ($reason instanceof \Throwable) {
+                    throw $reason;
+                }
+
+                throw new \Exception($this->safeStringCast($reason));
             }
         );
     }

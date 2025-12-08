@@ -116,7 +116,6 @@ interface PromiseInterface
      */
     public function cancel(): void;
 
-
     /**
      * Cancel the entire promise chain from this point up to the root, then downward to all descendants.
      *

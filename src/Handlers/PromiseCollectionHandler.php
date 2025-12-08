@@ -29,16 +29,7 @@ final readonly class PromiseCollectionHandler
 
             $originalKeys = array_keys($promises);
             $shouldPreserveKeys = $this->shouldPreserveKeys($promises);
-
-            // Pre-initialize results array to maintain order
-            $results = [];
-            if ($shouldPreserveKeys) {
-                foreach ($originalKeys as $key) {
-                    $results[$key] = null;
-                }
-            } else {
-                $results = array_fill(0, \count($promises), null);
-            }
+            $results = $this->initializeResultsArray($shouldPreserveKeys, $originalKeys, \count($promises));
 
             $completed = 0;
             $total = \count($promises);
@@ -88,16 +79,7 @@ final readonly class PromiseCollectionHandler
 
             $originalKeys = array_keys($promises);
             $shouldPreserveKeys = $this->shouldPreserveKeys($promises);
-
-            // Pre-initialize results array to maintain order
-            $results = [];
-            if ($shouldPreserveKeys) {
-                foreach ($originalKeys as $key) {
-                    $results[$key] = null;
-                }
-            } else {
-                $results = array_fill(0, \count($promises), null);
-            }
+            $results = $this->initializeResultsArray($shouldPreserveKeys, $originalKeys, \count($promises));
 
             $completed = 0;
             $total = \count($promises);
@@ -259,7 +241,8 @@ final readonly class PromiseCollectionHandler
 
         $timeoutPromise = (new TimerHandler())
             ->delay($seconds)
-            ->then(fn() => throw new TimeoutException($seconds));
+            ->then(fn () => throw new TimeoutException($seconds))
+        ;
 
         return $this->race([$promise, $timeoutPromise]);
     }
@@ -267,7 +250,7 @@ final readonly class PromiseCollectionHandler
     /**
      * @template TAnyValue
      * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises
-     * @return PromiseInterface<TAnyValue> 
+     * @return PromiseInterface<TAnyValue>
      */
     public function any(array $promises): PromiseInterface
     {
@@ -343,6 +326,19 @@ final readonly class PromiseCollectionHandler
         );
 
         return $anyPromise;
+    }
+
+    /**
+     * @param  bool  $shouldPreserveKeys
+     * @param  array<int|string>  $originalKeys
+     * @param  int  $total
+     * @return array<int|string, mixed>
+     */
+    private function initializeResultsArray(bool $shouldPreserveKeys, array $originalKeys, int $total): array
+    {
+        return $shouldPreserveKeys
+            ? array_fill_keys($originalKeys, null)
+            : array_fill(0, $total, null);
     }
 
     /**

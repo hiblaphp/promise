@@ -12,9 +12,9 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves order for indexed arrays in concurrent execution', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                fn() => delayedValue('first', 30),
-                fn() => delayedValue('second', 10),
-                fn() => delayedValue('third', 20),
+                fn () => delayedValue('first', 30),
+                fn () => delayedValue('second', 10),
+                fn () => delayedValue('third', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -26,9 +26,9 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves keys for associative arrays in concurrent execution', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'task_a' => fn() => delayedValue('result_a', 30),
-                'task_b' => fn() => delayedValue('result_b', 10),
-                'task_c' => fn() => delayedValue('result_c', 20),
+                'task_a' => fn () => delayedValue('result_a', 30),
+                'task_b' => fn () => delayedValue('result_b', 10),
+                'task_c' => fn () => delayedValue('result_c', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -44,9 +44,9 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves numeric keys for non-sequential arrays', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                5 => fn() => delayedValue('fifth', 30),
-                10 => fn() => delayedValue('tenth', 10),
-                15 => fn() => delayedValue('fifteenth', 20),
+                5 => fn () => delayedValue('fifth', 30),
+                10 => fn () => delayedValue('tenth', 10),
+                15 => fn () => delayedValue('fifteenth', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -62,11 +62,11 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves order with mixed completion times and low concurrency', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                fn() => delayedValue('slow', 50),
-                fn() => delayedValue('fast', 5),
-                fn() => delayedValue('medium', 25),
-                fn() => delayedValue('very_fast', 1),
-                fn() => delayedValue('very_slow', 100),
+                fn () => delayedValue('slow', 50),
+                fn () => delayedValue('fast', 5),
+                fn () => delayedValue('medium', 25),
+                fn () => delayedValue('very_fast', 1),
+                fn () => delayedValue('very_slow', 100),
             ];
 
             $results = $handler->concurrent($tasks, 2)->await();
@@ -77,10 +77,10 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves order in batch execution with indexed arrays', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                fn() => delayedValue('batch1_item1', 20),
-                fn() => delayedValue('batch1_item2', 10),
-                fn() => delayedValue('batch2_item1', 30),
-                fn() => delayedValue('batch2_item2', 5),
+                fn () => delayedValue('batch1_item1', 20),
+                fn () => delayedValue('batch1_item2', 10),
+                fn () => delayedValue('batch2_item1', 30),
+                fn () => delayedValue('batch2_item2', 5),
             ];
 
             $results = $handler->batch($tasks, 2, 2)->await();
@@ -91,10 +91,10 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves keys in batch execution with associative arrays', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'user_1' => fn() => delayedValue(['id' => 1, 'name' => 'Alice'], 20),
-                'user_2' => fn() => delayedValue(['id' => 2, 'name' => 'Bob'], 10),
-                'user_3' => fn() => delayedValue(['id' => 3, 'name' => 'Charlie'], 30),
-                'user_4' => fn() => delayedValue(['id' => 4, 'name' => 'Diana'], 5),
+                'user_1' => fn () => delayedValue(['id' => 1, 'name' => 'Alice'], 20),
+                'user_2' => fn () => delayedValue(['id' => 2, 'name' => 'Bob'], 10),
+                'user_3' => fn () => delayedValue(['id' => 3, 'name' => 'Charlie'], 30),
+                'user_4' => fn () => delayedValue(['id' => 4, 'name' => 'Diana'], 5),
             ];
 
             $results = $handler->batch($tasks, 2, 2)->await();
@@ -111,10 +111,10 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves numeric keys in batch execution with non-sequential arrays', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                100 => fn() => delayedValue('hundred', 20),
-                200 => fn() => delayedValue('two_hundred', 10),
-                300 => fn() => delayedValue('three_hundred', 30),
-                400 => fn() => delayedValue('four_hundred', 5),
+                100 => fn () => delayedValue('hundred', 20),
+                200 => fn () => delayedValue('two_hundred', 10),
+                300 => fn () => delayedValue('three_hundred', 30),
+                400 => fn () => delayedValue('four_hundred', 5),
             ];
 
             $results = $handler->batch($tasks, 2, 2)->await();
@@ -131,10 +131,10 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves order in concurrentSettled with mixed success/failure', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                fn() => delayedValue('success_1', 30),
-                fn() => delayedReject('error_1', 10),
-                fn() => delayedValue('success_2', 20),
-                fn() => delayedReject('error_2', 5),
+                fn () => delayedValue('success_1', 30),
+                fn () => delayedReject('error_1', 10),
+                fn () => delayedValue('success_2', 20),
+                fn () => delayedReject('error_2', 5),
             ];
 
             $results = $handler->concurrentSettled($tasks, 4)->await();
@@ -152,9 +152,9 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves keys in concurrentSettled with associative arrays', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'api_call_1' => fn() => delayedValue('response_1', 25),
-                'api_call_2' => fn() => delayedReject('timeout', 15),
-                'api_call_3' => fn() => delayedValue('response_3', 35),
+                'api_call_1' => fn () => delayedValue('response_1', 25),
+                'api_call_2' => fn () => delayedReject('timeout', 15),
+                'api_call_3' => fn () => delayedValue('response_3', 35),
             ];
 
             $results = $handler->concurrentSettled($tasks, 3)->await();
@@ -168,9 +168,9 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves numeric keys in concurrentSettled with non-sequential arrays', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                7 => fn() => delayedValue('lucky_seven', 25),
-                13 => fn() => delayedReject('unlucky_thirteen', 15),
-                21 => fn() => delayedValue('twenty_one', 35),
+                7 => fn () => delayedValue('lucky_seven', 25),
+                13 => fn () => delayedReject('unlucky_thirteen', 15),
+                21 => fn () => delayedValue('twenty_one', 35),
             ];
 
             $results = $handler->concurrentSettled($tasks, 3)->await();
@@ -198,7 +198,7 @@ describe('Array Ordering and Key Preservation', function () {
 
         it('handles single item arrays correctly', function () {
             $handler = new ConcurrencyHandler();
-            $tasks = ['single' => fn() => delayedValue('result', 10)];
+            $tasks = ['single' => fn () => delayedValue('result', 10)];
             $results = $handler->concurrent($tasks, 1)->await();
 
             expect($results)->toBe(['single' => 'result']);
@@ -206,7 +206,7 @@ describe('Array Ordering and Key Preservation', function () {
 
         it('handles single item with numeric key correctly', function () {
             $handler = new ConcurrencyHandler();
-            $tasks = [42 => fn() => delayedValue('answer', 10)];
+            $tasks = [42 => fn () => delayedValue('answer', 10)];
             $results = $handler->concurrent($tasks, 1)->await();
 
             expect($results)->toBe([42 => 'answer']);
@@ -216,9 +216,9 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves order with Promise instances as tasks', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                fn() => delayedValue('promise_1', 30),
-                fn() => delayedValue('promise_2', 10),
-                fn() => delayedValue('promise_3', 20),
+                fn () => delayedValue('promise_1', 30),
+                fn () => delayedValue('promise_2', 10),
+                fn () => delayedValue('promise_3', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -229,9 +229,9 @@ describe('Array Ordering and Key Preservation', function () {
         it('preserves numeric keys with Promise instances as tasks', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                25 => fn() => delayedValue('quarter', 30),
-                50 => fn() => delayedValue('half', 10),
-                75 => fn() => delayedValue('three_quarters', 20),
+                25 => fn () => delayedValue('quarter', 30),
+                50 => fn () => delayedValue('half', 10),
+                75 => fn () => delayedValue('three_quarters', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -419,9 +419,9 @@ describe('Array Ordering and Key Preservation', function () {
             $concurrencyHandler = new ConcurrencyHandler();
 
             $tasks = [
-                '0' => fn() => delayedValue('zero', 20),
-                '1' => fn() => delayedValue('one', 10),
-                '2' => fn() => delayedValue('two', 30),
+                '0' => fn () => delayedValue('zero', 20),
+                '1' => fn () => delayedValue('one', 10),
+                '2' => fn () => delayedValue('two', 30),
             ];
 
             $results = $concurrencyHandler->concurrent($tasks, 3)->await();
@@ -434,10 +434,10 @@ describe('Array Ordering and Key Preservation', function () {
             $concurrencyHandler = new ConcurrencyHandler();
 
             $tasks = [
-                0 => fn() => delayedValue('numeric_zero', 20),
-                'string_key' => fn() => delayedValue('string_value', 10),
-                5 => fn() => delayedValue('numeric_five', 30),
-                'another' => fn() => delayedValue('another_string', 15),
+                0 => fn () => delayedValue('numeric_zero', 20),
+                'string_key' => fn () => delayedValue('string_value', 10),
+                5 => fn () => delayedValue('numeric_five', 30),
+                'another' => fn () => delayedValue('another_string', 15),
             ];
 
             $results = $concurrencyHandler->concurrent($tasks, 4)->await();
@@ -477,7 +477,7 @@ describe('Array Ordering and Key Preservation', function () {
             for ($i = 0; $i < 50; $i++) {
                 $value = "item_{$i}";
                 $delay = 50 - $i;
-                $tasks[] = fn() => delayedValue($value, $delay);
+                $tasks[] = fn () => delayedValue($value, $delay);
                 $expected[] = $value;
             }
 
@@ -490,11 +490,11 @@ describe('Array Ordering and Key Preservation', function () {
             $concurrencyHandler = new ConcurrencyHandler();
 
             $tasks = [
-                fn() => delayedValue(['array' => 'data'], 20),
-                fn() => delayedValue(42, 10),
-                fn() => delayedValue('string', 30),
-                fn() => delayedValue(true, 5),
-                fn() => delayedValue(null, 15),
+                fn () => delayedValue(['array' => 'data'], 20),
+                fn () => delayedValue(42, 10),
+                fn () => delayedValue('string', 30),
+                fn () => delayedValue(true, 5),
+                fn () => delayedValue(null, 15),
             ];
 
             $results = $concurrencyHandler->concurrent($tasks, 5)->await();
@@ -563,10 +563,10 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with unicode string keys', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'café' => fn() => delayedValue('coffee', 30),
-                'naïve' => fn() => delayedValue('innocent', 10),
-                '日本' => fn() => delayedValue('japan', 20),
-                '🚀' => fn() => delayedValue('rocket', 5),
+                'café' => fn () => delayedValue('coffee', 30),
+                'naïve' => fn () => delayedValue('innocent', 10),
+                '日本' => fn () => delayedValue('japan', 20),
+                '🚀' => fn () => delayedValue('rocket', 5),
             ];
 
             $results = $handler->concurrent($tasks, 4)->await();
@@ -579,9 +579,9 @@ describe('Edge Cases for Ordering', function () {
         it('handles numeric string keys correctly', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                '5' => fn() => delayedValue('five', 30),
-                '10' => fn() => delayedValue('ten', 10),
-                '15' => fn() => delayedValue('fifteen', 20),
+                '5' => fn () => delayedValue('five', 30),
+                '10' => fn () => delayedValue('ten', 10),
+                '15' => fn () => delayedValue('fifteen', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -592,9 +592,9 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with empty string key', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                '' => fn() => delayedValue('empty', 30),
-                'a' => fn() => delayedValue('letter_a', 10),
-                'b' => fn() => delayedValue('letter_b', 20),
+                '' => fn () => delayedValue('empty', 30),
+                'a' => fn () => delayedValue('letter_a', 10),
+                'b' => fn () => delayedValue('letter_b', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -610,9 +610,9 @@ describe('Edge Cases for Ordering', function () {
             $longKey3 = str_repeat('c', 1000);
 
             $tasks = [
-                $longKey1 => fn() => delayedValue('long_a', 30),
-                $longKey2 => fn() => delayedValue('long_b', 10),
-                $longKey3 => fn() => delayedValue('long_c', 20),
+                $longKey1 => fn () => delayedValue('long_a', 30),
+                $longKey2 => fn () => delayedValue('long_b', 10),
+                $longKey3 => fn () => delayedValue('long_c', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -623,10 +623,10 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with special character keys', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                '$money' => fn() => delayedValue('cash', 30),
-                '#hashtag' => fn() => delayedValue('social', 10),
-                '@mention' => fn() => delayedValue('user', 20),
-                'dot.notation' => fn() => delayedValue('path', 5),
+                '$money' => fn () => delayedValue('cash', 30),
+                '#hashtag' => fn () => delayedValue('social', 10),
+                '@mention' => fn () => delayedValue('user', 20),
+                'dot.notation' => fn () => delayedValue('path', 5),
             ];
 
             $results = $handler->concurrent($tasks, 4)->await();
@@ -637,9 +637,9 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with null values in results', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'first' => fn() => delayedValue(null, 30),
-                'second' => fn() => delayedValue('value', 10),
-                'third' => fn() => delayedValue(null, 20),
+                'first' => fn () => delayedValue(null, 30),
+                'second' => fn () => delayedValue('value', 10),
+                'third' => fn () => delayedValue(null, 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -653,9 +653,9 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with extreme timing differences', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'slow' => fn() => delayedValue('10000ms', 10000),
-                'fast' => fn() => delayedValue('1ms', 1),
-                'medium' => fn() => delayedValue('100ms', 100),
+                'slow' => fn () => delayedValue('10000ms', 10000),
+                'fast' => fn () => delayedValue('1ms', 1),
+                'medium' => fn () => delayedValue('100ms', 100),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -671,10 +671,10 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with duplicate values across different keys', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'key_a' => fn() => delayedValue('same_value', 30),
-                'key_b' => fn() => delayedValue('same_value', 10),
-                'key_c' => fn() => delayedValue('same_value', 20),
-                'key_d' => fn() => delayedValue('different', 5),
+                'key_a' => fn () => delayedValue('same_value', 30),
+                'key_b' => fn () => delayedValue('same_value', 10),
+                'key_c' => fn () => delayedValue('same_value', 20),
+                'key_d' => fn () => delayedValue('different', 5),
             ];
 
             $results = $handler->concurrent($tasks, 4)->await();
@@ -693,9 +693,9 @@ describe('Edge Cases for Ordering', function () {
             $largeKey3 = PHP_INT_MAX;
 
             $tasks = [
-                $largeKey1 => fn() => delayedValue('max_minus_2', 30),
-                $largeKey2 => fn() => delayedValue('max_minus_1', 10),
-                $largeKey3 => fn() => delayedValue('max', 20),
+                $largeKey1 => fn () => delayedValue('max_minus_2', 30),
+                $largeKey2 => fn () => delayedValue('max_minus_1', 10),
+                $largeKey3 => fn () => delayedValue('max', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -706,11 +706,11 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with zero, positive, and negative keys mixed', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                -100 => fn() => delayedValue('very_negative', 30),
-                -1 => fn() => delayedValue('negative_one', 10),
-                0 => fn() => delayedValue('zero', 20),
-                1 => fn() => delayedValue('positive_one', 5),
-                100 => fn() => delayedValue('very_positive', 15),
+                -100 => fn () => delayedValue('very_negative', 30),
+                -1 => fn () => delayedValue('negative_one', 10),
+                0 => fn () => delayedValue('zero', 20),
+                1 => fn () => delayedValue('positive_one', 5),
+                100 => fn () => delayedValue('very_positive', 15),
             ];
 
             $results = $handler->concurrent($tasks, 5)->await();
@@ -721,9 +721,9 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with tasks resolving to complex types', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'array' => fn() => delayedValue(['nested' => ['deep' => 'value']], 30),
-                'object' => fn() => delayedValue((object)['prop' => 'value'], 10),
-                'resource_like' => fn() => delayedValue(['type' => 'resource'], 20),
+                'array' => fn () => delayedValue(['nested' => ['deep' => 'value']], 30),
+                'object' => fn () => delayedValue((object)['prop' => 'value'], 10),
+                'resource_like' => fn () => delayedValue(['type' => 'resource'], 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -736,7 +736,7 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with single task', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'only' => fn() => delayedValue('lonely', 50),
+                'only' => fn () => delayedValue('lonely', 50),
             ];
 
             $results = $handler->concurrent($tasks, 1)->await();
@@ -748,9 +748,9 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with JSON-like string keys', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                '{"key": "value"}' => fn() => delayedValue('json_key', 30),
-                '[1, 2, 3]' => fn() => delayedValue('array_key', 10),
-                'key="value"' => fn() => delayedValue('xml_key', 20),
+                '{"key": "value"}' => fn () => delayedValue('json_key', 30),
+                '[1, 2, 3]' => fn () => delayedValue('array_key', 10),
+                'key="value"' => fn () => delayedValue('xml_key', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -761,11 +761,11 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order in concurrentSettled with mixed rejections and types', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'null_result' => fn() => delayedValue(null, 30),
-                'rejection' => fn() => delayedReject('error', 10),
-                'array_result' => fn() => delayedValue(['data' => 'value'], 20),
-                'another_rejection' => fn() => delayedReject('error2', 5),
-                'string_result' => fn() => delayedValue('success', 15),
+                'null_result' => fn () => delayedValue(null, 30),
+                'rejection' => fn () => delayedReject('error', 10),
+                'array_result' => fn () => delayedValue(['data' => 'value'], 20),
+                'another_rejection' => fn () => delayedReject('error2', 5),
+                'string_result' => fn () => delayedValue('success', 15),
             ];
 
             $results = $handler->concurrentSettled($tasks, 5)->await();
@@ -779,9 +779,9 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with whitespace in string keys', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'key with spaces' => fn() => delayedValue('value1', 30),
-                "key\twith\ttabs" => fn() => delayedValue('value2', 10),
-                "key\nwith\nnewlines" => fn() => delayedValue('value3', 20),
+                'key with spaces' => fn () => delayedValue('value1', 30),
+                "key\twith\ttabs" => fn () => delayedValue('value2', 10),
+                "key\nwith\nnewlines" => fn () => delayedValue('value3', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -796,9 +796,9 @@ describe('Edge Cases for Ordering', function () {
         it('handles tasks completing at exact same time', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'a' => fn() => delayedValue('first', 5),
-                'b' => fn() => delayedValue('second', 5),
-                'c' => fn() => delayedValue('third', 5),
+                'a' => fn () => delayedValue('first', 5),
+                'b' => fn () => delayedValue('second', 5),
+                'c' => fn () => delayedValue('third', 5),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -809,9 +809,9 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with very small numeric keys', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                -1000 => fn() => delayedValue('very_negative', 30),
-                -500 => fn() => delayedValue('negative', 10),
-                -1 => fn() => delayedValue('almost_zero', 20),
+                -1000 => fn () => delayedValue('very_negative', 30),
+                -500 => fn () => delayedValue('negative', 10),
+                -1 => fn () => delayedValue('almost_zero', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -822,9 +822,9 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order with case-sensitive string keys', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                'Key' => fn() => delayedValue('capitalized', 30),
-                'key' => fn() => delayedValue('lowercase', 10),
-                'KEY' => fn() => delayedValue('uppercase', 20),
+                'Key' => fn () => delayedValue('capitalized', 30),
+                'key' => fn () => delayedValue('lowercase', 10),
+                'KEY' => fn () => delayedValue('uppercase', 20),
             ];
 
             $results = $handler->concurrent($tasks, 3)->await();
@@ -838,10 +838,10 @@ describe('Edge Cases for Ordering', function () {
         it('preserves order in batch with edge case keys', function () {
             $handler = new ConcurrencyHandler();
             $tasks = [
-                '' => fn() => delayedValue('empty', 20),
-                '🎯' => fn() => delayedValue('emoji', 10),
-                -5 => fn() => delayedValue('negative', 30),
-                'normal' => fn() => delayedValue('regular', 5),
+                '' => fn () => delayedValue('empty', 20),
+                '🎯' => fn () => delayedValue('emoji', 10),
+                -5 => fn () => delayedValue('negative', 30),
+                'normal' => fn () => delayedValue('regular', 5),
             ];
 
             $results = $handler->batch($tasks, 2, 2)->await();

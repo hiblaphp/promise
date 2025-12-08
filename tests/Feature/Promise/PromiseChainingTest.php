@@ -234,6 +234,8 @@ describe('Promise Chaining', function () {
 
             $promise->finally(function () use (&$called) {
                 $called = true;
+            })->catch(function () {
+                // Handle the rejection
             });
 
             $promise->reject(new Exception('error'));
