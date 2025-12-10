@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use Hibla\Promise\CancellablePromise;
+use Hibla\Promise\Promise;
 
-describe('CancellablePromise Edge Cases', function () {
+describe('Promise Edge Cases', function () {
     it('handles rapid cancel and resolve attempts', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
 
         $promise->cancel();
         $promise->resolve('value');
@@ -14,33 +14,33 @@ describe('CancellablePromise Edge Cases', function () {
         $promise->reject(new Exception('error'));
 
         expect($promise->isCancelled())->toBeTrue()
-            ->and($promise->isRejected())->toBeTrue()
-            ->and($promise->isResolved())->toBeFalse()
+            ->and($promise->isRejected())->toBeFalse()
+            ->and($promise->isFulfilled())->toBeFalse()
         ;
     });
 
     it('handles multiple cancel handlers', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $callCount = 0;
 
-        $promise->setCancelHandler(function () use (&$callCount) {
+        $promise->onCancel(function () use (&$callCount) {
             $callCount += 1;
         });
-        $promise->setCancelHandler(function () use (&$callCount) {
+        $promise->onCancel(function () use (&$callCount) {
             $callCount += 10;
         });
 
         $promise->cancel();
 
         expect($promise->isCancelled())->toBeTrue();
-        expect($callCount)->toBe(10);
+        expect($callCount)->toBe(11);
     });
 
     it('maintains state consistency under stress', function () {
         $promises = [];
 
         for ($i = 0; $i < 10; $i++) {
-            $promises[] = new CancellablePromise();
+            $promises[] = new Promise();
         }
 
         foreach ($promises as $promise) {

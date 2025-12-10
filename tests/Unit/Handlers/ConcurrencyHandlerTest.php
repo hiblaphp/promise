@@ -14,7 +14,7 @@ describe('ConcurrencyHandler', function () {
             fn () => Promise::resolved('result3'),
         ];
 
-        $results = $handler->concurrent($tasks, 2)->await();
+        $results = $handler->concurrent($tasks, 2)->wait();
 
         expect($results)->toBe(['result1', 'result2', 'result3']);
     });
@@ -35,14 +35,14 @@ describe('ConcurrencyHandler', function () {
             });
         });
 
-        $handler->concurrent($tasks, 2)->await();
+        $handler->concurrent($tasks, 2)->wait();
 
         expect($maxConcurrent)->toBeLessThanOrEqual(2);
     });
 
     it('handles empty task array', function () {
         $handler = new ConcurrencyHandler();
-        $results = $handler->concurrent([])->await();
+        $results = $handler->concurrent([])->wait();
 
         expect($results)->toBe([]);
     });
@@ -54,7 +54,7 @@ describe('ConcurrencyHandler', function () {
             'task2' => fn () => Promise::resolved('result2'),
         ];
 
-        $results = $handler->concurrent($tasks)->await();
+        $results = $handler->concurrent($tasks)->wait();
 
         expect($results)->toBe([
             'task1' => 'result1',
@@ -69,7 +69,7 @@ describe('ConcurrencyHandler', function () {
             fn () => Promise::rejected(new Exception('task failed')),
         ];
 
-        expect(fn () => $handler->concurrent($tasks)->await())
+        expect(fn () => $handler->concurrent($tasks)->wait())
             ->toThrow(Exception::class, 'task failed')
         ;
     });
@@ -78,7 +78,7 @@ describe('ConcurrencyHandler', function () {
         $handler = new ConcurrencyHandler();
         $tasks = array_fill(0, 5, fn () => Promise::resolved('result'));
 
-        $results = $handler->batch($tasks, 2)->await();
+        $results = $handler->batch($tasks, 2)->wait();
 
         expect($results)->toHaveCount(5);
         expect(array_unique($results))->toBe(['result']);
@@ -92,7 +92,7 @@ describe('ConcurrencyHandler', function () {
             fn () => Promise::resolved('another success'),
         ];
 
-        $results = $handler->concurrentSettled($tasks)->await();
+        $results = $handler->concurrentSettled($tasks)->wait();
 
         expect($results)->toHaveCount(3);
         expect($results[0]['status'])->toBe('fulfilled');
@@ -104,11 +104,11 @@ describe('ConcurrencyHandler', function () {
     it('validates concurrency parameter', function () {
         $handler = new ConcurrencyHandler();
 
-        expect(fn () => $handler->concurrent([], 0)->await())
+        expect(fn () => $handler->concurrent([], 0)->wait())
             ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0')
         ;
 
-        expect(fn () => $handler->concurrent([], -1)->await())
+        expect(fn () => $handler->concurrent([], -1)->wait())
             ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0')
         ;
     });

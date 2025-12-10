@@ -8,7 +8,7 @@ describe('Promise Static Factories', function () {
     it('creates resolved promise with resolved()', function () {
         $promise = Promise::resolved('test value');
 
-        expect($promise->isResolved())->toBeTrue()
+        expect($promise->isFulfilled())->toBeTrue()
             ->and($promise->getValue())->toBe('test value')
         ;
     });

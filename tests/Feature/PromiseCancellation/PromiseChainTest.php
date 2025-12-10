@@ -2,13 +2,12 @@
 
 declare(strict_types=1);
 
-use Hibla\Promise\CancellablePromise;
-use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Promise\Promise;
 
-describe('CancellablePromise Chaining', function () {
+describe('Promise Chaining', function () {
     it('supports promise chaining', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
 
         $chainedPromise = $promise->then(function ($value) {
             return $value.' processed';
@@ -17,11 +16,11 @@ describe('CancellablePromise Chaining', function () {
         $promise->resolve('initial');
 
         expect($chainedPromise)->toBeInstanceOf(PromiseInterface::class);
-        expect($chainedPromise)->toBeInstanceOf(CancellablePromiseInterface::class);
+        expect($chainedPromise)->toBeInstanceOf(PromiseInterface::class);
     });
 
     it('handles cancellation in promise chain', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $thenCalled = false;
         $catchCalled = false;
 
@@ -38,13 +37,13 @@ describe('CancellablePromise Chaining', function () {
         $promise->cancel();
 
         expect($promise->isCancelled())->toBeTrue()
-            ->and($promise->isRejected())->toBeTrue()
+            ->and($promise->isRejected())->toBeFalse()
         ;
         expect($chainedPromise)->toBeInstanceOf(PromiseInterface::class);
     });
 
     it('maintains cancellation state through chain', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
 
         $chainedPromise = $promise->then(function ($value) {
             return $value.' processed';
@@ -60,7 +59,7 @@ describe('CancellablePromise Chaining', function () {
     });
 
     it('can set finally callback', function () {
-        $promise = new CancellablePromise();
+        $promise = new Promise();
         $finallyCalled = false;
 
         $finalPromise = $promise->finally(function () use (&$finallyCalled) {

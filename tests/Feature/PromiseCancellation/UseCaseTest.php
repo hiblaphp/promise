@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-use Hibla\Promise\CancellablePromise;
+use Hibla\Promise\Promise;
 
-describe('CancellablePromise Real-World Examples', function () {
+describe('Promise Real-World Examples', function () {
     it('file upload with progress tracking', function () {
         $uploadProgress = 0;
         $uploadCancelled = false;
         $tempFileDeleted = false;
 
-        $uploadPromise = new CancellablePromise(function ($resolve, $reject) use (&$uploadProgress) {
+        $uploadPromise = new Promise(function ($resolve, $reject) use (&$uploadProgress) {
             $uploadProgress = 25;
         });
 
-        $uploadPromise->setCancelHandler(function () use (&$uploadCancelled, &$tempFileDeleted) {
+        $uploadPromise->onCancel(function () use (&$uploadCancelled, &$tempFileDeleted) {
             $uploadCancelled = true;
             $tempFileDeleted = true;
         });
@@ -31,11 +31,11 @@ describe('CancellablePromise Real-World Examples', function () {
         $transactionStarted = false;
         $transactionRolledBack = false;
 
-        $dbPromise = new CancellablePromise(function ($resolve, $reject) use (&$transactionStarted) {
+        $dbPromise = new Promise(function ($resolve, $reject) use (&$transactionStarted) {
             $transactionStarted = true;
         });
 
-        $dbPromise->setCancelHandler(function () use (&$transactionRolledBack) {
+        $dbPromise->onCancel(function () use (&$transactionRolledBack) {
             $transactionRolledBack = true;
         });
 
@@ -52,11 +52,11 @@ describe('CancellablePromise Real-World Examples', function () {
         $connectionClosed = false;
         $cacheCleared = false;
 
-        $apiPromise = new CancellablePromise(function ($resolve, $reject) use (&$requestSent) {
+        $apiPromise = new Promise(function ($resolve, $reject) use (&$requestSent) {
             $requestSent = true;
         });
 
-        $apiPromise->setCancelHandler(function () use (&$connectionClosed, &$cacheCleared) {
+        $apiPromise->onCancel(function () use (&$connectionClosed, &$cacheCleared) {
             $connectionClosed = true;
             $cacheCleared = true;
         });

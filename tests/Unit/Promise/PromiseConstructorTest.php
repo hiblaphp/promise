@@ -27,7 +27,7 @@ describe('Promise Constructor', function () {
             $resolve('test value');
         });
 
-        expect($promise->isResolved())->toBeTrue()
+        expect($promise->isFulfilled())->toBeTrue()
             ->and($promise->getValue())->toBe('test value')
         ;
     });

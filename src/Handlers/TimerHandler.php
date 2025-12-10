@@ -5,27 +5,27 @@ declare(strict_types=1);
 namespace Hibla\Promise\Handlers;
 
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\CancellablePromise;
-use Hibla\Promise\Interfaces\CancellablePromiseInterface;
+use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Promise\Promise;
 
 final readonly class TimerHandler
 {
     /**
      * @param  float  $seconds  Number of seconds to delay (supports fractional seconds)
-     * @return CancellablePromiseInterface<null> Promise that resolves after the delay and can be cancelled
+     * @return PromiseInterface<null> Promise that resolves after the delay and can be cancelled
      */
-    public function delay(float $seconds): CancellablePromiseInterface
+    public function delay(float $seconds): PromiseInterface
     {
-        /** @var CancellablePromise<null> $promise */
-        $promise = new CancellablePromise();
+        /** @var Promise<null> $promise */
+        $promise = new Promise();
 
         $timerId = Loop::addTimer($seconds, function () use ($promise): void {
-            if (! $promise->isCancelled()) {
-                $promise->resolve(null);
-            }
+            $promise->resolve(null);
         });
 
-        $promise->setTimerId($timerId);
+        $promise->onCancel(function () use ($timerId): void {
+            Loop::cancelTimer($timerId);
+        });
 
         return $promise;
     }

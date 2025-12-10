@@ -302,7 +302,7 @@ final readonly class ConcurrencyHandler
                 $totalBatches,
                 $concurrency,
                 $resolve,
-                $reject
+                $reject,
             ): void {
                 if ($batchIndex >= $totalBatches) {
                     $resolve($this->orderResultsByKeys($allResults, $originalKeys));
@@ -387,7 +387,7 @@ final readonly class ConcurrencyHandler
                 &$originalKeys,
                 $totalBatches,
                 $concurrency,
-                $resolve
+                $resolve,
             ): void {
                 if ($batchIndex >= $totalBatches) {
                     $resolve($this->orderResultsByKeys($allResults, $originalKeys));
@@ -403,7 +403,7 @@ final readonly class ConcurrencyHandler
                     ->then(function ($batchResults) use (
                         &$allResults,
                         &$batchIndex,
-                        $processNextBatch
+                        $processNextBatch,
                     ): void {
                         foreach ($batchResults as $key => $result) {
                             $allResults[$key] = $result;
@@ -424,12 +424,7 @@ final readonly class ConcurrencyHandler
      */
     private function initializeResults(array $keys): array
     {
-        $results = [];
-        foreach ($keys as $key) {
-            $results[$key] = null;
-        }
-
-        return $results;
+        return array_fill_keys($keys, null);
     }
 
     /**

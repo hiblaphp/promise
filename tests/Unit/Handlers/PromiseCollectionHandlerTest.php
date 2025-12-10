@@ -18,7 +18,7 @@ describe('PromiseCollectionHandler', function () {
 
         $promises = [$promise1, $promise2];
 
-        $results = $handler->all($promises)->await();
+        $results = $handler->all($promises)->wait();
 
         expect($results)->toBe(['result1', 'result2']);
     });
@@ -33,14 +33,14 @@ describe('PromiseCollectionHandler', function () {
 
         $promises = [$promise1, $promise2];
 
-        expect(fn () => $handler->all($promises)->await())
+        expect(fn () => $handler->all($promises)->wait())
             ->toThrow(Exception::class, 'failure')
         ;
     });
 
     it('handles empty promise array', function () {
         $handler = new PromiseCollectionHandler();
-        $results = $handler->all([])->await();
+        $results = $handler->all([])->wait();
 
         expect($results)->toBe([]);
     });
@@ -55,7 +55,7 @@ describe('PromiseCollectionHandler', function () {
 
         $promises = [$promise1, $promise2];
 
-        $results = $handler->allSettled($promises)->await();
+        $results = $handler->allSettled($promises)->wait();
 
         expect($results)->toHaveCount(2);
         expect($results[0]['status'])->toBe('fulfilled');
@@ -71,7 +71,7 @@ describe('PromiseCollectionHandler', function () {
 
         $slowPromise = new Promise();
 
-        $result = $handler->race([$slowPromise, $fastPromise])->await();
+        $result = $handler->race([$slowPromise, $fastPromise])->wait();
 
         expect($result)->toBe('fast');
     });
@@ -80,7 +80,7 @@ describe('PromiseCollectionHandler', function () {
         $handler = new PromiseCollectionHandler();
         $slowPromise = new Promise();
 
-        expect(fn () => $handler->timeout($slowPromise, 0.05)->await())
+        expect(fn () => $handler->timeout($slowPromise, 0.05)->wait())
             ->toThrow(TimeoutException::class)
         ;
     });
@@ -98,7 +98,7 @@ describe('PromiseCollectionHandler', function () {
 
         $promises = [$promise1, $promise2, $promise3];
 
-        $result = $handler->any($promises)->await();
+        $result = $handler->any($promises)->wait();
 
         expect($result)->toBe('success');
     });
@@ -113,7 +113,7 @@ describe('PromiseCollectionHandler', function () {
 
         $promises = [$promise1, $promise2];
 
-        expect(fn () => $handler->any($promises)->await())
+        expect(fn () => $handler->any($promises)->wait())
             ->toThrow(AggregateErrorException::class, 'All promises were rejected')
         ;
     });

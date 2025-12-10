@@ -14,7 +14,7 @@ describe('Promise Static Methods', function () {
             $promise2 = Promise::resolved('value2');
             $promise3 = Promise::resolved('value3');
 
-            $result = Promise::all([$promise1, $promise2, $promise3])->await();
+            $result = Promise::all([$promise1, $promise2, $promise3])->wait();
 
             expect($result)->toBe(['value1', 'value2', 'value3']);
         });
@@ -27,7 +27,7 @@ describe('Promise Static Methods', function () {
                 $promise2 = Promise::rejected($exception);
                 $promise3 = Promise::resolved('value3');
 
-                Promise::all([$promise1, $promise2, $promise3])->await();
+                Promise::all([$promise1, $promise2, $promise3])->wait();
                 expect(false)->toBeTrue('Expected exception to be thrown');
             } catch (Exception $e) {
                 expect($e)->toBe($exception);
@@ -35,7 +35,7 @@ describe('Promise Static Methods', function () {
         });
 
         it('handles empty array', function () {
-            $result = Promise::all([])->await();
+            $result = Promise::all([])->wait();
 
             expect($result)->toBe([]);
         });
@@ -47,7 +47,7 @@ describe('Promise Static Methods', function () {
                 Promise::resolved('third'),
             ];
 
-            $result = Promise::all($promises)->await();
+            $result = Promise::all($promises)->wait();
 
             expect($result[0])->toBe('first')
                 ->and($result[1])->toBe('second')
@@ -62,7 +62,7 @@ describe('Promise Static Methods', function () {
             $promise2 = Promise::rejected(new Exception('error'));
             $promise3 = Promise::resolved('value3');
 
-            $result = Promise::allSettled([$promise1, $promise2, $promise3])->await();
+            $result = Promise::allSettled([$promise1, $promise2, $promise3])->wait();
 
             expect($result)->toHaveCount(3);
 
@@ -75,7 +75,7 @@ describe('Promise Static Methods', function () {
         });
 
         it('handles empty array', function () {
-            $result = Promise::allSettled([])->await();
+            $result = Promise::allSettled([])->wait();
 
             expect($result)->toBe([]);
         });
@@ -85,7 +85,7 @@ describe('Promise Static Methods', function () {
             $promise2 = Promise::rejected(new Exception('error2'));
             $promise3 = Promise::rejected(new Exception('error3'));
 
-            $result = Promise::allSettled([$promise1, $promise2, $promise3])->await();
+            $result = Promise::allSettled([$promise1, $promise2, $promise3])->wait();
 
             expect($result)->toHaveCount(3);
 
@@ -102,7 +102,7 @@ describe('Promise Static Methods', function () {
             $promise3 = Promise::resolved('third success');
             $promise4 = Promise::resolved('fourth success');
 
-            $result = Promise::any([$promise1, $promise2, $promise3, $promise4])->await();
+            $result = Promise::any([$promise1, $promise2, $promise3, $promise4])->wait();
 
             expect($result)->toBe('third success');
         });
@@ -113,7 +113,7 @@ describe('Promise Static Methods', function () {
                 $promise2 = Promise::rejected(new Exception('second error'));
                 $promise3 = Promise::rejected(new Exception('third error'));
 
-                Promise::any([$promise1, $promise2, $promise3])->await();
+                Promise::any([$promise1, $promise2, $promise3])->wait();
                 expect(false)->toBeTrue('Expected AggregateException to be thrown');
             } catch (Exception $e) {
                 expect($e)->toBeInstanceOf(Exception::class);
@@ -130,14 +130,14 @@ describe('Promise Static Methods', function () {
             $promise1->reject(new Exception('delayed error'));
             $promise3->resolve('delayed success');
 
-            $result = $anyPromise->await();
+            $result = $anyPromise->wait();
 
             expect($result)->toBe('quick success');
         });
 
         it('handles empty array by rejecting', function () {
             try {
-                Promise::any([])->await();
+                Promise::any([])->wait();
                 expect(false)->toBeTrue('Expected exception to be thrown for empty array');
             } catch (Exception $e) {
                 expect($e)->toBeInstanceOf(Exception::class);
@@ -150,7 +150,7 @@ describe('Promise Static Methods', function () {
             $promise3 = Promise::resolved('success');
             $promise4 = new Promise(); // Never settles
 
-            $result = Promise::any([$promise1, $promise2, $promise3, $promise4])->await();
+            $result = Promise::any([$promise1, $promise2, $promise3, $promise4])->wait();
 
             expect($result)->toBe('success');
         });
@@ -162,7 +162,7 @@ describe('Promise Static Methods', function () {
             $promise2 = new Promise(); // never settles
             $promise3 = new Promise(); // never settles
 
-            $result = Promise::race([$promise1, $promise2, $promise3])->await();
+            $result = Promise::race([$promise1, $promise2, $promise3])->wait();
 
             expect($result)->toBe('fast');
         });
@@ -174,7 +174,7 @@ describe('Promise Static Methods', function () {
                 $promise1 = Promise::rejected($exception);
                 $promise2 = new Promise(); // never settles
 
-                Promise::race([$promise1, $promise2])->await();
+                Promise::race([$promise1, $promise2])->wait();
                 expect(false)->toBeTrue('Expected exception to be thrown');
             } catch (Exception $e) {
                 expect($e)->toBe($exception);
@@ -198,7 +198,7 @@ describe('Promise Static Methods', function () {
                 };
             }
 
-            $result = Promise::concurrent($tasks, 3)->await();
+            $result = Promise::concurrent($tasks, 3)->wait();
             $executionTime = microtime(true) - $startTime;
 
             expect($result)->toHaveCount(10);
@@ -214,7 +214,7 @@ describe('Promise Static Methods', function () {
                 $tasks[] = fn () => delay(0.1)->then(fn () => "task-{$i}");
             }
 
-            $result = Promise::concurrent($tasks, 2)->await();
+            $result = Promise::concurrent($tasks, 2)->wait();
             $executionTime = microtime(true) - $startTime;
 
             expect($result)->toHaveCount(6);
@@ -223,7 +223,7 @@ describe('Promise Static Methods', function () {
         });
 
         it('handles empty task array', function () {
-            $result = Promise::concurrent([], 5)->await();
+            $result = Promise::concurrent([], 5)->wait();
 
             expect($result)->toBe([]);
         });
@@ -236,7 +236,7 @@ describe('Promise Static Methods', function () {
                     fn () => delay(0.05)->then(fn () => 'task-2'),
                 ];
 
-                Promise::concurrent($tasks, 2)->await();
+                Promise::concurrent($tasks, 2)->wait();
                 expect(false)->toBeTrue('Expected exception to be thrown');
             } catch (Exception $e) {
                 expect($e->getMessage())->toBe('concurrent error');
@@ -251,7 +251,7 @@ describe('Promise Static Methods', function () {
                 };
             }
 
-            $result = Promise::concurrent($tasks, 2)->await();
+            $result = Promise::concurrent($tasks, 2)->wait();
 
             expect($result)->toHaveCount(5);
             for ($i = 0; $i < 5; $i++) {
@@ -269,7 +269,7 @@ describe('Promise Static Methods', function () {
                 fn () => delay(0.05)->then(fn () => throw new Exception('error2')),
             ];
 
-            $result = Promise::concurrentSettled($tasks, 2)->await();
+            $result = Promise::concurrentSettled($tasks, 2)->wait();
 
             expect($result)->toHaveCount(4);
 
@@ -298,7 +298,7 @@ describe('Promise Static Methods', function () {
                 fn () => delay(0.05)->then(fn () => throw new Exception('error3')),
             ];
 
-            $result = Promise::concurrentSettled($tasks, 2)->await();
+            $result = Promise::concurrentSettled($tasks, 2)->wait();
 
             expect($result)->toHaveCount(3);
 
@@ -315,7 +315,7 @@ describe('Promise Static Methods', function () {
                 $tasks[] = fn () => delay(0.1)->then(fn () => "task-{$i}");
             }
 
-            $result = Promise::concurrentSettled($tasks, 2)->await();
+            $result = Promise::concurrentSettled($tasks, 2)->wait();
             $executionTime = microtime(true) - $startTime;
 
             expect($result)->toHaveCount(6);
@@ -324,7 +324,7 @@ describe('Promise Static Methods', function () {
         });
 
         it('handles empty task array', function () {
-            $result = Promise::concurrentSettled([], 3)->await();
+            $result = Promise::concurrentSettled([], 3)->wait();
 
             expect($result)->toBe([]);
         });
@@ -341,7 +341,7 @@ describe('Promise Static Methods', function () {
                 }
             }
 
-            $result = Promise::batchSettled($tasks, 3)->await();
+            $result = Promise::batchSettled($tasks, 3)->wait();
 
             expect($result)->toHaveCount(8);
 
@@ -361,7 +361,7 @@ describe('Promise Static Methods', function () {
                 $tasks[] = fn () => delay(0.1)->then(fn () => "task-{$i}");
             }
 
-            $result = Promise::batchSettled($tasks, 3)->await();
+            $result = Promise::batchSettled($tasks, 3)->wait();
             $executionTime = microtime(true) - $startTime;
 
             expect($result)->toHaveCount(9);
@@ -377,7 +377,7 @@ describe('Promise Static Methods', function () {
                 $tasks[] = fn () => delay(0.1)->then(fn () => "task-{$i}");
             }
 
-            $result = Promise::batchSettled($tasks, 4, 2)->await();
+            $result = Promise::batchSettled($tasks, 4, 2)->wait();
             $executionTime = microtime(true) - $startTime;
 
             expect($result)->toHaveCount(6);
@@ -392,7 +392,7 @@ describe('Promise Static Methods', function () {
                 fn () => delay(0.05)->then(fn () => throw new Exception('error3')),
             ];
 
-            $result = Promise::batchSettled($tasks, 2)->await();
+            $result = Promise::batchSettled($tasks, 2)->wait();
 
             expect($result)->toHaveCount(3);
 
@@ -402,7 +402,7 @@ describe('Promise Static Methods', function () {
         });
 
         it('handles empty task array', function () {
-            $result = Promise::batchSettled([], 5)->await();
+            $result = Promise::batchSettled([], 5)->wait();
 
             expect($result)->toBe([]);
         });
@@ -414,7 +414,7 @@ describe('Promise Static Methods', function () {
                 fn () => delay(0.05)->then(fn () => 'task-2'),
             ];
 
-            $result = Promise::batchSettled($tasks, 10)->await();
+            $result = Promise::batchSettled($tasks, 10)->wait();
 
             expect($result)->toHaveCount(3);
 
@@ -434,7 +434,7 @@ describe('Promise Static Methods', function () {
                 };
             }
 
-            $result = Promise::batchSettled($tasks, 3)->await();
+            $result = Promise::batchSettled($tasks, 3)->wait();
 
             expect($result)->toHaveCount(7);
             for ($i = 0; $i < 7; $i++) {
@@ -452,7 +452,7 @@ describe('Promise Static Methods', function () {
         it('resolves if promise completes within timeout', function () {
             $promise = delay(0.05)->then(fn () => 'success');
 
-            $result = Promise::timeout($promise, 0.1)->await();
+            $result = Promise::timeout($promise, 0.1)->wait();
 
             expect($result)->toBe('success');
         });
@@ -461,7 +461,7 @@ describe('Promise Static Methods', function () {
             try {
                 $promise = delay(0.2)->then(fn () => 'too slow');
 
-                Promise::timeout($promise, 0.1)->await();
+                Promise::timeout($promise, 0.1)->wait();
                 expect(false)->toBeTrue('Expected timeout exception');
             } catch (Exception $e) {
                 expect($e)->toBeInstanceOf(Exception::class);
@@ -472,7 +472,7 @@ describe('Promise Static Methods', function () {
             try {
                 $promise = delay(0.05)->then(fn () => throw new Exception('original error'));
 
-                Promise::timeout($promise, 0.1)->await();
+                Promise::timeout($promise, 0.1)->wait();
                 expect(false)->toBeTrue('Expected original exception');
             } catch (Exception $e) {
                 expect($e->getMessage())->toBe('original error');
@@ -484,7 +484,7 @@ describe('Promise Static Methods', function () {
         it('creates a resolved promise with the given value', function () {
             $promise = Promise::resolved('test value');
 
-            expect($promise->isResolved())->toBeTrue();
+            expect($promise->isFulfilled())->toBeTrue();
             expect($promise->getValue())->toBe('test value');
         });
     });
@@ -496,15 +496,6 @@ describe('Promise Static Methods', function () {
 
             expect($promise->isRejected())->toBeTrue();
             expect($promise->getReason())->toBe($exception);
-        });
-    });
-
-    describe('Promise::reset', function () {
-        it('resets the static AsyncOperations instance', function () {
-            Promise::reset();
-
-            $result = Promise::resolved('after reset')->await();
-            expect($result)->toBe('after reset');
         });
     });
 });

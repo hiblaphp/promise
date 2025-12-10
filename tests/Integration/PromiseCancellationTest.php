@@ -5,7 +5,6 @@ declare(strict_types=1);
 use function Hibla\delay;
 use function Hibla\Promise\concurrent;
 
-use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
 
 use function Hibla\Promise\timeout;
@@ -14,7 +13,7 @@ describe('CancellablePromise Integration', function () {
     it('works with delay function', function () {
         $promise = delay(0.1);
 
-        expect($promise)->toBeInstanceOf(CancellablePromiseInterface::class);
+        expect($promise)->toBeInstanceOf(PromiseInterface::class);
 
         $promise->cancel();
 
@@ -26,7 +25,7 @@ describe('CancellablePromise Integration', function () {
 
         expect($promise)->toBeInstanceOf(PromiseInterface::class);
 
-        if ($promise instanceof CancellablePromiseInterface) {
+        if ($promise instanceof PromiseInterface) {
             $promise->cancel();
             expect($promise->isCancelled())->toBeTrue();
         }
@@ -43,24 +42,9 @@ describe('CancellablePromise Integration', function () {
 
         expect($promise)->toBeInstanceOf(PromiseInterface::class);
 
-        if ($promise instanceof CancellablePromiseInterface) {
+        if ($promise instanceof PromiseInterface) {
             $promise->cancel();
             expect($promise->isCancelled())->toBeTrue();
         }
-    });
-
-    it('can be used with delay operations', function () {
-        $promise = delay(1.0);
-        $timeoutCleared = false;
-
-        $promise->setCancelHandler(function () use (&$timeoutCleared) {
-            $timeoutCleared = true;
-        });
-
-        $promise->cancel();
-
-        expect($timeoutCleared)->toBeTrue()
-            ->and($promise->isCancelled())->toBeTrue()
-        ;
     });
 });

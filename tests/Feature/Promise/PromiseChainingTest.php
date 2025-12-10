@@ -68,7 +68,7 @@ describe('Promise Chaining', function () {
 
             $promise->resolve(5);
 
-            $result = $finalPromise->await();
+            $result = $finalPromise->wait();
 
             expect($result)->toBe(11); // (5 * 2) + 1
         });
@@ -82,11 +82,10 @@ describe('Promise Chaining', function () {
             });
 
             $promise->resolve('original');
-            // At this point chainedPromise should be pending
 
             $innerPromise->resolve('inner value');
 
-            $result = $chainedPromise->await();
+            $result = $chainedPromise->wait();
 
             expect($result)->toBe('inner value');
         });
@@ -102,7 +101,7 @@ describe('Promise Chaining', function () {
             $promise->resolve('value');
 
             try {
-                $chainedPromise->await();
+                $chainedPromise->wait();
                 expect(false)->toBeTrue('Expected exception to be thrown');
             } catch (Exception $e) {
                 expect($e)->toBeInstanceOf(Exception::class)
@@ -205,7 +204,7 @@ describe('Promise Chaining', function () {
 
             $promise->reject($exception);
 
-            $result = $recoveredPromise->await();
+            $result = $recoveredPromise->wait();
 
             expect($result)->toBe('recovered value');
         });
@@ -235,6 +234,8 @@ describe('Promise Chaining', function () {
 
             $promise->finally(function () use (&$called) {
                 $called = true;
+            })->catch(function () {
+                // Handle the rejection
             });
 
             $promise->reject(new Exception('error'));
@@ -244,13 +245,15 @@ describe('Promise Chaining', function () {
             expect($called)->toBeTrue();
         });
 
-        it('returns the same promise', function () {
+        it('returns a new promise', function () {
             $promise = new Promise();
             $finallyPromise = $promise->finally(function () {
                 // cleanup
             });
 
-            expect($finallyPromise)->toBe($promise);
+            expect($finallyPromise)->toBeInstanceOf(Promise::class)
+                ->and($finallyPromise)->not->toBe($promise)
+            ;
         });
     });
 });
