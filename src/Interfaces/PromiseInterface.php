@@ -57,28 +57,61 @@ interface PromiseInterface
     /**
      * Attaches a handler that executes regardless of promise outcome.
      *
-     * The finally handler receives no arguments and its return value
-     * does not affect the promise chain unless it throws an exception.
+     * This method runs on ALL terminal states (fulfilled, rejected, AND cancelled),
+     * making it suitable for cleanup operations that must always occur.
      *
-     * finally() behaves similarly to the synchronous finally statement. When combined
-     * with catch(), finally() allows you to write code that is similar to the familiar
-     * synchronous catch/finally pair.
+     * IMPORTANT - Execution Timing:
+     * - On settlement (fulfilled/rejected): executes ASYNCHRONOUSLY via microtasks
+     * - On cancellation: executes SYNCHRONOUSLY for immediate resource cleanup
      *
-     * * If $promise fulfills, and $onFulfilledOrRejected returns successfully,
+     * This dual behavior ensures:
+     * - Resources are freed immediately when user cancels (file handles, connections, etc.)
+     * - Normal settlement follows standard promise microtask queuing
+     *
+     * Behavior based on outcome:
+     * * If $promise fulfills, and $onFinally returns successfully,
      *   the returned promise will fulfill with the same value as $promise.
-     * * If $promise fulfills, and $onFulfilledOrRejected throws or returns a
+     * * If $promise fulfills, and $onFinally throws or returns a
      *   rejected promise, the returned promise will reject with the thrown exception or
      *   rejected promise's reason.
-     * * If $promise rejects, and $onFulfilledOrRejected returns successfully,
+     * * If $promise rejects, and $onFinally returns successfully,
      *   the returned promise will reject with the same reason as $promise.
-     * * If $promise rejects, and $onFulfilledOrRejected throws or returns a
+     * * If $promise rejects, and $onFinally throws or returns a
      *   rejected promise, the returned promise will reject with the thrown exception or
      *   rejected promise's reason.
+     * * If $promise is cancelled, $onFinally executes synchronously and the promise
+     *   remains in the cancelled state.
      *
-     * @param callable(): (void|PromiseInterface<void>) $onFulfilledOrRejected
+     * State Handler Comparison:
+     *
+     * | Method     | Fulfilled | Rejected | Cancelled | Meaning |
+     * |------------|:---------:|:--------:|:---------:|---------|
+     * | then()     |     ✓     |     -    |     -     | Success Value |
+     * | catch()    |     -     |     ✓    |     -     | Error Reason |
+     * | onCancel() |     -     |     -    |     ✓     | Aborted (No Result) |
+     * | finally()  |     ✓     |     ✓    |     ✓     | All Outcomes |
+     *
+     * Usage Examples:
+     * ```php
+     * // Cleanup always runs, but timing differs:
+     * $promise->finally(fn() => $spinner->stop());
+     *
+     * // Cancel triggers immediate synchronous cleanup:
+     * $filePromise
+     *     ->finally(fn() => fclose($handle))  // Runs immediately on cancel
+     *     ->cancel();  // File closed before this line returns
+     *
+     * // Normal settlement triggers async cleanup:
+     * $promise
+     *     ->then(fn($data) => processData($data))
+     *     ->catch(fn($error) => logError($error))
+     *     ->finally(fn() => closeConnection());  // Runs in microtask on success/failure
+     * ```
+     *
+     * @param callable(): (void|PromiseInterface<void>) $onFinally
      * @return PromiseInterface<TValue> A new promise that will settle with the same outcome as the original.
      */
-    public function finally(callable $onFulfilledOrRejected): PromiseInterface;
+    public function finally(callable $onFinally): PromiseInterface;
 
     /**
      * Cancel a pending promise and all child promises in the chain.
@@ -163,7 +196,7 @@ interface PromiseInterface
      * - Releasing resources
      *
      * Note:
-     * - Cancel handlers are executed in reverse order of registration (LIFO).
+     * - cancelHandlers are always attached to the promise instance, not the chain.
      * - By default, cancel handlers execute synchronously.
      *
      * @param callable $handler The cleanup handler to execute on cancellation
@@ -192,16 +225,14 @@ interface PromiseInterface
     public function isSettled(): bool;
 
     /**
-     * Checks if the promise has been resolved with a value.
+     * Checks if the promise has been fulfilled with a value.
      *
-     * @return bool True if resolved, false otherwise.
+     * @return bool True if fulfilled, false otherwise.
      */
-    public function isResolved(): bool;
+    public function isFulfilled(): bool;
 
     /**
      * Checks if the promise has been rejected with a reason.
-     *
-     * Note: A cancelled promise will also be rejected.
      *
      * @return bool True if rejected, false otherwise.
      */
@@ -228,6 +259,13 @@ interface PromiseInterface
     public function getValue(): mixed;
 
     /**
+     * Gets the current state of the promise.
+     *
+     * @return string The current state of the promise.
+     */
+    public function getState(): string;
+
+    /**
      * Gets the rejection reason of the promise.
      *
      * This method should only be called after confirming the promise
@@ -243,24 +281,24 @@ interface PromiseInterface
     /**
      * **[BLOCKING]** Wait for the promise to resolve synchronously.
      *
-     * ⚠️ This method BLOCKS the current thread by running the EventLoop
+     * This method BLOCKS the current thread by running the EventLoop
      * until the promise settles. Use this only at the top-level of your
      * application or in synchronous contexts.
      *
      * For non-blocking async code, use the await() function instead.
      *
      * ```php
-     * // ❌ Don't use inside async blocks
+     * // X Don't use inside async blocks
      * async(function() {
      *     return $promise->wait();  // Blocks unnecessarily!
      * });
      *
-     * // ✅ Use await() function instead
+     * //  Use await() function instead
      * async(function() {
      *     return await($promise);  // Suspends fiber properly
      * });
      *
-     * // ✅ Use ->wait() at top-level
+     * //  Use ->wait() at top-level
      * $result = $promise->wait();  // Blocks to get result
      * ```
      *

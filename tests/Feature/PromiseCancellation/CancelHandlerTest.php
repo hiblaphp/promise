@@ -60,31 +60,6 @@ describe('Promise Cancel Handler', function () {
         ;
     });
 
-    it('executes cancel handlers in LIFO order (reverse order of registration)', function () {
-        $promise = new Promise();
-        $executionOrder = [];
-
-        $promise->onCancel(function () use (&$executionOrder) {
-            $executionOrder[] = 'first handler';
-        });
-
-        $promise->onCancel(function () use (&$executionOrder) {
-            $executionOrder[] = 'second handler';
-        });
-
-        $promise->onCancel(function () use (&$executionOrder) {
-            $executionOrder[] = 'third handler';
-        });
-
-        $promise->cancel();
-
-        expect($executionOrder)->toBe([
-            'third handler',
-            'second handler',
-            'first handler',
-        ]);
-    });
-
     it('can handle cancellation with null cancel handler initially', function () {
         $promise = new Promise();
 

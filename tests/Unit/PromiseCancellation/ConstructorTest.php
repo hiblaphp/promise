@@ -10,18 +10,16 @@ describe('Promise Constructor', function () {
             $resolve('executor result');
         });
 
-        expect($promise->isResolved())->toBeTrue()
+        expect($promise->isFulfilled())->toBeTrue()
             ->and($promise->getValue())->toBe('executor result')
         ;
 
         $promise->cancel();
 
-        expect($promise->isCancelled())->toBeTrue()
+        expect($promise->isCancelled())->toBeFalse()
             ->and($promise->isPending())->toBeFalse()
             ->and($promise->isRejected())->toBeFalse()
-            ->and($promise->isResolved())->toBeFalse()
-            ->and($promise->getValue())->toBeNull()
-            ->and($promise->getReason())->toBeNull()
+            ->and($promise->isFulfilled())->toBeTrue()
         ;
     });
 
@@ -41,7 +39,7 @@ describe('Promise Constructor', function () {
         expect($promise->isCancelled())->toBeTrue()
             ->and($promise->isPending())->toBeFalse()
             ->and($promise->isRejected())->toBeFalse()
-            ->and($promise->isResolved())->toBeFalse()
+            ->and($promise->isFulfilled())->toBeFalse()
             ->and($promise->getValue())->toBeNull()
             ->and($promise->getReason())->toBeNull()
         ;

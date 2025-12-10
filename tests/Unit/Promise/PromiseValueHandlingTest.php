@@ -9,7 +9,7 @@ describe('Promise Value Handling', function () {
         $promise = new Promise();
         $promise->resolve(null);
 
-        expect($promise->isResolved())->toBeTrue()
+        expect($promise->isFulfilled())->toBeTrue()
             ->and($promise->getValue())->toBeNull()
         ;
     });

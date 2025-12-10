@@ -15,7 +15,7 @@ describe('Promise Edge Cases', function () {
 
         expect($promise->isCancelled())->toBeTrue()
             ->and($promise->isRejected())->toBeFalse()
-            ->and($promise->isResolved())->toBeFalse()
+            ->and($promise->isFulfilled())->toBeFalse()
         ;
     });
 

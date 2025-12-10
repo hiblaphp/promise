@@ -16,7 +16,7 @@ describe('Promise State Management', function () {
         $promise = new Promise();
 
         expect($promise->isPending())->toBeTrue()
-            ->and($promise->isResolved())->toBeFalse()
+            ->and($promise->isFulfilled())->toBeFalse()
             ->and($promise->isRejected())->toBeFalse()
             ->and($promise->isCancelled())->toBeFalse()
         ;
@@ -28,7 +28,7 @@ describe('Promise State Management', function () {
 
         $promise->resolve($testValue);
 
-        expect($promise->isResolved())->toBeTrue()
+        expect($promise->isFulfilled())->toBeTrue()
             ->and($promise->isPending())->toBeFalse()
             ->and($promise->isRejected())->toBeFalse()
             ->and($promise->getValue())->toBe($testValue)
@@ -43,7 +43,7 @@ describe('Promise State Management', function () {
 
         expect($promise->isRejected())->toBeTrue()
             ->and($promise->isPending())->toBeFalse()
-            ->and($promise->isResolved())->toBeFalse()
+            ->and($promise->isFulfilled())->toBeFalse()
             ->and($promise->getReason())->toBe($testReason)
         ;
     });
@@ -76,7 +76,7 @@ describe('Promise State Management', function () {
         $promise->resolve('test value');
 
         expect($promise->isCancelled())->toBeTrue()
-            ->and($promise->isResolved())->toBeFalse()
+            ->and($promise->isFulfilled())->toBeFalse()
             ->and($promise->isRejected())->toBeFalse()
         ;
     });

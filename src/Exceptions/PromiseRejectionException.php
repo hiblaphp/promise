@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hibla\Promise\Exceptions;
 
-use Exception;
 use Throwable;
 
 /**
  * Exception thrown when a Promise is rejected with a non-Throwable reason.
  */
-class PromiseRejectionException extends Exception
+class PromiseRejectionException extends \Exception
 {
     public function __construct(mixed $reason, int $code = 0, ?Throwable $previous = null)
     {

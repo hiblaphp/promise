@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hibla\Promise\Exceptions;
 
-use Exception;
-
-class AggregateErrorException extends Exception
+class AggregateErrorException extends \RuntimeException
 {
     /** @var array<int|string, mixed> */
     private array $errors;

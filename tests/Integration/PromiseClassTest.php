@@ -16,7 +16,7 @@ describe('Promise Static Methods Integration', function () {
             $promise = Promise::resolved('test value');
 
             expect($promise)->toBeInstanceOf(PromiseInterface::class);
-            expect($promise->isResolved())->toBeTrue();
+            expect($promise->isFulfilled())->toBeTrue();
             expect($promise->getValue())->toBe('test value');
 
             $result = $promise->wait();

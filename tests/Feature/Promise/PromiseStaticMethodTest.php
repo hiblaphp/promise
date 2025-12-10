@@ -484,7 +484,7 @@ describe('Promise Static Methods', function () {
         it('creates a resolved promise with the given value', function () {
             $promise = Promise::resolved('test value');
 
-            expect($promise->isResolved())->toBeTrue();
+            expect($promise->isFulfilled())->toBeTrue();
             expect($promise->getValue())->toBe('test value');
         });
     });

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hibla\Promise\Exceptions;
 
-class TimeoutException extends \Exception
+class TimeoutException extends \RuntimeException
 {
     public function __construct(float $timeout)
     {
