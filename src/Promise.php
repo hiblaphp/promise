@@ -100,8 +100,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn ($value = null) => $this->resolve($value),
-                    fn ($reason = null) => $this->reject($reason)
+                    fn($value = null) => $this->resolve($value),
+                    fn($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -202,8 +202,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($value instanceof PromiseInterface) {
             $value->then(
-                fn ($v) => $this->resolve($v),
-                fn ($r) => $this->reject($r)
+                fn($v) => $this->resolve($v),
+                fn($r) => $this->reject($r)
             );
 
             return;
@@ -213,8 +213,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             try {
                 // @phpstan-ignore-next-line this is valid call to ensure it calls thenable method from other class or libraries
                 $value->then(
-                    fn ($v) => $this->resolve($v),
-                    fn ($r) => $this->reject($r)
+                    fn($v) => $this->resolve($v),
+                    fn($r) => $this->reject($r)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -314,8 +314,13 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             $cancelExceptions[] = $e;
         }
 
-        if (! empty($cancelExceptions)) {
+        if (\count($cancelExceptions) === 1) {
             throw $cancelExceptions[0];
+        } elseif (\count($cancelExceptions) > 1) {
+            throw new Exceptions\AggregateErrorException(
+                $cancelExceptions,
+                \sprintf('Promise cancellation failed with %d error(s)', \count($cancelExceptions))
+            );
         }
     }
 
@@ -411,9 +416,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             }
 
             if ($this->state === PromiseState::FULFILLED) {
-                Loop::microTask(fn () => $handleResolve($this->value));
+                Loop::microTask(fn() => $handleResolve($this->value));
             } elseif ($this->state === PromiseState::REJECTED) {
-                Loop::microTask(fn () => $handleReject($this->reason));
+                Loop::microTask(fn() => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -461,22 +466,20 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
-                    ->then(fn () => $value)
-                ;
+                return (new self(fn($resolve) => $resolve($result)))
+                    ->then(fn() => $value);
             },
             function ($reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
+                return (new self(fn($resolve) => $resolve($result)))
                     ->then(function () use ($reason): void {
                         if ($reason instanceof \Throwable) {
                             throw $reason;
                         }
 
                         throw new PromiseRejectionException($this->safeStringCast($reason));
-                    })
-                ;
+                    });
             }
         );
     }
