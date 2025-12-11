@@ -210,7 +210,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if (\is_object($value) && method_exists($value, 'then')) {
             try {
-                // @phpstan-ignore-next-line this is valid call to ensure it calls thenable method from other class or libraries
                 $value->then(
                     fn ($v) => $this->resolve($v),
                     fn ($r) => $this->reject($r)
@@ -564,9 +563,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
-     * @param  mixed  $reason  The reason for rejection (typically an exception)
-     *
-     * @return PromiseInterface<mixed> A promise rejected with the provided reason
      */
     public static function rejected(mixed $reason): PromiseInterface
     {
@@ -582,9 +578,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
-     * @template TAllValue
-     * @param  array<int|string, PromiseInterface<TAllValue>>  $promises  Array of PromiseInterface instances.
-     * @return PromiseInterface<array<int|string, TAllValue>> A promise that resolves with an array of results.
      */
     public static function all(array $promises): PromiseInterface
     {
@@ -593,9 +586,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
-     * @template TAllSettledValue
-     * @param  array<int|string, PromiseInterface<TAllSettledValue>>  $promises
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TAllSettledValue, reason?: mixed}>>
      */
     public static function allSettled(array $promises): PromiseInterface
     {
@@ -604,9 +594,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
-     * @template TRaceValue
-     * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
-     * @return PromiseInterface<TRaceValue> A promise that settles with the first settled promise.
      */
     public static function race(array $promises): PromiseInterface
     {
@@ -615,9 +602,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
-     * @template TAnyValue
-     * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
-     * @return PromiseInterface<TAnyValue> A promise that resolves with the first settled value
      */
     public static function any(array $promises): PromiseInterface
     {
@@ -626,10 +610,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
-     * @template TTimeoutValue
-     * @param  PromiseInterface<TTimeoutValue>  $promise  The promise to add timeout to
-     * @param  float  $seconds  Timeout duration in seconds
-     * @return PromiseInterface<TTimeoutValue>
      */
     public static function timeout(PromiseInterface $promise, float $seconds): PromiseInterface
     {
@@ -638,10 +618,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
-     * @template TConcurrentValue
-     * @param  array<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks  Array of callable tasks that return promises. Must be callables for proper concurrency control.
-     * @param  int  $concurrency  Maximum number of concurrent executions (default: 10).
-     * @return PromiseInterface<array<int|string, TConcurrentValue>> A promise that resolves with an array of all results.
      */
     public static function concurrent(array $tasks, int $concurrency = 10): PromiseInterface
     {
@@ -650,11 +626,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
-     * @template TBatchValue
-     * @param  array<int|string, callable(): PromiseInterface<TBatchValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
-     * @param  int  $batchSize  Size of each batch to process concurrently.
-     * @param  int|null  $concurrency  Maximum number of concurrent executions per batch.
-     * @return PromiseInterface<array<int|string, TBatchValue>> A promise that resolves with all results.
      */
     public static function batch(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
@@ -663,10 +634,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
-     * @template TConcurrentSettledValue
-     * @param  array<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
-     * @param  int  $concurrency  Maximum number of concurrent executions
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TConcurrentSettledValue, reason?: mixed}>> A promise that resolves with settlement results
      */
     public static function concurrentSettled(array $tasks, int $concurrency = 10): PromiseInterface
     {
@@ -675,11 +642,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
-     * @template TBatchSettledValue
-     * @param  array<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
-     * @param  int  $batchSize  Size of each batch to process concurrently
-     * @param  int|null  $concurrency  Maximum number of concurrent executions per batch
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TBatchSettledValue, reason?: mixed}>> A promise that resolves with settlement results
      */
     public static function batchSettled(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
@@ -734,7 +696,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         $this->childPromises = [];
 
-        if (! empty($childExceptions)) {
+        if (\count($childExceptions) > 0) {
             throw $childExceptions[0];
         }
     }

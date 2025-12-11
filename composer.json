@@ -17,6 +17,13 @@
             "Tests\\": "tests/"
         }
     },
+    "extra": {
+        "phpstan": {
+            "includes": [
+                "extension.neon"
+            ]
+        }
+    },
     "authors": [
         {
             "name": "Reymart A. Calicdan",

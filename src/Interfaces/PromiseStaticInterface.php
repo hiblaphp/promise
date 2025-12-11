@@ -64,7 +64,7 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::all(), NOT $promise->all()
      *
      * @template TAllValue
-     * @param  array<int|string, PromiseInterface<TAllValue>|callable(): PromiseInterface<TAllValue>>  $promises  Array of PromiseInterface instances.
+     * @param  array<int|string, PromiseInterface<TAllValue>>  $promises  Array of PromiseInterface instances.
      * @return PromiseInterface<array<int|string, TAllValue>> A promise that resolves with an array of results.
      *
      * @static
@@ -81,7 +81,7 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::allSettled(), NOT $promise->allSettled()
      *
      * @template TAllSettledValue
-     * @param  array<int|string, PromiseInterface<TAllSettledValue>|callable(): PromiseInterface<TAllSettledValue>>  $promises
+     * @param  array<int|string, PromiseInterface<TAllSettledValue>>  $promises
      * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TAllSettledValue, reason?: mixed}>>
      *
      * @static
@@ -99,7 +99,7 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::race(), NOT $promise->race()
      *
      * @template TRaceValue
-     * @param  array<int|string, PromiseInterface<TRaceValue>|callable(): PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
+     * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
      * @return PromiseInterface<TRaceValue> A promise that settles with the first settled promise.
      *
      * @static
@@ -117,7 +117,7 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::any(), NOT $promise->any()
      *
      * @template TAnyValue
-     * @param  array<int|string, PromiseInterface<TAnyValue>|callable(): PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
+     * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
      * @return PromiseInterface<TAnyValue> A promise that resolves with the first settled value
      *
      * @static

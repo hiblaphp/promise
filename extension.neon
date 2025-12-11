@@ -1,0 +1,5 @@
+services:
+    -
+        class: Hibla\Promise\PHPStan\PromiseRejectedReturnTypeExtension
+        tags:
+            - phpstan.broker.dynamicStaticMethodReturnTypeExtension
