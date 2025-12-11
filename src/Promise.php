@@ -100,8 +100,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn($value = null) => $this->resolve($value),
-                    fn($reason = null) => $this->reject($reason)
+                    fn ($value = null) => $this->resolve($value),
+                    fn ($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -179,15 +179,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         return $this->state === PromiseState::FULFILLED || $this->state === PromiseState::REJECTED;
     }
 
-    /**
-     * Resolve the promise with a value.
-     *
-     * If the promise is already settled, this operation has no effect.
-     * The resolution triggers all registered fulfillment callbacks.
-     *
-     * @param  TValue  $value  The value to resolve the promise with
-     * @return void
-     */
     public function resolve(mixed $value): void
     {
         if (! $this->canSettle()) {
@@ -202,9 +193,17 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($value instanceof PromiseInterface) {
             $value->then(
-                fn($v) => $this->resolve($v),
-                fn($r) => $this->reject($r)
+                fn ($v) => $this->resolve($v),
+                fn ($r) => $this->reject($r)
             );
+
+            // If THIS promise is cancelled, forward it to the inner promise
+            // we are waiting on. This bridges the gap between layers.
+            $this->onCancel(function () use ($value) {
+                if (! $value->isSettled()) {
+                    $value->cancel();
+                }
+            });
 
             return;
         }
@@ -213,8 +212,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             try {
                 // @phpstan-ignore-next-line this is valid call to ensure it calls thenable method from other class or libraries
                 $value->then(
-                    fn($v) => $this->resolve($v),
-                    fn($r) => $this->reject($r)
+                    fn ($v) => $this->resolve($v),
+                    fn ($r) => $this->reject($r)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -416,9 +415,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             }
 
             if ($this->state === PromiseState::FULFILLED) {
-                Loop::microTask(fn() => $handleResolve($this->value));
+                Loop::microTask(fn () => $handleResolve($this->value));
             } elseif ($this->state === PromiseState::REJECTED) {
-                Loop::microTask(fn() => $handleReject($this->reason));
+                Loop::microTask(fn () => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -466,20 +465,22 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn($resolve) => $resolve($result)))
-                    ->then(fn() => $value);
+                return (new self(fn ($resolve) => $resolve($result)))
+                    ->then(fn () => $value)
+                ;
             },
             function ($reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                return (new self(fn($resolve) => $resolve($result)))
+                return (new self(fn ($resolve) => $resolve($result)))
                     ->then(function () use ($reason): void {
                         if ($reason instanceof \Throwable) {
                             throw $reason;
                         }
 
                         throw new PromiseRejectionException($this->safeStringCast($reason));
-                    });
+                    })
+                ;
             }
         );
     }
