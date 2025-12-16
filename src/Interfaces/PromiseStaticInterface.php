@@ -194,14 +194,14 @@ interface PromiseStaticInterface
      * subject to concurrency control - they will execute immediately regardless of the limit.
      *
      * Similar to concurrent(), but waits for all tasks to complete and returns settlement results.
-     * This method never rejects - it always resolves with an array of settlement results.
+     * This method never rejects - it always resolves with an array of SettledResult objects.
      *
      * !! STATIC METHOD - Must be called as Promise::concurrentSettled(), NOT $promise->concurrentSettled()
      *
      * @template TConcurrentSettledValue
      * @param  array<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
      * @param  int  $concurrency  Maximum number of concurrent executions
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TConcurrentSettledValue, reason?: mixed}>> A promise that resolves with settlement results
+     * @return PromiseInterface<array<int|string, SettledResult<TConcurrentSettledValue, mixed>>> A promise that resolves with settlement results
      *
      * @static
      */
@@ -216,7 +216,7 @@ interface PromiseStaticInterface
      * subject to concurrency control - they will execute immediately regardless of the limit.
      *
      * Similar to batch(), but waits for all tasks to complete and returns settlement results.
-     * This method never rejects - it always resolves with an array of settlement results.
+     * This method never rejects - it always resolves with an array of SettledResult objects.
      *
      * !! STATIC METHOD - Must be called as Promise::batchSettled(), NOT $promise->batchSettled()
      *
@@ -224,7 +224,7 @@ interface PromiseStaticInterface
      * @param  array<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
      * @param  int  $batchSize  Size of each batch to process concurrently
      * @param  int|null  $concurrency  Maximum number of concurrent executions per batch
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TBatchSettledValue, reason?: mixed}>> A promise that resolves with settlement results
+     * @return PromiseInterface<array<int|string, SettledResult<TBatchSettledValue, mixed>>> A promise that resolves with settlement results
      *
      * @static
      */

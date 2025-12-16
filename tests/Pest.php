@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\Interfaces\CancellablePromiseInterface;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 
@@ -13,10 +12,6 @@ expect()->extend('toBeOne', function () {
 
 expect()->extend('toBePromise', function () {
     return $this->toBeInstanceOf(PromiseInterface::class);
-});
-
-expect()->extend('toBeCancellablePromise', function () {
-    return $this->toBeInstanceOf(CancellablePromiseInterface::class);
 });
 
 function delayedValue($value, $delayMs)

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hibla\Promise\Interfaces;
 
+use Hibla\Promise\Exceptions\InvalidContextException;
+use Hibla\Promise\Exceptions\PromiseCancelledException;
+
 /**
  * Represents the eventual result of an asynchronous operation.
  *
@@ -285,20 +288,25 @@ interface PromiseInterface
      * until the promise settles. Use this only at the top-level of your
      * application or in synchronous contexts.
      *
+     * IMPORTANT: This method CANNOT be called inside a Fiber context.
+     * Calling wait() inside a Fiber will throw InvalidContextException
+     * because it would block the fiber and prevent the event loop from
+     * processing, leading to deadlocks.
+     *
      * For non-blocking async code, use the await() function instead.
      *
      * ```php
-     * // X Don't use inside async blocks
+     * // Don't use inside async blocks
      * async(function() {
-     *     return $promise->wait();  // Blocks unnecessarily!
+     *     return $promise->wait();  // Throws InvalidContextException!
      * });
      *
-     * //  Use await() function instead
+     * // Use await() function instead
      * async(function() {
      *     return await($promise);  // Suspends fiber properly
      * });
      *
-     * //  Use ->wait() at top-level
+     * // Use ->wait() at top-level (outside Fiber context)
      * $result = $promise->wait();  // Blocks to get result
      * ```
      *
@@ -307,6 +315,8 @@ interface PromiseInterface
      *
      * @param  bool  $resetEventLoop  Reset event loop after completion (default: false)
      * @return TValue The resolved value
+     * @throws InvalidContextException If called inside a Fiber context
+     * @throws PromiseCancelledException If the promise is cancelled
      * @throws \Throwable If the promise is rejected
      */
     public function wait(bool $resetEventLoop = false): mixed;

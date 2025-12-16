@@ -462,14 +462,14 @@ describe('Promise Static Methods Integration', function () {
 
             expect($results)->toHaveCount(3);
 
-            expect($results[0]['status'])->toBe('fulfilled');
-            expect($results[0]['value'])->toBe('success-1');
+            expect($results[0]->isFulfilled())->toBeTrue();
+            expect($results[0]->value)->toBe('success-1');
 
-            expect($results[1]['status'])->toBe('rejected');
-            expect($results[1]['reason'])->toBeInstanceOf(RuntimeException::class);
+            expect($results[1]->isRejected())->toBeTrue();
+            expect($results[1]->reason)->toBeInstanceOf(RuntimeException::class);
 
-            expect($results[2]['status'])->toBe('fulfilled');
-            expect($results[2]['value'])->toBe('success-2');
+            expect($results[2]->isFulfilled())->toBeTrue();
+            expect($results[2]->value)->toBe('success-2');
         });
 
         it('handles mixed results in batch processing', function () {
@@ -487,16 +487,14 @@ describe('Promise Static Methods Integration', function () {
 
             expect($results)->toHaveCount(6);
 
-            // Check even indices are successful
             foreach ([0, 2, 4] as $index) {
-                expect($results[$index]['status'])->toBe('fulfilled');
-                expect($results[$index]['value'])->toBe("success-$index");
+                expect($results[$index]->status)->toBe('fulfilled');
+                expect($results[$index]->value)->toBe("success-$index");
             }
 
-            // Check odd indices are rejected
             foreach ([1, 3, 5] as $index) {
-                expect($results[$index]['status'])->toBe('rejected');
-                expect($results[$index]['reason']->getMessage())->toBe("error-$index");
+                expect($results[$index]->status)->toBe('rejected');
+                expect($results[$index]->reason->getMessage())->toBe("error-$index");
             }
         });
     });

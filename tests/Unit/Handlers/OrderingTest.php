@@ -139,12 +139,14 @@ describe('Array Ordering and Key Preservation', function () {
 
             $results = $handler->concurrentSettled($tasks, 4)->wait();
 
-            expect($results[0])->toBe(['status' => 'fulfilled', 'value' => 'success_1']);
-            expect($results[1]['status'])->toBe('rejected');
-            expect($results[1]['reason'])->toBe('error_1');
-            expect($results[2])->toBe(['status' => 'fulfilled', 'value' => 'success_2']);
-            expect($results[3]['status'])->toBe('rejected');
-            expect($results[3]['reason'])->toBe('error_2');
+            expect($results[0]->isFulfilled())->toBeTrue();
+            expect($results[0]->value)->toBe('success_1');
+            expect($results[1]->isRejected())->toBeTrue();
+            expect($results[1]->reason)->toBe('error_1');
+            expect($results[2]->isFulfilled())->toBeTrue();
+            expect($results[2]->value)->toBe('success_2');
+            expect($results[3]->isRejected())->toBeTrue();
+            expect($results[3]->reason)->toBe('error_2');
         });
 
         it('preserves keys in concurrentSettled with associative arrays', function () {
@@ -158,9 +160,9 @@ describe('Array Ordering and Key Preservation', function () {
             $results = $handler->concurrentSettled($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe(['api_call_1', 'api_call_2', 'api_call_3']);
-            expect($results['api_call_1']['status'])->toBe('fulfilled');
-            expect($results['api_call_2']['status'])->toBe('rejected');
-            expect($results['api_call_3']['status'])->toBe('fulfilled');
+            expect($results['api_call_1']->isFulfilled())->toBeTrue();
+            expect($results['api_call_2']->isRejected())->toBeTrue();
+            expect($results['api_call_3']->isFulfilled())->toBeTrue();
         });
 
         it('preserves numeric keys in concurrentSettled with non-sequential arrays', function () {
@@ -174,11 +176,11 @@ describe('Array Ordering and Key Preservation', function () {
             $results = $handler->concurrentSettled($tasks, 3)->wait();
 
             expect(array_keys($results))->toBe([7, 13, 21]);
-            expect($results[7]['status'])->toBe('fulfilled');
-            expect($results[7]['value'])->toBe('lucky_seven');
-            expect($results[13]['status'])->toBe('rejected');
-            expect($results[21]['status'])->toBe('fulfilled');
-            expect($results[21]['value'])->toBe('twenty_one');
+            expect($results[7]->isFulfilled())->toBeTrue();
+            expect($results[7]->value)->toBe('lucky_seven');
+            expect($results[13]->isRejected())->toBeTrue();
+            expect($results[21]->isFulfilled())->toBeTrue();
+            expect($results[21]->value)->toBe('twenty_one');
         });
 
         it('handles empty arrays correctly', function () {
@@ -787,9 +789,9 @@ describe('Edge Cases for Ordering', function () {
 
             $results = $handler->concurrentSettled($tasks, 5)->wait();
 
-            expect($results['null_result']['status'])->toBe('fulfilled');
-            expect($results['null_result']['value'])->toBeNull();
-            expect($results['rejection']['status'])->toBe('rejected');
+            expect($results['null_result']->isFulfilled())->toBeTrue();
+            expect($results['null_result']->value)->toBeNull();
+            expect($results['rejection']->isRejected())->toBeTrue();
             expect(array_keys($results))->toBe(['null_result', 'rejection', 'array_result', 'another_rejection', 'string_result']);
         });
 

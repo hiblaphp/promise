@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hibla\Promise\Handlers;
 
 use Hibla\EventLoop\Loop;
+use Hibla\Promise\Exceptions\PromiseCancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
+use Hibla\Promise\SettledResult;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -15,14 +17,17 @@ final readonly class ConcurrencyHandler
 {
     /**
      * @template TConcurrentValue
-     * @param  array<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks  Array of callable tasks that return promises.
-     * @param  int  $concurrency  Maximum number of concurrent executions (default: 10).
-     * @return PromiseInterface<array<int|string, TConcurrentValue>> A promise that resolves with an array of all results.
+     * @param  array<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks
+     * @param  int  $concurrency
+     * @return PromiseInterface<array<int|string, TConcurrentValue>>
      */
     public function concurrent(array $tasks, int $concurrency = 10): PromiseInterface
     {
+        /** @var array<int|string, PromiseInterface<TConcurrentValue>> */
+        $promiseInstances = [];
+
         /** @var Promise<array<int|string, TConcurrentValue>> */
-        return new Promise(function (callable $resolve, callable $reject) use ($tasks, $concurrency): void {
+        $concurrentPromise = new Promise(function (callable $resolve, callable $reject) use ($tasks, $concurrency, &$promiseInstances): void {
             if ($concurrency <= 0) {
                 $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));
 
@@ -43,6 +48,7 @@ final readonly class ConcurrencyHandler
             $completed = 0;
             $total = \count($taskList);
             $taskIndex = 0;
+            $isRejected = false;
 
             $processNext = function () use (
                 &$processNext,
@@ -53,11 +59,13 @@ final readonly class ConcurrencyHandler
                 &$results,
                 &$total,
                 &$taskIndex,
+                &$isRejected,
+                &$promiseInstances,
                 $concurrency,
                 $resolve,
                 $reject,
             ): void {
-                while ($running < $concurrency && $taskIndex < $total) {
+                while ($running < $concurrency && $taskIndex < $total && ! $isRejected) {
                     $currentIndex = $taskIndex++;
                     $task = $taskList[$currentIndex];
                     $originalKey = $originalKeys[$currentIndex];
@@ -76,8 +84,22 @@ final readonly class ConcurrencyHandler
                                 )
                             );
                         }
+
+                        if ($promise->isCancelled()) {
+                            $this->cancelAllPromises($promiseInstances);
+                            $reject(new PromiseCancelledException(
+                                \sprintf('Promise at index "%s" was cancelled', $originalKey)
+                            ));
+                            $isRejected = true;
+
+                            return;
+                        }
+
+                        $promiseInstances[$originalKey] = $promise;
                     } catch (Throwable $e) {
+                        $this->cancelAllPromises($promiseInstances);
                         $reject($e);
+                        $isRejected = true;
 
                         return;
                     }
@@ -89,10 +111,16 @@ final readonly class ConcurrencyHandler
                             &$running,
                             &$completed,
                             &$originalKeys,
+                            &$isRejected,
                             $total,
                             $resolve,
                             $processNext,
                         ): void {
+                            // @phpstan-ignore-next-line Promise can be rejected at runtime
+                            if ($isRejected) {
+                                return;
+                            }
+
                             $results[$originalKey] = $result;
                             $running--;
                             $completed++;
@@ -103,7 +131,12 @@ final readonly class ConcurrencyHandler
                                 Loop::microTask($processNext);
                             }
                         })
-                        ->catch(function ($error) use ($reject): void {
+                        ->catch(function ($error) use (&$isRejected, &$promiseInstances, $reject): void {
+                            if ($isRejected) {
+                                return;
+                            }
+                            $isRejected = true;
+                            $this->cancelAllPromises($promiseInstances);
                             $reject($error);
                         })
                     ;
@@ -112,18 +145,27 @@ final readonly class ConcurrencyHandler
 
             Loop::microTask($processNext);
         });
+
+        $concurrentPromise->onCancel(function () use (&$promiseInstances): void {
+            $this->cancelAllPromises($promiseInstances);
+        });
+
+        return $concurrentPromise;
     }
 
     /**
      * @template TConcurrentSettledValue
-     * @param  array<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks  Array of tasks that return promises
-     * @param  int  $concurrency  Maximum number of concurrent executions
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TConcurrentSettledValue, reason?: mixed}>> A promise that resolves with settlement results
+     * @param  array<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks
+     * @param  int  $concurrency
+     * @return PromiseInterface<array<int|string, SettledResult<TConcurrentSettledValue, mixed>>>
      */
     public function concurrentSettled(array $tasks, int $concurrency = 10): PromiseInterface
     {
-        /** @var Promise<array<int|string, array{status: 'fulfilled'|'rejected', value?: TConcurrentSettledValue, reason?: mixed}>> */
-        return new Promise(function (callable $resolve, callable $reject) use ($tasks, $concurrency): void {
+        /** @var array<int|string, PromiseInterface<TConcurrentSettledValue>> */
+        $promiseInstances = [];
+
+        /** @var Promise<array<int|string, SettledResult<TConcurrentSettledValue, mixed>>> */
+        $concurrentPromise = new Promise(function (callable $resolve, callable $reject) use ($tasks, $concurrency, &$promiseInstances): void {
             if ($concurrency <= 0) {
                 $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));
 
@@ -154,6 +196,7 @@ final readonly class ConcurrencyHandler
                 &$results,
                 &$total,
                 &$taskIndex,
+                &$promiseInstances,
                 $concurrency,
                 $resolve,
             ): void {
@@ -168,20 +211,45 @@ final readonly class ConcurrencyHandler
 
                         /** @phpstan-ignore-next-line instanceof.alwaysTrue */
                         if (! ($promise instanceof PromiseInterface)) {
-                            throw new RuntimeException(
-                                \sprintf(
-                                    'Task at index "%s" must return a PromiseInterface, %s given',
-                                    $originalKey,
-                                    get_debug_type($promise)
+                            $running--;
+                            $results[$originalKey] = SettledResult::rejected(
+                                new RuntimeException(
+                                    \sprintf(
+                                        'Task at index "%s" must return a PromiseInterface, %s given',
+                                        $originalKey,
+                                        get_debug_type($promise)
+                                    )
                                 )
                             );
+                            $completed++;
+
+                            if ($completed === $total) {
+                                $resolve($this->orderResultsByKeys($results, $originalKeys));
+
+                                return;
+                            }
+
+                            continue;
                         }
+
+                        if ($promise->isCancelled()) {
+                            $running--;
+                            $results[$originalKey] = SettledResult::cancelled();
+                            $completed++;
+
+                            if ($completed === $total) {
+                                $resolve($this->orderResultsByKeys($results, $originalKeys));
+
+                                return;
+                            }
+
+                            continue;
+                        }
+
+                        $promiseInstances[$originalKey] = $promise;
                     } catch (Throwable $e) {
                         $running--;
-                        $results[$originalKey] = [
-                            'status' => 'rejected',
-                            'reason' => $e,
-                        ];
+                        $results[$originalKey] = SettledResult::rejected($e);
                         $completed++;
 
                         if ($completed === $total) {
@@ -204,10 +272,7 @@ final readonly class ConcurrencyHandler
                             $resolve,
                             $processNext,
                         ): void {
-                            $results[$originalKey] = [
-                                'status' => 'fulfilled',
-                                'value' => $result,
-                            ];
+                            $results[$originalKey] = SettledResult::fulfilled($result);
                             $running--;
                             $completed++;
 
@@ -223,14 +288,16 @@ final readonly class ConcurrencyHandler
                             &$running,
                             &$completed,
                             &$originalKeys,
+                            &$promiseInstances,
                             $total,
                             $resolve,
                             $processNext,
                         ): void {
-                            $results[$originalKey] = [
-                                'status' => 'rejected',
-                                'reason' => $error,
-                            ];
+                            if (isset($promiseInstances[$originalKey]) && $promiseInstances[$originalKey]->isCancelled()) {
+                                $results[$originalKey] = SettledResult::cancelled();
+                            } else {
+                                $results[$originalKey] = SettledResult::rejected($error);
+                            }
                             $running--;
                             $completed++;
 
@@ -246,14 +313,20 @@ final readonly class ConcurrencyHandler
 
             Loop::microTask($processNext);
         });
+
+        $concurrentPromise->onCancel(function () use (&$promiseInstances): void {
+            $this->cancelAllPromises($promiseInstances);
+        });
+
+        return $concurrentPromise;
     }
 
     /**
      * @template TBatchValue
-     * @param  array<int|string, callable(): PromiseInterface<TBatchValue>>  $tasks  Array of tasks that return promises.
-     * @param  int  $batchSize  Size of each batch to process concurrently.
-     * @param  int|null  $concurrency  Maximum number of concurrent executions per batch.
-     * @return PromiseInterface<array<int|string, TBatchValue>> A promise that resolves with all results.
+     * @param  array<int|string, callable(): PromiseInterface<TBatchValue>>  $tasks
+     * @param  int  $batchSize
+     * @param  int|null  $concurrency
+     * @return PromiseInterface<array<int|string, TBatchValue>>
      */
     public function batch(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
@@ -336,14 +409,14 @@ final readonly class ConcurrencyHandler
 
     /**
      * @template TBatchSettledValue
-     * @param  array<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks  Array of tasks that return promises
-     * @param  int  $batchSize  Size of each batch to process concurrently
-     * @param  int|null  $concurrency  Maximum number of concurrent executions per batch
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TBatchSettledValue, reason?: mixed}>> A promise that resolves with settlement results
+     * @param  array<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks
+     * @param  int  $batchSize
+     * @param  int|null  $concurrency
+     * @return PromiseInterface<array<int|string, SettledResult<TBatchSettledValue, mixed>>>
      */
     public function batchSettled(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
-        /** @var Promise<array<int|string, array{status: 'fulfilled'|'rejected', value?: TBatchSettledValue, reason?: mixed}>> */
+        /** @var Promise<array<int|string, SettledResult<TBatchSettledValue, mixed>>> */
         return new Promise(function (callable $resolve, callable $reject) use ($tasks, $batchSize, $concurrency): void {
             if ($batchSize <= 0) {
                 $reject(new InvalidArgumentException('Batch size must be greater than 0'));
@@ -440,5 +513,16 @@ final readonly class ConcurrencyHandler
         }
 
         return $ordered;
+    }
+
+    /**
+     * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances
+     * @return void
+     */
+    private function cancelAllPromises(array $promiseInstances): void
+    {
+        foreach ($promiseInstances as $promise) {
+            $promise->cancelChain();
+        }
     }
 }

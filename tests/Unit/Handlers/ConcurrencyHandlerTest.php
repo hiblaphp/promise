@@ -95,10 +95,10 @@ describe('ConcurrencyHandler', function () {
         $results = $handler->concurrentSettled($tasks)->wait();
 
         expect($results)->toHaveCount(3);
-        expect($results[0]['status'])->toBe('fulfilled');
-        expect($results[0]['value'])->toBe('success');
-        expect($results[1]['status'])->toBe('rejected');
-        expect($results[2]['status'])->toBe('fulfilled');
+        expect($results[0]->isFulfilled())->toBeTrue();
+        expect($results[0]->value)->toBe('success');
+        expect($results[1]->isRejected())->toBeTrue();
+        expect($results[2]->isFulfilled())->toBeTrue();
     });
 
     it('validates concurrency parameter', function () {

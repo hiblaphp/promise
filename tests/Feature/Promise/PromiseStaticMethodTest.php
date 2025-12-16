@@ -5,6 +5,7 @@ declare(strict_types=1);
 use function Hibla\delay;
 
 use Hibla\Promise\Promise;
+use Hibla\Promise\SettledResult;
 
 describe('Promise Static Methods', function () {
 
@@ -146,9 +147,9 @@ describe('Promise Static Methods', function () {
 
         it('resolves with first successful promise when mixed with pending promises', function () {
             $promise1 = Promise::rejected(new Exception('error'));
-            $promise2 = new Promise(); // Never settles
+            $promise2 = new Promise();
             $promise3 = Promise::resolved('success');
-            $promise4 = new Promise(); // Never settles
+            $promise4 = new Promise();
 
             $result = Promise::any([$promise1, $promise2, $promise3, $promise4])->wait();
 
@@ -159,8 +160,8 @@ describe('Promise Static Methods', function () {
     describe('Promise::race', function () {
         it('resolves with the first settled promise value', function () {
             $promise1 = Promise::resolved('fast');
-            $promise2 = new Promise(); // never settles
-            $promise3 = new Promise(); // never settles
+            $promise2 = new Promise();
+            $promise3 = new Promise();
 
             $result = Promise::race([$promise1, $promise2, $promise3])->wait();
 
@@ -202,7 +203,7 @@ describe('Promise Static Methods', function () {
             $executionTime = microtime(true) - $startTime;
 
             expect($result)->toHaveCount(10);
-            expect($executionTime)->toBeGreaterThan(0.3); // At least 4 batches of 3
+            expect($executionTime)->toBeGreaterThan(0.3);
             expect($executionTime)->toBeLessThan(0.6);
         });
 
@@ -218,7 +219,7 @@ describe('Promise Static Methods', function () {
             $executionTime = microtime(true) - $startTime;
 
             expect($result)->toHaveCount(6);
-            expect($executionTime)->toBeGreaterThan(0.25); // 3 batches of 2
+            expect($executionTime)->toBeGreaterThan(0.25);
             expect($executionTime)->toBeLessThan(0.4);
         });
 
@@ -273,22 +274,21 @@ describe('Promise Static Methods', function () {
 
             expect($result)->toHaveCount(4);
 
-            if (is_array($result[0]) && isset($result[0]['status'])) {
-                expect($result[0]['status'])->toBe('fulfilled');
-                expect($result[0]['value'])->toBe('success1');
-                expect($result[1]['status'])->toBe('rejected');
-                expect($result[1]['reason'])->toBeInstanceOf(Exception::class);
-                expect($result[2]['status'])->toBe('fulfilled');
-                expect($result[2]['value'])->toBe('success2');
-                expect($result[3]['status'])->toBe('rejected');
-                expect($result[3]['reason'])->toBeInstanceOf(Exception::class);
-            } else {
-                // If raw results are returned
-                expect($result[0])->toBe('success1');
-                expect($result[1])->toBeInstanceOf(Exception::class);
-                expect($result[2])->toBe('success2');
-                expect($result[3])->toBeInstanceOf(Exception::class);
-            }
+            expect($result[0])->toBeInstanceOf(SettledResult::class);
+            expect($result[0]->isFulfilled())->toBeTrue();
+            expect($result[0]->value)->toBe('success1');
+
+            expect($result[1])->toBeInstanceOf(SettledResult::class);
+            expect($result[1]->isRejected())->toBeTrue();
+            expect($result[1]->reason)->toBeInstanceOf(Exception::class);
+
+            expect($result[2])->toBeInstanceOf(SettledResult::class);
+            expect($result[2]->isFulfilled())->toBeTrue();
+            expect($result[2]->value)->toBe('success2');
+
+            expect($result[3])->toBeInstanceOf(SettledResult::class);
+            expect($result[3]->isRejected())->toBeTrue();
+            expect($result[3]->reason)->toBeInstanceOf(Exception::class);
         });
 
         it('never rejects even when all tasks fail', function () {
@@ -302,9 +302,14 @@ describe('Promise Static Methods', function () {
 
             expect($result)->toHaveCount(3);
 
-            expect($result[0]['status'])->toBe('rejected');
-            expect($result[1]['status'])->toBe('rejected');
-            expect($result[2]['status'])->toBe('rejected');
+            expect($result[0]->isRejected())->toBeTrue();
+            expect($result[0]->reason)->toBeInstanceOf(Exception::class);
+
+            expect($result[1]->isRejected())->toBeTrue();
+            expect($result[1]->reason)->toBeInstanceOf(Exception::class);
+
+            expect($result[2]->isRejected())->toBeTrue();
+            expect($result[2]->reason)->toBeInstanceOf(Exception::class);
         });
 
         it('respects concurrency limit', function () {
@@ -321,12 +326,60 @@ describe('Promise Static Methods', function () {
             expect($result)->toHaveCount(6);
             expect($executionTime)->toBeGreaterThan(0.25); // 3 batches of 2
             expect($executionTime)->toBeLessThan(0.4);
+
+            foreach ($result as $settledResult) {
+                expect($settledResult)->toBeInstanceOf(SettledResult::class);
+                expect($settledResult->isFulfilled())->toBeTrue();
+            }
         });
 
         it('handles empty task array', function () {
             $result = Promise::concurrentSettled([], 3)->wait();
 
             expect($result)->toBe([]);
+        });
+
+        it('handles cancelled promises', function () {
+            $cancelledPromise = new Promise();
+            $cancelledPromise->cancel();
+            $tasks = [
+                fn () => delay(0.05)->then(fn () => 'success1'),
+                fn () => $cancelledPromise,
+                fn () => delay(0.05)->then(fn () => 'success2'),
+            ];
+
+            $result = Promise::concurrentSettled($tasks, 2)->wait();
+
+            expect($result)->toHaveCount(3);
+
+            expect($result[0]->isFulfilled())->toBeTrue();
+            expect($result[0]->value)->toBe('success1');
+
+            expect($result[1]->isCancelled())->toBeTrue();
+
+            expect($result[2]->isFulfilled())->toBeTrue();
+            expect($result[2]->value)->toBe('success2');
+        });
+
+        it('handles task that returns non-promise', function () {
+            $tasks = [
+                fn () => delay(0.05)->then(fn () => 'success1'),
+                fn () => 'not a promise', // This will cause an error
+                fn () => delay(0.05)->then(fn () => 'success2'),
+            ];
+
+            $result = Promise::concurrentSettled($tasks, 2)->wait();
+
+            expect($result)->toHaveCount(3);
+
+            expect($result[0]->isFulfilled())->toBeTrue();
+            expect($result[0]->value)->toBe('success1');
+
+            expect($result[1]->isRejected())->toBeTrue();
+            expect($result[1]->reason)->toBeInstanceOf(RuntimeException::class);
+
+            expect($result[2]->isFulfilled())->toBeTrue();
+            expect($result[2]->value)->toBe('success2');
         });
     });
 
@@ -345,12 +398,14 @@ describe('Promise Static Methods', function () {
 
             expect($result)->toHaveCount(8);
 
-            expect($result[0]['status'])->toBe('fulfilled');
-            expect($result[0]['value'])->toBe('task-0');
-            expect($result[3]['status'])->toBe('rejected');
-            expect($result[3]['reason'])->toBeInstanceOf(Exception::class);
-            expect($result[6]['status'])->toBe('rejected');
-            expect($result[6]['reason'])->toBeInstanceOf(Exception::class);
+            expect($result[0]->isFulfilled())->toBeTrue();
+            expect($result[0]->value)->toBe('task-0');
+
+            expect($result[3]->isRejected())->toBeTrue();
+            expect($result[3]->reason)->toBeInstanceOf(Exception::class);
+
+            expect($result[6]->isRejected())->toBeTrue();
+            expect($result[6]->reason)->toBeInstanceOf(Exception::class);
         });
 
         it('respects batch size parameter', function () {
@@ -367,6 +422,11 @@ describe('Promise Static Methods', function () {
             expect($result)->toHaveCount(9);
             expect($executionTime)->toBeGreaterThan(0.25); // 3 batches sequentially
             expect($executionTime)->toBeLessThan(0.4);
+
+            foreach ($result as $settledResult) {
+                expect($settledResult)->toBeInstanceOf(SettledResult::class);
+                expect($settledResult->isFulfilled())->toBeTrue();
+            }
         });
 
         it('respects concurrency parameter within batches', function () {
@@ -383,6 +443,11 @@ describe('Promise Static Methods', function () {
             expect($result)->toHaveCount(6);
             expect($executionTime)->toBeGreaterThan(0.25); // 2 batches with concurrency limit
             expect($executionTime)->toBeLessThan(0.5);
+
+            foreach ($result as $settledResult) {
+                expect($settledResult)->toBeInstanceOf(SettledResult::class);
+                expect($settledResult->isFulfilled())->toBeTrue();
+            }
         });
 
         it('never rejects even when all tasks fail', function () {
@@ -396,9 +461,9 @@ describe('Promise Static Methods', function () {
 
             expect($result)->toHaveCount(3);
 
-            expect($result[0]['status'])->toBe('rejected');
-            expect($result[1]['status'])->toBe('rejected');
-            expect($result[2]['status'])->toBe('rejected');
+            expect($result[0]->isRejected())->toBeTrue();
+            expect($result[1]->isRejected())->toBeTrue();
+            expect($result[2]->isRejected())->toBeTrue();
         });
 
         it('handles empty task array', function () {
@@ -418,12 +483,14 @@ describe('Promise Static Methods', function () {
 
             expect($result)->toHaveCount(3);
 
-            expect($result[0]['status'])->toBe('fulfilled');
-            expect($result[0]['value'])->toBe('task-0');
-            expect($result[1]['status'])->toBe('rejected');
-            expect($result[1]['reason'])->toBeInstanceOf(Exception::class);
-            expect($result[2]['status'])->toBe('fulfilled');
-            expect($result[2]['value'])->toBe('task-2');
+            expect($result[0]->isFulfilled())->toBeTrue();
+            expect($result[0]->value)->toBe('task-0');
+
+            expect($result[1]->isRejected())->toBeTrue();
+            expect($result[1]->reason)->toBeInstanceOf(Exception::class);
+
+            expect($result[2]->isFulfilled())->toBeTrue();
+            expect($result[2]->value)->toBe('task-2');
         });
 
         it('maintains result order within and across batches', function () {
@@ -438,13 +505,55 @@ describe('Promise Static Methods', function () {
 
             expect($result)->toHaveCount(7);
             for ($i = 0; $i < 7; $i++) {
-                if (is_array($result[$i]) && isset($result[$i]['status'])) {
-                    expect($result[$i]['status'])->toBe('fulfilled');
-                    expect($result[$i]['value'])->toBe("task-{$i}");
-                } else {
-                    expect($result[$i])->toBe("task-{$i}");
-                }
+                expect($result[$i])->toBeInstanceOf(SettledResult::class);
+                expect($result[$i]->isFulfilled())->toBeTrue();
+                expect($result[$i]->value)->toBe("task-{$i}");
             }
+        });
+
+        it('handles cancelled promises in batches', function () {
+            $cancelledPromise = new Promise();
+            $cancelledPromise->cancel();
+            $tasks = [
+                fn () => delay(0.05)->then(fn () => 'task-0'),
+                fn () => $cancelledPromise,
+                fn () => delay(0.05)->then(fn () => 'task-2'),
+                fn () => delay(0.05)->then(fn () => 'task-3'),
+            ];
+
+            $result = Promise::batchSettled($tasks, 2)->wait();
+
+            expect($result)->toHaveCount(4);
+
+            expect($result[0]->isFulfilled())->toBeTrue();
+            expect($result[1]->isCancelled())->toBeTrue();
+            expect($result[2]->isFulfilled())->toBeTrue();
+            expect($result[3]->isFulfilled())->toBeTrue();
+        });
+
+        it('handles task that returns non-promise in batches', function () {
+            $tasks = [
+                fn () => delay(0.05)->then(fn () => 'task-0'),
+                fn () => 'not a promise',
+                fn () => delay(0.05)->then(fn () => 'task-2'),
+                fn () => delay(0.05)->then(fn () => 'task-3'),
+            ];
+
+            $result = Promise::batchSettled($tasks, 2)->wait();
+
+            expect($result)->toHaveCount(4);
+
+            expect($result[0]->isFulfilled())->toBeTrue();
+            expect($result[0]->value)->toBe('task-0');
+
+            expect($result[1]->isRejected())->toBeTrue();
+            expect($result[1]->reason)->toBeInstanceOf(RuntimeException::class);
+
+            expect($result[2]->isFulfilled())->toBeTrue();
+            expect($result[2]->value)->toBe('task-2');
+
+            expect($result[3]->isFulfilled())->toBeTrue();
+            expect($result[3]->value)->toBe('task-3');
         });
     });
 
