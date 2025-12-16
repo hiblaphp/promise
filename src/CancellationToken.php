@@ -6,9 +6,17 @@ namespace Hibla\Promise;
 
 use function Hibla\delay;
 
+use Hibla\EventLoop\Loop;
 use Hibla\Promise\Exceptions\PromiseCancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 
+/**
+ * A cancellation token for controlling and coordinating async operation cancellation.
+ *
+ * CancellationToken provides a clean, explicit way to signal cancellation to ongoing
+ * asynchronous operations. Unlike implicit parent-child tracking, tokens are passed
+ * explicitly, giving you full control over cancellation scope and propagation.
+ */
 final class CancellationToken
 {
     /**
@@ -31,24 +39,19 @@ final class CancellationToken
     private bool $cancelled = false;
 
     /**
-     * Create a linked cancellation token that will be cancelled when ANY of the source tokens are cancelled.
+     * Create a linked cancellation token that cancels when ANY source token cancels.
      *
-     * This allows combining multiple cancellation sources (user cancellation, timeout, shutdown, etc.)
-     * into a single token. When any source token cancels, the linked token automatically cancels.
+     * This is useful for combining multiple cancellation sources (user cancellation,
+     * timeout, system shutdown, etc.) into a single token. The linked token will
+     * automatically cancel if any of its source tokens cancel.
+     *
+     * **Use Cases:**
+     * - Combine user cancellation with timeout
+     * - Coordinate cancellation across multiple operations
+     * - Create fallback cancellation strategies
      *
      * @param CancellationToken ...$sources One or more source tokens to link
      * @return self A new token that cancels when any source cancels
-     *
-     * ```php
-     * $userToken = new CancellationToken();
-     * $timeoutToken = new CancellationToken();
-     * $timeoutToken->cancelAfter(5.0);
-     *
-     * // Cancels if user cancels OR timeout expires
-     * $linkedToken = CancellationToken::linked($userToken, $timeoutToken);
-     *
-     * $result = await($promise, $linkedToken);
-     * ```
      */
     public static function linked(self ...$sources): self
     {
@@ -81,11 +84,26 @@ final class CancellationToken
         return $linked;
     }
 
+    /**
+     * Check if cancellation has been requested.
+     *
+     * @return bool True if cancelled, false otherwise
+     */
     public function isCancelled(): bool
     {
         return $this->cancelled;
     }
 
+    /**
+     * Request cancellation of all tracked operations.
+     *
+     * This method:
+     * 1. Marks the token as cancelled
+     * 2. Invokes all registered callbacks (for cleanup operations)
+     * 3. Cancels all tracked promises
+     *
+     * Calling `cancel()` multiple times is safe - subsequent calls have no effect.
+     */
     public function cancel(): void
     {
         if ($this->cancelled) {
@@ -113,9 +131,17 @@ final class CancellationToken
     }
 
     /**
+     * Track a promise for automatic cancellation.
+     *
+     * When you track a promise, it will be automatically cancelled if the token
+     * is cancelled. The promise is automatically untracked when it settles.
+     *
+     * This is useful for managing multiple concurrent operations that should all
+     * be cancelled together.
+     *
      * @template TValue
-     * @param PromiseInterface<TValue> $promise
-     * @return PromiseInterface<TValue>
+     * @param PromiseInterface<TValue> $promise The promise to track
+     * @return PromiseInterface<TValue> The same promise (for chaining)
      */
     public function track(PromiseInterface $promise): PromiseInterface
     {
@@ -138,7 +164,6 @@ final class CancellationToken
         $this->promiseKeyMap[$promiseId] = $key;
 
         $weakThis = \WeakReference::create($this);
-        $promiseId = spl_object_id($promise);
 
         $promise->finally(static function () use ($weakThis, $promiseId): void {
             $token = $weakThis->get();
@@ -151,20 +176,44 @@ final class CancellationToken
     }
 
     /**
-     * @param PromiseInterface<mixed> $promise
+     * Stop tracking a promise.
+     *
+     * After untracking, the promise will no longer be automatically cancelled
+     * when the token is cancelled. This is rarely needed as promises are
+     * automatically untracked when they settle.
+     *
+     * @param PromiseInterface<mixed> $promise The promise to stop tracking
+     * 
      */
     public function untrack(PromiseInterface $promise): void
     {
         $this->untrackById(spl_object_id($promise));
     }
 
+    /**
+     * Schedule automatic cancellation after a specified duration.
+     *
+     * This is a convenient way to implement timeouts without manually managing
+     * timers. The token will automatically cancel after the specified time.
+     *
+     * @param float $seconds Number of seconds until automatic cancellation
+     */
     public function cancelAfter(float $seconds): void
     {
-        delay($seconds)->then(function () {
+        Loop::addTimer($seconds, function () {
             $this->cancel();
         });
     }
 
+    /**
+     * Throw an exception if cancellation has been requested.
+     *
+     * This is the primary way to check for cancellation in your async code.
+     * Place strategic calls to `throwIfCancelled()` at points where it's safe
+     * to stop the operation.
+     *
+     * @throws PromiseCancelledException If the token has been cancelled
+     */
     public function throwIfCancelled(): void
     {
         if ($this->cancelled) {
@@ -172,6 +221,17 @@ final class CancellationToken
         }
     }
 
+    /**
+     * Register a callback to execute when cancellation occurs.
+     *
+     * Use this for cleanup operations like closing connections, releasing resources,
+     * or logging cancellation events. Callbacks are executed in registration order.
+     *
+     * If the token is already cancelled, the callback executes immediately.
+     *
+     * @param callable(): void $callback The function to call on cancellation
+     * ```
+     */
     public function onCancel(callable $callback): void
     {
         if ($this->cancelled) {
@@ -183,17 +243,35 @@ final class CancellationToken
         $this->cancelCallbacks[] = $callback;
     }
 
+    /**
+     * Get the number of promises currently being tracked.
+     *
+     * Useful for monitoring and debugging to see how many operations are
+     * still pending cancellation.
+     *
+     * @return int Number of tracked promises
+     */
     public function getTrackedCount(): int
     {
         return \count($this->trackedPromises);
     }
 
+    /**
+     * Clear all tracked promises without cancelling them.
+     *
+     * This removes all promises from tracking but doesn't cancel them.
+     * Useful when you want to stop managing a batch of operations but
+     * let them complete naturally.
+     */
     public function clearTracked(): void
     {
         $this->trackedPromises = [];
         $this->promiseKeyMap = [];
     }
 
+    /**
+     * @param int $promiseId The spl_object_id of the promise
+     */
     private function untrackById(int $promiseId): void
     {
         if (isset($this->promiseKeyMap[$promiseId])) {
