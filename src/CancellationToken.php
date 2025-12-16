@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hibla\Promise;
 
-use function Hibla\delay;
-
 use Hibla\EventLoop\Loop;
 use Hibla\Promise\Exceptions\PromiseCancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
@@ -183,7 +181,7 @@ final class CancellationToken
      * automatically untracked when they settle.
      *
      * @param PromiseInterface<mixed> $promise The promise to stop tracking
-     * 
+     *
      */
     public function untrack(PromiseInterface $promise): void
     {

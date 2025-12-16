@@ -58,10 +58,10 @@ describe('PromiseCollectionHandler', function () {
         $results = $handler->allSettled($promises)->wait();
 
         expect($results)->toHaveCount(2);
-        expect($results[0]['status'])->toBe('fulfilled');
-        expect($results[0]['value'])->toBe('success');
-        expect($results[1]['status'])->toBe('rejected');
-        expect($results[1]['reason'])->toBeInstanceOf(Exception::class);
+        expect($results[0]->isFulfilled())->toBeTrue();
+        expect($results[0]->value)->toBe('success');
+        expect($results[1]->isRejected())->toBeTrue();
+        expect($results[1]->reason)->toBeInstanceOf(Exception::class);
     });
 
     it('races promises', function () {

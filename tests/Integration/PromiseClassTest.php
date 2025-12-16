@@ -9,6 +9,7 @@ use Hibla\Promise\Exceptions\TimeoutException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 
 use Hibla\Promise\Promise;
+use Hibla\Promise\SettledResult;
 
 describe('Promise Static Methods Integration', function () {
     describe('Promise::resolved() and Promise::rejected()', function () {
@@ -118,19 +119,18 @@ describe('Promise Static Methods Integration', function () {
 
             expect($results)->toHaveCount(3);
 
-            expect($results[0])->toEqual([
-                'status' => 'fulfilled',
-                'value' => 'success',
-            ]);
+            expect($results[0])->toBeInstanceOf(SettledResult::class);
+            expect($results[0]->status)->toBe('fulfilled');
+            expect($results[0]->value)->toBe('success');
 
-            expect($results[1]['status'])->toBe('rejected');
-            expect($results[1]['reason'])->toBeInstanceOf(RuntimeException::class);
-            expect($results[1]['reason']->getMessage())->toBe('error');
+            expect($results[1])->toBeInstanceOf(SettledResult::class);
+            expect($results[1]->status)->toBe('rejected');
+            expect($results[1]->reason)->toBeInstanceOf(RuntimeException::class);
+            expect($results[1]->reason->getMessage())->toBe('error');
 
-            expect($results[2])->toEqual([
-                'status' => 'fulfilled',
-                'value' => 'another success',
-            ]);
+            expect($results[2])->toBeInstanceOf(SettledResult::class);
+            expect($results[2]->status)->toBe('fulfilled');
+            expect($results[2]->value)->toBe('another success');
         });
 
         it('preserves string keys in settlement results', function () {
@@ -145,8 +145,14 @@ describe('Promise Static Methods Integration', function () {
             expect($results)->toHaveKey('success');
             expect($results)->toHaveKey('failure');
 
-            expect($results['success']['status'])->toBe('fulfilled');
-            expect($results['failure']['status'])->toBe('rejected');
+            expect($results['success'])->toBeInstanceOf(SettledResult::class);
+            expect($results['success']->status)->toBe('fulfilled');
+            expect($results['success']->value)->toBe('good');
+
+            expect($results['failure'])->toBeInstanceOf(SettledResult::class);
+            expect($results['failure']->status)->toBe('rejected');
+            expect($results['failure']->reason)->toBeInstanceOf(RuntimeException::class);
+            expect($results['failure']->reason->getMessage())->toBe('bad');
         });
 
         it('works with mixed async and sync promises', function () {
@@ -160,9 +166,10 @@ describe('Promise Static Methods Integration', function () {
             $results = $promise->wait();
 
             expect($results)->toHaveCount(3);
-            expect($results[0]['status'])->toBe('fulfilled');
-            expect($results[1]['status'])->toBe('fulfilled');
-            expect($results[2]['status'])->toBe('rejected');
+
+            expect($results[0]->status)->toBe('fulfilled');
+            expect($results[1]->status)->toBe('fulfilled');
+            expect($results[2]->status)->toBe('rejected');
         });
     });
 

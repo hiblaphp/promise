@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hibla\Promise\Interfaces;
 
+use Hibla\Promise\SettledResult;
+
 /**
  * Interface for promise collection operations.
  *
@@ -49,7 +51,7 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::rejected(), NOT $promise->rejected()
      *
      * @param  mixed  $reason  The reason for rejection (typically an exception)
-     * @return PromiseInterface<mixed> A promise rejected with the provided reason
+     * @return PromiseInterface<never> A promise rejected with the provided reason
      *
      * @static
      */
@@ -82,7 +84,7 @@ interface PromiseStaticInterface
      *
      * @template TAllSettledValue
      * @param  array<int|string, PromiseInterface<TAllSettledValue>>  $promises
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TAllSettledValue, reason?: mixed}>>
+     * @return PromiseInterface<array<int|string, SettledResult<TAllSettledValue, mixed>>>
      *
      * @static
      */

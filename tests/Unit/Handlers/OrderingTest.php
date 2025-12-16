@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Hibla\Promise\Exceptions\PromiseRejectionException;
 use Hibla\Promise\Handlers\ConcurrencyHandler;
 use Hibla\Promise\Handlers\PromiseCollectionHandler;
+use Hibla\Promise\SettledResult;
 
 describe('Array Ordering and Key Preservation', function () {
 
@@ -141,12 +141,10 @@ describe('Array Ordering and Key Preservation', function () {
 
             expect($results[0])->toBe(['status' => 'fulfilled', 'value' => 'success_1']);
             expect($results[1]['status'])->toBe('rejected');
-            expect($results[1]['reason'])->toBeInstanceOf(PromiseRejectionException::class);
-            expect($results[1]['reason']->getMessage())->toBe('error_1');
+            expect($results[1]['reason'])->toBe('error_1');
             expect($results[2])->toBe(['status' => 'fulfilled', 'value' => 'success_2']);
             expect($results[3]['status'])->toBe('rejected');
-            expect($results[3]['reason'])->toBeInstanceOf(PromiseRejectionException::class);
-            expect($results[3]['reason']->getMessage())->toBe('error_2');
+            expect($results[3]['reason'])->toBe('error_2');
         });
 
         it('preserves keys in concurrentSettled with associative arrays', function () {
@@ -336,11 +334,16 @@ describe('Array Ordering and Key Preservation', function () {
 
             $results = $handler->allSettled($promises)->wait();
 
-            expect($results[0]['status'])->toBe('fulfilled');
-            expect($results[0]['value'])->toBe('success_1');
-            expect($results[1]['status'])->toBe('rejected');
-            expect($results[2]['status'])->toBe('fulfilled');
-            expect($results[2]['value'])->toBe('success_2');
+            expect($results[0])->toBeInstanceOf(SettledResult::class);
+            expect($results[0]->isFulfilled())->toBeTrue();
+            expect($results[0]->value)->toBe('success_1');
+
+            expect($results[1])->toBeInstanceOf(SettledResult::class);
+            expect($results[1]->isRejected())->toBeTrue();
+
+            expect($results[2])->toBeInstanceOf(SettledResult::class);
+            expect($results[2]->isFulfilled())->toBeTrue();
+            expect($results[2]->value)->toBe('success_2');
         });
 
         it('preserves keys in allSettled() with associative arrays', function () {
@@ -354,9 +357,17 @@ describe('Array Ordering and Key Preservation', function () {
             $results = $handler->allSettled($promises)->wait();
 
             expect(array_keys($results))->toBe(['operation_1', 'operation_2', 'operation_3']);
-            expect($results['operation_1']['status'])->toBe('fulfilled');
-            expect($results['operation_2']['status'])->toBe('rejected');
-            expect($results['operation_3']['status'])->toBe('fulfilled');
+
+            expect($results['operation_1'])->toBeInstanceOf(SettledResult::class);
+            expect($results['operation_1']->isFulfilled())->toBeTrue();
+            expect($results['operation_1']->value)->toBe('done_1');
+
+            expect($results['operation_2'])->toBeInstanceOf(SettledResult::class);
+            expect($results['operation_2']->isRejected())->toBeTrue();
+
+            expect($results['operation_3'])->toBeInstanceOf(SettledResult::class);
+            expect($results['operation_3']->isFulfilled())->toBeTrue();
+            expect($results['operation_3']->value)->toBe('done_3');
         });
 
         it('preserves numeric keys in allSettled() with non-sequential arrays', function () {
@@ -370,11 +381,17 @@ describe('Array Ordering and Key Preservation', function () {
             $results = $handler->allSettled($promises)->wait();
 
             expect(array_keys($results))->toBe([3, 6, 9]);
-            expect($results[3]['status'])->toBe('fulfilled');
-            expect($results[3]['value'])->toBe('third');
-            expect($results[6]['status'])->toBe('rejected');
-            expect($results[9]['status'])->toBe('fulfilled');
-            expect($results[9]['value'])->toBe('ninth');
+
+            expect($results[3])->toBeInstanceOf(SettledResult::class);
+            expect($results[3]->isFulfilled())->toBeTrue();
+            expect($results[3]->value)->toBe('third');
+
+            expect($results[6])->toBeInstanceOf(SettledResult::class);
+            expect($results[6]->isRejected())->toBeTrue();
+
+            expect($results[9])->toBeInstanceOf(SettledResult::class);
+            expect($results[9]->isFulfilled())->toBeTrue();
+            expect($results[9]->value)->toBe('ninth');
         });
 
         it('handles gaps in numeric keys correctly', function () {
@@ -1061,10 +1078,31 @@ describe('Edge Cases for Ordering', function () {
 
             $results = $handler->allSettled($promises)->wait();
 
-            expect($results['null_result']['status'])->toBe('fulfilled');
-            expect($results['null_result']['value'])->toBeNull();
-            expect($results['rejection']['status'])->toBe('rejected');
-            expect(array_keys($results))->toBe(['null_result', 'rejection', 'array_result', 'another_rejection', 'string_result']);
+            expect($results['null_result'])->toBeInstanceOf(SettledResult::class);
+            expect($results['null_result']->isFulfilled())->toBeTrue();
+            expect($results['null_result']->value)->toBeNull();
+
+            expect($results['rejection'])->toBeInstanceOf(SettledResult::class);
+            expect($results['rejection']->isRejected())->toBeTrue();
+
+            expect($results['array_result'])->toBeInstanceOf(SettledResult::class);
+            expect($results['array_result']->isFulfilled())->toBeTrue();
+            expect($results['array_result']->value)->toEqual(['data' => 'value']);
+
+            expect($results['another_rejection'])->toBeInstanceOf(SettledResult::class);
+            expect($results['another_rejection']->isRejected())->toBeTrue();
+
+            expect($results['string_result'])->toBeInstanceOf(SettledResult::class);
+            expect($results['string_result']->isFulfilled())->toBeTrue();
+            expect($results['string_result']->value)->toBe('success');
+
+            expect(array_keys($results))->toBe([
+                'null_result',
+                'rejection',
+                'array_result',
+                'another_rejection',
+                'string_result',
+            ]);
         });
 
         it('preserves order with whitespace in string keys', function () {

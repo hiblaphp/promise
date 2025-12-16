@@ -8,6 +8,7 @@ use Hibla\Promise\Exceptions\AggregateErrorException;
 use Hibla\Promise\Exceptions\TimeoutException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
+use Hibla\Promise\SettledResult;
 use InvalidArgumentException;
 
 final readonly class PromiseCollectionHandler
@@ -33,16 +34,31 @@ final readonly class PromiseCollectionHandler
 
             $completed = 0;
             $total = \count($promises);
+            $isRejected = false;
 
             foreach ($promises as $index => $promise) {
                 if (! $this->validatePromiseInstance($promise, $index, [], $reject)) {
                     return;
                 }
 
+                if ($promise->isCancelled()) {
+                    $reject(new \Hibla\Promise\Exceptions\PromiseCancelledException(
+                        \sprintf('Promise at index "%s" was cancelled', $index)
+                    ));
+
+                    return;
+                }
+            }
+
+            foreach ($promises as $index => $promise) {
                 $resultIndex = $shouldPreserveKeys ? $index : array_search($index, $originalKeys, true);
 
                 $promise
-                    ->then(function ($value) use (&$results, &$completed, $total, $index, $resultIndex, $resolve, $shouldPreserveKeys): void {
+                    ->then(function ($value) use (&$results, &$completed, &$isRejected, $total, $index, $resultIndex, $resolve, $shouldPreserveKeys): void {
+                        if ($isRejected) {
+                            return;
+                        }
+
                         if ($shouldPreserveKeys) {
                             $results[$index] = $value;
                         } else {
@@ -54,7 +70,11 @@ final readonly class PromiseCollectionHandler
                             $resolve($results);
                         }
                     })
-                    ->catch(function ($reason) use ($reject): void {
+                    ->catch(function ($reason) use (&$isRejected, $reject): void {
+                        if ($isRejected) {
+                            return;
+                        }
+                        $isRejected = true;
                         $reject($reason);
                     })
                 ;
@@ -64,12 +84,12 @@ final readonly class PromiseCollectionHandler
 
     /**
      * @template TAllSettledValue
-     * @param  array<int|string, PromiseInterface<TAllSettledValue>>  $promises
-     * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TAllSettledValue, reason?: mixed}>>
+     * @param array<int|string, PromiseInterface<TAllSettledValue>> $promises
+     * @return PromiseInterface<array<int|string, SettledResult<TAllSettledValue, mixed>>>
      */
     public function allSettled(array $promises): PromiseInterface
     {
-        /** @var Promise<array<int|string, array{status: 'fulfilled'|'rejected', value?: TAllSettledValue, reason?: mixed}>> */
+        /** @var Promise<array<int|string, SettledResult<TAllSettledValue, mixed>>> */
         return new Promise(function (callable $resolve) use ($promises): void {
             if ($promises === []) {
                 $resolve([]);
@@ -79,42 +99,44 @@ final readonly class PromiseCollectionHandler
 
             $originalKeys = array_keys($promises);
             $shouldPreserveKeys = $this->shouldPreserveKeys($promises);
-            $results = $this->initializeResultsArray($shouldPreserveKeys, $originalKeys, \count($promises));
+            $results = $this->initializeResultsArray(
+                $shouldPreserveKeys,
+                $originalKeys,
+                \count($promises)
+            );
 
             $completed = 0;
             $total = \count($promises);
 
             foreach ($promises as $index => $promise) {
-                $resultIndex = $shouldPreserveKeys ? $index : array_search($index, $originalKeys, true);
+                $resultIndex = $shouldPreserveKeys
+                    ? $index
+                    : array_search($index, $originalKeys, true);
+
+                $key = $shouldPreserveKeys ? $index : $resultIndex;
 
                 if (! ($promise instanceof PromiseInterface)) {
-                    if ($shouldPreserveKeys) {
-                        $results[$index] = [
-                            'status' => 'rejected',
-                            'reason' => new InvalidArgumentException(
-                                \sprintf(
-                                    'Item at index "%s" must be a PromiseInterface, %s given',
-                                    $index,
-                                    get_debug_type($promise)
-                                )
-                            ),
-                        ];
-                    } else {
-                        $results[$resultIndex] = [
-                            'status' => 'rejected',
-                            'reason' => new InvalidArgumentException(
-                                \sprintf(
-                                    'Item at index "%s" must be a PromiseInterface, %s given',
-                                    $index,
-                                    get_debug_type($promise)
-                                )
-                            ),
-                        ];
+                    $results[$key] = SettledResult::rejected(
+                        new InvalidArgumentException(
+                            \sprintf(
+                                'Item at index "%s" must be a PromiseInterface, %s given',
+                                $index,
+                                get_debug_type($promise)
+                            )
+                        )
+                    );
+
+                    if (++$completed === $total) {
+                        $resolve($results);
                     }
 
-                    $completed++;
+                    continue;
+                }
 
-                    if ($completed === $total) {
+                if ($promise->isCancelled()) {
+                    $results[$key] = SettledResult::cancelled();
+
+                    if (++$completed === $total) {
                         $resolve($results);
                     }
 
@@ -122,41 +144,34 @@ final readonly class PromiseCollectionHandler
                 }
 
                 $promise
-                    ->then(function ($value) use (&$results, &$completed, $total, $index, $resultIndex, $resolve, $shouldPreserveKeys): void {
-                        if ($shouldPreserveKeys) {
-                            $results[$index] = [
-                                'status' => 'fulfilled',
-                                'value' => $value,
-                            ];
-                        } else {
-                            $results[$resultIndex] = [
-                                'status' => 'fulfilled',
-                                'value' => $value,
-                            ];
-                        }
+                    ->then(function ($value) use (
+                        &$results,
+                        &$completed,
+                        $total,
+                        $key,
+                        $resolve
+                    ): void {
+                        $results[$key] = SettledResult::fulfilled($value);
 
-                        $completed++;
-
-                        if ($completed === $total) {
+                        if (++$completed === $total) {
                             $resolve($results);
                         }
                     })
-                    ->catch(function ($reason) use (&$results, &$completed, $total, $index, $resultIndex, $resolve, $shouldPreserveKeys): void {
-                        if ($shouldPreserveKeys) {
-                            $results[$index] = [
-                                'status' => 'rejected',
-                                'reason' => $reason,
-                            ];
+                    ->catch(function ($reason) use (
+                        &$results,
+                        &$completed,
+                        $total,
+                        $key,
+                        $resolve,
+                        $promise
+                    ): void {
+                        if ($promise->isCancelled()) {
+                            $results[$key] = SettledResult::cancelled();
                         } else {
-                            $results[$resultIndex] = [
-                                'status' => 'rejected',
-                                'reason' => $reason,
-                            ];
+                            $results[$key] = SettledResult::rejected($reason);
                         }
 
-                        $completed++;
-
-                        if ($completed === $total) {
+                        if (++$completed === $total) {
                             $resolve($results);
                         }
                     })

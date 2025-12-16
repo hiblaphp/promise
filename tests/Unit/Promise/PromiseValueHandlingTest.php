@@ -26,9 +26,7 @@ describe('Promise Value Handling', function () {
         $promise = new Promise();
         $promise->reject('simple error message');
 
-        expect($promise->getReason())->toBeInstanceOf(Exception::class)
-            ->and($promise->getReason()->getMessage())->toBe('simple error message')
-        ;
+        expect($promise->getReason())->toBe('simple error message');
     });
 
     it('returns null when getting value of non-resolved promise', function () {

@@ -66,12 +66,12 @@ describe('Promise Static Methods', function () {
 
             expect($result)->toHaveCount(3);
 
-            expect($result[0]['status'])->toBe('fulfilled');
-            expect($result[0]['value'])->toBe('value1');
-            expect($result[1]['status'])->toBe('rejected');
-            expect($result[1]['reason'])->toBeInstanceOf(Exception::class);
-            expect($result[2]['status'])->toBe('fulfilled');
-            expect($result[2]['value'])->toBe('value3');
+            expect($result[0]->isFulfilled())->toBeTrue();
+            expect($result[0]->value)->toBe('value1');
+            expect($result[1]->isRejected())->toBeTrue();
+            expect($result[1]->reason)->toBeInstanceOf(Exception::class);
+            expect($result[2]->isFulfilled())->toBeTrue();
+            expect($result[2]->value)->toBe('value3');
         });
 
         it('handles empty array', function () {
@@ -89,9 +89,9 @@ describe('Promise Static Methods', function () {
 
             expect($result)->toHaveCount(3);
 
-            expect($result[0]['status'])->toBe('rejected');
-            expect($result[1]['status'])->toBe('rejected');
-            expect($result[2]['status'])->toBe('rejected');
+            expect($result[0]->isRejected())->toBeTrue();
+            expect($result[1]->isRejected())->toBeTrue();
+            expect($result[2]->isRejected())->toBeTrue();
         });
     });
 

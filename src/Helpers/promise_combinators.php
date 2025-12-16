@@ -30,7 +30,7 @@ function all(array $promises): PromiseInterface
  *
  * @template TAllSettledValue
  * @param  array<int|string, PromiseInterface<TAllSettledValue>>  $promises
- * @return PromiseInterface<array<int|string, array{status: 'fulfilled'|'rejected', value?: TAllSettledValue, reason?: mixed}>>
+ * @return PromiseInterface<array<int|string, SettledResult<TAllSettledValue, mixed>>>
  */
 function allSettled(array $promises): PromiseInterface
 {

@@ -179,6 +179,15 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         return $this->state === PromiseState::FULFILLED || $this->state === PromiseState::REJECTED;
     }
 
+    /**
+     * Resolve the promise with a value.
+     *
+     * If the promise is already settled, this operation has no effect.
+     * The resolution triggers all registered fulfillment callbacks.
+     *
+     * @param  mixed  $value  The value to resolve the promise with
+     * @return void
+     */
     public function resolve(mixed $value): void
     {
         if (! $this->canSettle()) {
@@ -231,6 +240,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             foreach ($callbacks as $callback) {
                 $callback($value);
             }
+
+            $this->cleanup();
         });
     }
 
@@ -251,9 +262,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         $this->state = PromiseState::REJECTED;
 
-        $this->reason = $reason instanceof \Throwable
-            ? $reason
-            : new PromiseRejectionException($reason);
+        $this->reason = $reason;
 
         Loop::microTask(function () {
             $callbacks = $this->catchCallbacks;
@@ -262,6 +271,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             foreach ($callbacks as $callback) {
                 $callback($this->reason);
             }
+
+            $this->cleanup();
         });
     }
 
@@ -311,6 +322,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         } catch (\Throwable $e) {
             $cancelExceptions[] = $e;
         }
+
+        $this->cleanup();
 
         if (\count($cancelExceptions) === 1) {
             throw $cancelExceptions[0];
@@ -563,15 +576,16 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
     /**
      * @inheritDoc
+     *
+     * @return PromiseInterface<never> A promise rejected with the provided reason
      */
     public static function rejected(mixed $reason): PromiseInterface
     {
+        /** @var Promise<never> $promise */
         $promise = new self();
 
         $promise->state = PromiseState::REJECTED;
-        $promise->reason = $reason instanceof \Throwable
-            ? $reason
-            : new PromiseRejectionException($reason);
+        $promise->reason = $reason;
 
         return $promise;
     }
@@ -662,6 +676,20 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     private static function getConcurrencyHandler(): ConcurrencyHandler
     {
         return self::$concurrencyHandler ??= new ConcurrencyHandler();
+    }
+
+    /**
+     * Clean up circular references to prevent memory leaks
+     *
+     * @return void
+     */
+    private function cleanup(): void
+    {
+        $this->parentPromise = null;
+        $this->childPromises = [];
+        $this->thenCallbacks = [];
+        $this->catchCallbacks = [];
+        $this->cancelHandlers = [];
     }
 
     /**
