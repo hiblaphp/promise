@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Promise;
 
 use Hibla\EventLoop\Loop;
+use Hibla\Promise\Exceptions\AggregateErrorException;
 use Hibla\Promise\Exceptions\PromiseCancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 
@@ -110,11 +111,17 @@ final class CancellationToken
 
         $this->cancelled = true;
 
+        $exceptions = [];
+
         $callbacks = $this->cancelCallbacks;
         $this->cancelCallbacks = [];
 
         foreach ($callbacks as $callback) {
-            $callback();
+            try {
+                $callback();
+            } catch (\Throwable $e) {
+                $exceptions[] = $e;
+            }
         }
 
         $promises = $this->trackedPromises;
@@ -122,12 +129,42 @@ final class CancellationToken
         $this->promiseKeyMap = [];
 
         foreach ($promises as $promise) {
-            if (! $promise->isSettled() && ! $promise->isCancelled()) {
-                $promise->cancel();
+            if (!$promise->isSettled() && !$promise->isCancelled()) {
+                try {
+                    $promise->cancel();
+                } catch (\Throwable $e) {
+                    $exceptions[] = $e;
+                }
             }
         }
-    }
 
+        if (\count($exceptions) === 1) {
+            throw $exceptions[0];
+        } elseif (\count($exceptions) > 1) {
+            $errorMessages = [];
+            foreach ($exceptions as $index => $exception) {
+                $errorMessages[] = \sprintf(
+                    "#%d: [%s] %s in %s:%d",
+                    $index + 1,
+                    \get_class($exception),
+                    $exception->getMessage(),
+                    $exception->getFile(),
+                    $exception->getLine()
+                );
+            }
+
+            $detailedMessage = \sprintf(
+                "Cancellation encountered %d error(s):\n%s",
+                \count($exceptions),
+                implode("\n", $errorMessages)
+            );
+
+            throw new AggregateErrorException(
+                $exceptions,
+                $detailedMessage
+            );
+        }
+    }
     /**
      * Track a promise for automatic cancellation.
      *

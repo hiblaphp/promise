@@ -316,6 +316,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         $this->catchCallbacks = [];
 
         $cancelExceptions = [];
+
         foreach ($this->cancelHandlers as $handler) {
             try {
                 $handler();
@@ -337,9 +338,27 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if (\count($cancelExceptions) === 1) {
             throw $cancelExceptions[0];
         } elseif (\count($cancelExceptions) > 1) {
+            $errorMessages = [];
+            foreach ($cancelExceptions as $index => $exception) {
+                $errorMessages[] = \sprintf(
+                    "#%d: [%s] %s in %s:%d",
+                    $index + 1,
+                    \get_class($exception),
+                    $exception->getMessage(),
+                    $exception->getFile(),
+                    $exception->getLine()
+                );
+            }
+
+            $detailedMessage = \sprintf(
+                "Promise cancellation failed with %d error(s):\n%s",
+                \count($cancelExceptions),
+                implode("\n", $errorMessages)
+            );
+
             throw new Exceptions\AggregateErrorException(
                 $cancelExceptions,
-                \sprintf('Promise cancellation failed with %d error(s)', \count($cancelExceptions))
+                $detailedMessage
             );
         }
     }
