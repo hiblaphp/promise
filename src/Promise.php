@@ -100,8 +100,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn($value = null) => $this->resolve($value),
-                    fn($reason = null) => $this->reject($reason)
+                    fn ($value = null) => $this->resolve($value),
+                    fn ($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -211,8 +211,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($value instanceof PromiseInterface) {
             $value->then(
-                fn($v) => $this->resolve($v),
-                fn($r) => $this->reject($r)
+                fn ($v) => $this->resolve($v),
+                fn ($r) => $this->reject($r)
             );
 
             // If THIS promise is cancelled, forward it to the inner promise
@@ -229,8 +229,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if (\is_object($value) && method_exists($value, 'then')) {
             try {
                 $value->then(
-                    fn($v) => $this->resolve($v),
-                    fn($r) => $this->reject($r)
+                    fn ($v) => $this->resolve($v),
+                    fn ($r) => $this->reject($r)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -243,6 +243,10 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         $this->value = $value;
 
         Loop::microTask(function () use ($value) {
+            if ($this->state === PromiseState::CANCELLED) {
+                return;
+            }
+
             $callbacks = $this->thenCallbacks;
             $this->thenCallbacks = [];
 
@@ -274,6 +278,10 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         $this->reason = $reason;
 
         Loop::microTask(function () {
+            if ($this->state === PromiseState::CANCELLED) {
+                return;
+            }
+
             $callbacks = $this->catchCallbacks;
             $this->catchCallbacks = [];
 
@@ -341,7 +349,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             $errorMessages = [];
             foreach ($cancelExceptions as $index => $exception) {
                 $errorMessages[] = \sprintf(
-                    "#%d: [%s] %s in %s:%d",
+                    '#%d: [%s] %s in %s:%d',
                     $index + 1,
                     \get_class($exception),
                     $exception->getMessage(),
@@ -455,9 +463,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             }
 
             if ($this->state === PromiseState::FULFILLED) {
-                Loop::microTask(fn() => $handleResolve($this->value));
+                Loop::microTask(fn () => $handleResolve($this->value));
             } elseif ($this->state === PromiseState::REJECTED) {
-                Loop::microTask(fn() => $handleReject($this->reason));
+                Loop::microTask(fn () => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -505,20 +513,22 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn($resolve) => $resolve($result)))
-                    ->then(fn() => $value);
+                return (new self(fn ($resolve) => $resolve($result)))
+                    ->then(fn () => $value)
+                ;
             },
             function ($reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                return (new self(fn($resolve) => $resolve($result)))
+                return (new self(fn ($resolve) => $resolve($result)))
                     ->then(function () use ($reason): void {
                         if ($reason instanceof \Throwable) {
                             throw $reason;
                         }
 
                         throw new PromiseRejectionException($this->safeStringCast($reason));
-                    });
+                    })
+                ;
             }
         );
     }
@@ -619,7 +629,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * @inheritDoc
      */
-    public static function all(array $promises): PromiseInterface
+    public static function all(iterable $promises): PromiseInterface
     {
         return self::getCollectionHandler()->all($promises);
     }
@@ -627,7 +637,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * @inheritDoc
      */
-    public static function allSettled(array $promises): PromiseInterface
+    public static function allSettled(iterable $promises): PromiseInterface
     {
         return self::getCollectionHandler()->allSettled($promises);
     }
@@ -635,7 +645,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * @inheritDoc
      */
-    public static function race(array $promises): PromiseInterface
+    public static function race(iterable $promises): PromiseInterface
     {
         return self::getCollectionHandler()->race($promises);
     }
@@ -643,7 +653,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * @inheritDoc
      */
-    public static function any(array $promises): PromiseInterface
+    public static function any(iterable $promises): PromiseInterface
     {
         return self::getCollectionHandler()->any($promises);
     }
@@ -659,7 +669,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * @inheritDoc
      */
-    public static function concurrent(array $tasks, int $concurrency = 10): PromiseInterface
+    public static function concurrent(iterable $tasks, int $concurrency = 10): PromiseInterface
     {
         return self::getConcurrencyHandler()->concurrent($tasks, $concurrency);
     }
@@ -667,7 +677,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * @inheritDoc
      */
-    public static function batch(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
+    public static function batch(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
         return self::getConcurrencyHandler()->batch($tasks, $batchSize, $concurrency);
     }
@@ -675,7 +685,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * @inheritDoc
      */
-    public static function concurrentSettled(array $tasks, int $concurrency = 10): PromiseInterface
+    public static function concurrentSettled(iterable $tasks, int $concurrency = 10): PromiseInterface
     {
         return self::getConcurrencyHandler()->concurrentSettled($tasks, $concurrency);
     }
@@ -683,7 +693,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * @inheritDoc
      */
-    public static function batchSettled(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
+    public static function batchSettled(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
         return self::getConcurrencyHandler()->batchSettled($tasks, $batchSize, $concurrency);
     }

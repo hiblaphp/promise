@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Promise\Handlers;
 
 use Hibla\Promise\Exceptions\AggregateErrorException;
+use Hibla\Promise\Exceptions\PromiseCancelledException;
 use Hibla\Promise\Exceptions\TimeoutException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
@@ -15,11 +16,13 @@ final readonly class PromiseCollectionHandler
 {
     /**
      * @template TAllValue
-     * @param  array<int|string, PromiseInterface<TAllValue>>  $promises
+     * @param  iterable<int|string, PromiseInterface<TAllValue>>  $promises
      * @return PromiseInterface<array<int|string, TAllValue>>
      */
-    public function all(array $promises): PromiseInterface
+    public function all(iterable $promises): PromiseInterface
     {
+        $promises = \is_array($promises) ? $promises : \iterator_to_array($promises);
+
         /** @var Promise<array<int|string, TAllValue>> */
         return new Promise(function (callable $resolve, callable $reject) use ($promises): void {
             if ($promises === []) {
@@ -28,54 +31,63 @@ final readonly class PromiseCollectionHandler
                 return;
             }
 
-            $originalKeys = array_keys($promises);
-            $shouldPreserveKeys = $this->shouldPreserveKeys($promises);
-            $results = $this->initializeResultsArray($shouldPreserveKeys, $originalKeys, \count($promises));
-
-            $completed = 0;
             $total = \count($promises);
-            $isRejected = false;
+            $results = \array_fill_keys(\array_keys($promises), null);
+            $completed = 0;
+            $isSettled = false;
 
             foreach ($promises as $index => $promise) {
-                if (! $this->validatePromiseInstance($promise, $index, [], $reject)) {
+                if (! ($promise instanceof PromiseInterface)) {
+                    $isSettled = true;
+                    $this->cancelAll($promises);
+                    $reject(new InvalidArgumentException(\sprintf('Item at index "%s" must be PromiseInterface', $index)));
+
                     return;
                 }
 
                 if ($promise->isCancelled()) {
-                    $reject(new \Hibla\Promise\Exceptions\PromiseCancelledException(
-                        \sprintf('Promise at index "%s" was cancelled', $index)
-                    ));
+                    $isSettled = true;
+                    $this->cancelAll($promises);
+                    $reject(new PromiseCancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
 
                     return;
                 }
             }
 
             foreach ($promises as $index => $promise) {
-                $resultIndex = $shouldPreserveKeys ? $index : array_search($index, $originalKeys, true);
+                $promise->onCancel(function () use (&$isSettled, $reject, $promises, $index): void {
+                    if ($isSettled) {
+                        return;
+                    }
+                    $isSettled = true;
+                    $this->cancelAll($promises);
+                    $reject(new PromiseCancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
+                });
 
                 $promise
-                    ->then(function ($value) use (&$results, &$completed, &$isRejected, $total, $index, $resultIndex, $resolve, $shouldPreserveKeys): void {
-                        if ($isRejected) {
+                    ->then(function ($value) use (&$results, &$completed, &$isSettled, $total, $index, $resolve): void {
+                        if ($isSettled) {
                             return;
                         }
 
-                        if ($shouldPreserveKeys) {
-                            $results[$index] = $value;
-                        } else {
-                            $results[$resultIndex] = $value;
-                        }
-
-                        $completed++;
-                        if ($completed === $total) {
+                        $results[$index] = $value;
+                        if (++$completed === $total) {
+                            $isSettled = true;
                             $resolve($results);
                         }
                     })
-                    ->catch(function ($reason) use (&$isRejected, $reject): void {
-                        if ($isRejected) {
+                    ->catch(function ($reason) use (&$isSettled, $reject, $promises, $index, $promise): void {
+                        if ($isSettled) {
                             return;
                         }
-                        $isRejected = true;
-                        $reject($reason);
+                        $isSettled = true;
+                        $this->cancelAll($promises);
+
+                        if ($promise->isCancelled()) {
+                            $reject(new PromiseCancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
+                        } else {
+                            $reject($reason);
+                        }
                     })
                 ;
             }
@@ -84,11 +96,13 @@ final readonly class PromiseCollectionHandler
 
     /**
      * @template TAllSettledValue
-     * @param array<int|string, PromiseInterface<TAllSettledValue>> $promises
+     * @param  iterable<int|string, PromiseInterface<TAllSettledValue>>  $promises
      * @return PromiseInterface<array<int|string, SettledResult<TAllSettledValue, mixed>>>
      */
-    public function allSettled(array $promises): PromiseInterface
+    public function allSettled(iterable $promises): PromiseInterface
     {
+        $promises = \is_array($promises) ? $promises : \iterator_to_array($promises);
+
         /** @var Promise<array<int|string, SettledResult<TAllSettledValue, mixed>>> */
         return new Promise(function (callable $resolve) use ($promises): void {
             if ($promises === []) {
@@ -97,35 +111,13 @@ final readonly class PromiseCollectionHandler
                 return;
             }
 
-            $originalKeys = array_keys($promises);
-            $shouldPreserveKeys = $this->shouldPreserveKeys($promises);
-            $results = $this->initializeResultsArray(
-                $shouldPreserveKeys,
-                $originalKeys,
-                \count($promises)
-            );
-
-            $completed = 0;
             $total = \count($promises);
+            $results = \array_fill_keys(\array_keys($promises), null);
+            $completed = 0;
 
             foreach ($promises as $index => $promise) {
-                $resultIndex = $shouldPreserveKeys
-                    ? $index
-                    : array_search($index, $originalKeys, true);
-
-                $key = $shouldPreserveKeys ? $index : $resultIndex;
-
                 if (! ($promise instanceof PromiseInterface)) {
-                    $results[$key] = SettledResult::rejected(
-                        new InvalidArgumentException(
-                            \sprintf(
-                                'Item at index "%s" must be a PromiseInterface, %s given',
-                                $index,
-                                get_debug_type($promise)
-                            )
-                        )
-                    );
-
+                    $results[$index] = SettledResult::rejected(new InvalidArgumentException('Not a PromiseInterface'));
                     if (++$completed === $total) {
                         $resolve($results);
                     }
@@ -134,8 +126,7 @@ final readonly class PromiseCollectionHandler
                 }
 
                 if ($promise->isCancelled()) {
-                    $results[$key] = SettledResult::cancelled();
-
+                    $results[$index] = SettledResult::cancelled();
                     if (++$completed === $total) {
                         $resolve($results);
                     }
@@ -143,33 +134,24 @@ final readonly class PromiseCollectionHandler
                     continue;
                 }
 
-                $promise
-                    ->then(function ($value) use (
-                        &$results,
-                        &$completed,
-                        $total,
-                        $key,
-                        $resolve
-                    ): void {
-                        $results[$key] = SettledResult::fulfilled($value);
+                $promise->onCancel(function () use (&$results, &$completed, $total, $index, $resolve): void {
+                    $results[$index] = SettledResult::cancelled();
+                    if (++$completed === $total) {
+                        $resolve($results);
+                    }
+                });
 
+                $promise
+                    ->then(function ($value) use (&$results, &$completed, $total, $index, $resolve): void {
+                        $results[$index] = SettledResult::fulfilled($value);
                         if (++$completed === $total) {
                             $resolve($results);
                         }
                     })
-                    ->catch(function ($reason) use (
-                        &$results,
-                        &$completed,
-                        $total,
-                        $key,
-                        $resolve,
-                        $promise
-                    ): void {
-                        if ($promise->isCancelled()) {
-                            $results[$key] = SettledResult::cancelled();
-                        } else {
-                            $results[$key] = SettledResult::rejected($reason);
-                        }
+                    ->catch(function ($reason) use (&$results, &$completed, $total, $index, $resolve, $promise): void {
+                        $results[$index] = $promise->isCancelled()
+                            ? SettledResult::cancelled()
+                            : SettledResult::rejected($reason);
 
                         if (++$completed === $total) {
                             $resolve($results);
@@ -182,64 +164,164 @@ final readonly class PromiseCollectionHandler
 
     /**
      * @template TRaceValue
-     * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises
+     * @param  iterable<int|string, PromiseInterface<TRaceValue>>  $promises
      * @return PromiseInterface<TRaceValue>
      */
-    public function race(array $promises): PromiseInterface
+    /**
+     * @template TRaceValue
+     * @param  iterable<int|string, PromiseInterface<TRaceValue>>  $promises
+     * @return PromiseInterface<TRaceValue>
+     */
+    public function race(iterable $promises): PromiseInterface
     {
-        /** @var array<int|string, PromiseInterface<mixed>> $promiseInstances */
-        $promiseInstances = [];
+        $promises = \is_array($promises) ? $promises : \iterator_to_array($promises);
         $settled = false;
 
-        /**
-         * @var Promise<TRaceValue> $racePromise
-         */
-        $racePromise = new Promise(
-            /** @param callable(TRaceValue): void $resolve */
-            function (callable $resolve, callable $reject) use ($promises, &$promiseInstances, &$settled): void {
-                if ($promises === []) {
-                    $reject(new InvalidArgumentException('Cannot race with no promises provided'));
+        /** @var Promise<TRaceValue> $racePromise */
+        $racePromise = new Promise(function (callable $resolve, callable $reject) use ($promises, &$settled): void {
+            if ($promises === []) {
+                $reject(new InvalidArgumentException('Cannot race with no promises provided'));
+
+                return;
+            }
+
+            foreach ($promises as $index => $promise) {
+                if (! ($promise instanceof PromiseInterface)) {
+                    $settled = true;
+                    $this->cancelAll($promises);
+                    $reject(new InvalidArgumentException("Invalid item at $index"));
+
+                    return;
+                }
+            }
+
+            $cancellations = [];
+
+            foreach ($promises as $index => $promise) {
+                $promise->onCancel(function () use (&$cancellations, &$settled, $promises, $index, $reject): void {
+                    if ($settled) {
+                        return;
+                    }
+
+                    $cancellations[$index] = true;
+
+                    if (\count($cancellations) === \count($promises)) {
+                        $settled = true;
+                        $this->cancelAll($promises);
+                        $reject(new PromiseCancelledException('All promises in race were cancelled'));
+                    }
+                });
+
+                $promise
+                    ->then(
+                        function ($value) use ($resolve, &$settled, $promises, $index): void {
+                            if ($settled) {
+                                return;
+                            }
+
+                            $this->handleWinnerSettlement($settled, $promises, $index);
+                            $resolve($value);
+                        }
+                    )
+                    ->catch(function ($reason) use ($reject, &$settled, $promises, $index, $promise): void {
+                        if ($settled) {
+                            return;
+                        }
+
+                        $this->handleWinnerSettlement($settled, $promises, $index);
+
+                        $reject(
+                            $promise->isCancelled()
+                                ? new PromiseCancelledException("Race component at $index cancelled")
+                                : $reason
+                        );
+                    })
+                ;
+            }
+        });
+
+        $racePromise->onCancel(function () use ($promises, &$settled): void {
+            $settled = true;
+            $this->cancelAll($promises);
+        });
+
+        return $racePromise;
+    }
+
+    /**
+     * @template TAnyValue
+     * @param  iterable<int|string, PromiseInterface<TAnyValue>>  $promises
+     * @return PromiseInterface<TAnyValue>
+     */
+    public function any(iterable $promises): PromiseInterface
+    {
+        $promises = \is_array($promises) ? $promises : \iterator_to_array($promises);
+        $settled = false;
+
+        /** @var Promise<TAnyValue> $anyPromise */
+        $anyPromise = new Promise(function (callable $resolve, callable $reject) use ($promises, &$settled): void {
+            if (($total = \count($promises)) === 0) {
+                $reject(new AggregateErrorException([], 'No promises provided'));
+
+                return;
+            }
+
+            $rejections = [];
+            foreach ($promises as $index => $promise) {
+                if (! ($promise instanceof PromiseInterface)) {
+                    $settled = true;
+                    $this->cancelAll($promises);
+                    $reject(new InvalidArgumentException("Invalid item at $index"));
 
                     return;
                 }
 
-                foreach ($promises as $index => $promise) {
-                    if (! $this->validatePromiseInstance($promise, $index, $promiseInstances, $reject)) {
+                $promise->onCancel(function () use (&$rejections, &$settled, $total, $index, $reject): void {
+                    if ($settled) {
                         return;
                     }
 
-                    $promiseInstances[$index] = $promise;
+                    $rejections[$index] = new PromiseCancelledException('Cancelled');
 
-                    $promise
-                        ->then(function ($value) use ($resolve, &$settled, &$promiseInstances, $index): void {
+                    if (\count($rejections) === $total) {
+                        $settled = true;
+                        $reject(new AggregateErrorException($rejections, 'All promises were rejected or cancelled'));
+                    }
+                });
+
+                $promise
+                    ->then(
+                        function ($value) use ($resolve, &$settled, $promises, $index): void {
                             if ($settled) {
                                 return;
                             }
 
-                            $this->handleWinnerSettlement($settled, $promiseInstances, $index);
+                            $this->handleWinnerSettlement($settled, $promises, $index);
                             $resolve($value);
-                        })
-                        ->catch(function ($reason) use ($reject, &$settled, &$promiseInstances, $index): void {
-                            if ($settled) {
-                                return;
-                            }
+                        }
+                    )
+                    ->catch(function ($reason) use (&$rejections, &$settled, $total, $index, $reject, $promise): void {
+                        if ($settled) {
+                            return;
+                        }
 
-                            $this->handleWinnerSettlement($settled, $promiseInstances, $index);
-                            $reject($reason);
-                        })
-                    ;
-                }
-            }
-        );
+                        $rejections[$index] = $promise->isCancelled() ? new PromiseCancelledException('Cancelled') : $reason;
 
-        $racePromise->onCancel(function () use (&$promiseInstances, &$settled): void {
-            $settled = true;
-            foreach ($promiseInstances as $promise) {
-                $promise->cancelChain();
+                        if (\count($rejections) === $total) {
+                            $settled = true;
+                            $reject(new AggregateErrorException($rejections, 'All promises were rejected or cancelled'));
+                        }
+                    })
+                ;
             }
         });
 
-        return $racePromise;
+        $anyPromise->onCancel(function () use ($promises, &$settled): void {
+            $settled = true;
+            $this->cancelAll($promises);
+        });
+
+        return $anyPromise;
     }
 
     /**
@@ -263,164 +345,31 @@ final readonly class PromiseCollectionHandler
     }
 
     /**
-     * @template TAnyValue
-     * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises
-     * @return PromiseInterface<TAnyValue>
-     */
-    public function any(array $promises): PromiseInterface
-    {
-        /** @var array<int|string, PromiseInterface<mixed>> $promiseInstances */
-        $promiseInstances = [];
-        $settled = false;
-
-        /** @var Promise<TAnyValue> $anyPromise */
-        $anyPromise = new Promise(
-            function (callable $resolve, callable $reject) use ($promises, &$promiseInstances, &$settled): void {
-                if ($promises === []) {
-                    $reject(new AggregateErrorException([], 'No promises provided'));
-
-                    return;
-                }
-
-                $rejections = [];
-                $rejectedCount = 0;
-                $total = \count($promises);
-
-                foreach ($promises as $index => $promise) {
-                    if (! $this->validatePromiseInstance($promise, $index, $promiseInstances, $reject)) {
-                        return;
-                    }
-
-                    $promiseInstances[$index] = $promise;
-
-                    $promise
-                        ->then(
-                            function ($value) use ($resolve, &$settled, &$promiseInstances, $index): void {
-                                if ($settled) {
-                                    return;
-                                }
-
-                                $this->handleWinnerSettlement($settled, $promiseInstances, $index);
-                                $resolve($value);
-                            }
-                        )
-                        ->catch(
-                            function ($reason) use (
-                                &$rejections,
-                                &$rejectedCount,
-                                &$settled,
-                                $total,
-                                $index,
-                                $reject
-                            ): void {
-                                if ($settled) {
-                                    return;
-                                }
-
-                                $rejections[$index] = $reason;
-                                $rejectedCount++;
-
-                                if ($rejectedCount === $total) {
-                                    $settled = true;
-                                    $reject(new AggregateErrorException($rejections, 'All promises were rejected'));
-                                }
-                            }
-                        )
-                    ;
-                }
-            }
-        );
-
-        $anyPromise->onCancel(
-            function () use (&$promiseInstances, &$settled): void {
-                $settled = true;
-                foreach ($promiseInstances as $promise) {
-                    $promise->cancelChain();
-                }
-            }
-        );
-
-        return $anyPromise;
-    }
-
-    /**
-     * @param  bool  $shouldPreserveKeys
-     * @param  array<int|string>  $originalKeys
-     * @param  int  $total
-     * @return array<int|string, mixed>
-     */
-    private function initializeResultsArray(bool $shouldPreserveKeys, array $originalKeys, int $total): array
-    {
-        return $shouldPreserveKeys
-            ? array_fill_keys($originalKeys, null)
-            : array_fill(0, $total, null);
-    }
-
-    /**
-     * @param  mixed  $promise
-     * @param  int|string  $index
-     * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances
-     * @param  callable  $reject
-     * @return bool True if valid, false if invalid (and rejection was triggered)
-     */
-    private function validatePromiseInstance(
-        mixed $promise,
-        int|string $index,
-        array $promiseInstances,
-        callable $reject
-    ): bool {
-        if (! ($promise instanceof PromiseInterface)) {
-            foreach ($promiseInstances as $p) {
-                $p->cancel();
-            }
-
-            $reject(new InvalidArgumentException(
-                \sprintf(
-                    'Item at index "%s" must be an instance of PromiseInterface, %s given',
-                    $index,
-                    get_debug_type($promise)
-                )
-            ));
-
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
      * @param  bool  $settled
      * @param  array<int|string, PromiseInterface<mixed>>  $promiseInstances
      * @param  int|string  $winnerIndex
      * @return void
      */
-    private function handleWinnerSettlement(bool &$settled, array &$promiseInstances, int|string $winnerIndex): void
+    private function handleWinnerSettlement(bool &$settled, array $promiseInstances, int|string $winnerIndex): void
     {
         $settled = true;
-
         foreach ($promiseInstances as $index => $promise) {
-            if ($index === $winnerIndex) {
-                continue;
+            if ($index !== $winnerIndex && $promise instanceof PromiseInterface) {
+                $promise->cancelChain();
             }
-
-            $promise->cancelChain();
         }
     }
 
     /**
-     * @param  array<int|string, mixed>  $array
-     * @return bool
+     * @param  array<int|string, mixed>  $promises
+     * @return void
      */
-    private function shouldPreserveKeys(array $array): bool
+    private function cancelAll(array $promises): void
     {
-        $keys = array_keys($array);
-
-        if (\count(array_filter($keys, 'is_string')) > 0) {
-            return true;
+        foreach ($promises as $promise) {
+            if ($promise instanceof PromiseInterface) {
+                $promise->cancelChain();
+            }
         }
-
-        $expectedKeys = range(0, \count($array) - 1);
-
-        return $keys !== $expectedKeys;
     }
 }

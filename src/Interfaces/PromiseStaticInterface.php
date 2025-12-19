@@ -19,7 +19,7 @@ use Hibla\Promise\SettledResult;
  * ```php
  * // ✓ Correct usage:
  * Promise::all([$promise1, $promise2]);
- * Promise::race([$promise1, $promise2]);
+ * Promise::race($generator);
  * Promise::resolved('value');
  *
  * // ✗ Wrong - do not call on instances:
@@ -66,12 +66,12 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::all(), NOT $promise->all()
      *
      * @template TAllValue
-     * @param  array<int|string, PromiseInterface<TAllValue>>  $promises  Array of PromiseInterface instances.
+     * @param  iterable<int|string, PromiseInterface<TAllValue>>  $promises  Iterable of PromiseInterface instances.
      * @return PromiseInterface<array<int|string, TAllValue>> A promise that resolves with an array of results.
      *
      * @static
      */
-    public static function all(array $promises): PromiseInterface;
+    public static function all(iterable $promises): PromiseInterface;
 
     /**
      * Wait for all promises to settle (either resolve or reject).
@@ -83,12 +83,12 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::allSettled(), NOT $promise->allSettled()
      *
      * @template TAllSettledValue
-     * @param  array<int|string, PromiseInterface<TAllSettledValue>>  $promises
+     * @param  iterable<int|string, PromiseInterface<TAllSettledValue>>  $promises
      * @return PromiseInterface<array<int|string, SettledResult<TAllSettledValue, mixed>>>
      *
      * @static
      */
-    public static function allSettled(array $promises): PromiseInterface;
+    public static function allSettled(iterable $promises): PromiseInterface;
 
     /**
      * Wait for the first promise to resolve or reject.
@@ -101,12 +101,12 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::race(), NOT $promise->race()
      *
      * @template TRaceValue
-     * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
+     * @param  iterable<int|string, PromiseInterface<TRaceValue>>  $promises  Iterable of PromiseInterface instances.
      * @return PromiseInterface<TRaceValue> A promise that settles with the first settled promise.
      *
      * @static
      */
-    public static function race(array $promises): PromiseInterface;
+    public static function race(iterable $promises): PromiseInterface;
 
     /**
      * Wait for any promise in the collection to resolve.
@@ -119,12 +119,12 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::any(), NOT $promise->any()
      *
      * @template TAnyValue
-     * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
+     * @param  iterable<int|string, PromiseInterface<TAnyValue>>  $promises  Iterable of promises to wait for
      * @return PromiseInterface<TAnyValue> A promise that resolves with the first settled value
      *
      * @static
      */
-    public static function any(array $promises): PromiseInterface;
+    public static function any(iterable $promises): PromiseInterface;
 
     /**
      * Create a promise that resolves or rejects with a timeout.
@@ -154,13 +154,13 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::concurrent(), NOT $promise->concurrent()
      *
      * @template TConcurrentValue
-     * @param  array<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks  Array of callable tasks that return promises. Must be callables for proper concurrency control.
+     * @param  iterable<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks  Iterable of callable tasks that return promises.
      * @param  int  $concurrency  Maximum number of concurrent executions (default: 10).
      * @return PromiseInterface<array<int|string, TConcurrentValue>> A promise that resolves with an array of all results.
      *
      * @static
      */
-    public static function concurrent(array $tasks, int $concurrency = 10): PromiseInterface;
+    public static function concurrent(iterable $tasks, int $concurrency = 10): PromiseInterface;
 
     /**
      * Execute multiple tasks in batches with a concurrency limit.
@@ -176,14 +176,14 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::batch(), NOT $promise->batch()
      *
      * @template TBatchValue
-     * @param  array<int|string, callable(): PromiseInterface<TBatchValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
+     * @param  iterable<int|string, callable(): PromiseInterface<TBatchValue>>  $tasks  Iterable of tasks that return promises.
      * @param  int  $batchSize  Size of each batch to process concurrently.
      * @param  int|null  $concurrency  Maximum number of concurrent executions per batch.
      * @return PromiseInterface<array<int|string, TBatchValue>> A promise that resolves with all results.
      *
      * @static
      */
-    public static function batch(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface;
+    public static function batch(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface;
 
     /**
      * Execute multiple tasks concurrently with a specified concurrency limit and wait for all to settle.
@@ -199,13 +199,13 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::concurrentSettled(), NOT $promise->concurrentSettled()
      *
      * @template TConcurrentSettledValue
-     * @param  array<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
+     * @param  iterable<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks  Iterable of tasks that return promises.
      * @param  int  $concurrency  Maximum number of concurrent executions
      * @return PromiseInterface<array<int|string, SettledResult<TConcurrentSettledValue, mixed>>> A promise that resolves with settlement results
      *
      * @static
      */
-    public static function concurrentSettled(array $tasks, int $concurrency = 10): PromiseInterface;
+    public static function concurrentSettled(iterable $tasks, int $concurrency = 10): PromiseInterface;
 
     /**
      * Execute multiple tasks in batches with a concurrency limit and wait for all to settle.
@@ -221,12 +221,12 @@ interface PromiseStaticInterface
      * !! STATIC METHOD - Must be called as Promise::batchSettled(), NOT $promise->batchSettled()
      *
      * @template TBatchSettledValue
-     * @param  array<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
+     * @param  iterable<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks  Iterable of tasks that return promises.
      * @param  int  $batchSize  Size of each batch to process concurrently
      * @param  int|null  $concurrency  Maximum number of concurrent executions per batch
      * @return PromiseInterface<array<int|string, SettledResult<TBatchSettledValue, mixed>>> A promise that resolves with settlement results
      *
      * @static
      */
-    public static function batchSettled(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface;
+    public static function batchSettled(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface;
 }

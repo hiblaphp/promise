@@ -13,10 +13,10 @@ use Hibla\Promise\Interfaces\PromiseInterface;
  * the first rejection reason.
  *
  * @template TAllValue
- * @param  array<int|string, PromiseInterface<TAllValue>>  $promises  Array of PromiseInterface instances.
+ * @param  iterable<int|string, PromiseInterface<TAllValue>>  $promises  Iterable of PromiseInterface instances.
  * @return PromiseInterface<array<int|string, TAllValue>> A promise that resolves with an array of results.
  */
-function all(array $promises): PromiseInterface
+function all(iterable $promises): PromiseInterface
 {
     return Promise::all($promises);
 }
@@ -29,10 +29,10 @@ function all(array $promises): PromiseInterface
  * This method never rejects - it always resolves with an array of settlement results.
  *
  * @template TAllSettledValue
- * @param  array<int|string, PromiseInterface<TAllSettledValue>>  $promises
+ * @param  iterable<int|string, PromiseInterface<TAllSettledValue>>  $promises
  * @return PromiseInterface<array<int|string, SettledResult<TAllSettledValue, mixed>>>
  */
-function allSettled(array $promises): PromiseInterface
+function allSettled(iterable $promises): PromiseInterface
 {
     return Promise::allSettled($promises);
 }
@@ -46,10 +46,10 @@ function allSettled(array $promises): PromiseInterface
  * cancelled to free up resources.
  *
  * @template TRaceValue
- * @param  array<int|string, PromiseInterface<TRaceValue>>  $promises  Array of PromiseInterface instances.
+ * @param  iterable<int|string, PromiseInterface<TRaceValue>>  $promises  Iterable of PromiseInterface instances.
  * @return PromiseInterface<TRaceValue> A promise that settles with the first settled promise.
  */
-function race(array $promises): PromiseInterface
+function race(iterable $promises): PromiseInterface
 {
     return Promise::race($promises);
 }
@@ -63,10 +63,10 @@ function race(array $promises): PromiseInterface
  * of CancellablePromise will be automatically cancelled to free up resources.
  *
  * @template TAnyValue
- * @param  array<int|string, PromiseInterface<TAnyValue>>  $promises  Array of promises to wait for
+ * @param  iterable<int|string, PromiseInterface<TAnyValue>>  $promises  Iterable of promises to wait for
  * @return PromiseInterface<TAnyValue> A promise that resolves with the first settled value
  */
-function any(array $promises): PromiseInterface
+function any(iterable $promises): PromiseInterface
 {
     return Promise::any($promises);
 }
@@ -101,7 +101,7 @@ function resolved(mixed $value): PromiseInterface
  * Create a rejected promise with the given reason.
  *
  * @param  mixed  $reason  The reason for rejection (typically an exception)
- * @return PromiseInterface<mixed> A promise rejected with the provided reason
+ * @return PromiseInterface<never> A promise rejected with the provided reason
  */
 function rejected(mixed $reason): PromiseInterface
 {
@@ -120,11 +120,11 @@ function rejected(mixed $reason): PromiseInterface
  * with too many concurrent operations.
  *
  * @template TConcurrentValue
- * @param  array<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks  Array of callable tasks that return promises. Must be callables for proper concurrency control.
+ * @param  iterable<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks  Iterable of callable tasks that return promises.
  * @param  int  $concurrency  Maximum number of concurrent executions (default: 10).
  * @return PromiseInterface<array<int|string, TConcurrentValue>> A promise that resolves with an array of all results.
  */
-function concurrent(array $tasks, int $concurrency = 10): PromiseInterface
+function concurrent(iterable $tasks, int $concurrency = 10): PromiseInterface
 {
     return Promise::concurrent($tasks, $concurrency);
 }
@@ -141,12 +141,12 @@ function concurrent(array $tasks, int $concurrency = 10): PromiseInterface
  * controlled concurrency and resource management.
  *
  * @template TBatchValue
- * @param  array<int|string, callable(): PromiseInterface<TBatchValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
+ * @param  iterable<int|string, callable(): PromiseInterface<TBatchValue>>  $tasks  Iterable of tasks that return promises.
  * @param  int  $batchSize  Size of each batch to process concurrently.
  * @param  int|null  $concurrency  Maximum number of concurrent executions per batch.
  * @return PromiseInterface<array<int|string, TBatchValue>> A promise that resolves with all results.
  */
-function batch(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
+function batch(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
 {
     return Promise::batch($tasks, $batchSize, $concurrency);
 }
@@ -163,11 +163,11 @@ function batch(array $tasks, int $batchSize = 10, ?int $concurrency = null): Pro
  * This method never rejects - it always resolves with an array of SettledResult objects.
  *
  * @template TConcurrentSettledValue
- * @param  array<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
+ * @param  iterable<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks  Iterable of tasks that return promises.
  * @param  int  $concurrency  Maximum number of concurrent executions
  * @return PromiseInterface<array<int|string, SettledResult<TConcurrentSettledValue, mixed>>> A promise that resolves with settlement results
  */
-function concurrentSettled(array $tasks, int $concurrency = 10): PromiseInterface
+function concurrentSettled(iterable $tasks, int $concurrency = 10): PromiseInterface
 {
     return Promise::concurrentSettled($tasks, $concurrency);
 }
@@ -184,12 +184,12 @@ function concurrentSettled(array $tasks, int $concurrency = 10): PromiseInterfac
  * This method never rejects - it always resolves with an array of SettledResult objects.
  *
  * @template TBatchSettledValue
- * @param  array<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks  Array of tasks that return promises. Must be callables for proper concurrency control.
+ * @param  iterable<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks  Iterable of tasks that return promises.
  * @param  int  $batchSize  Size of each batch to process concurrently
  * @param  int|null  $concurrency  Maximum number of concurrent executions per batch
  * @return PromiseInterface<array<int|string, SettledResult<TBatchSettledValue, mixed>>> A promise that resolves with settlement results
  */
-function batchSettled(array $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
+function batchSettled(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
 {
     return Promise::batchSettled($tasks, $batchSize, $concurrency);
 }
