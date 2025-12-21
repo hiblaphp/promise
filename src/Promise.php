@@ -112,9 +112,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * {@inheritdoc}
      */
-    /**
-     * {@inheritdoc}
-     */
     public function wait(bool $resetEventLoop = false): mixed
     {
         if (\Fiber::getCurrent() !== null) {
