@@ -114,13 +114,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
      */
     public function wait(bool $resetEventLoop = false): mixed
     {
-        if (\Fiber::getCurrent() !== null) {
-            throw new Exceptions\InvalidContextException(
-                'Cannot call wait() inside a Fiber context. ' .
-                    'Calling ->wait() would block the fiber and prevent the event loop from processing. ' .
-                    'Use Hibla\await() instead to properly suspend the fiber.'
-            );
-        }
+        $this->throwIfInFiberContext();
 
         try {
             if ($this->state === PromiseState::CANCELLED) {
@@ -699,6 +693,43 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     private static function getConcurrencyHandler(): ConcurrencyHandler
     {
         return self::$concurrencyHandler ??= new ConcurrencyHandler();
+    }
+
+    /**
+     * Throw an exception if the method is called from within a Fiber context.
+     *
+     * @return void
+     */
+    private function throwIfInFiberContext(): void
+    {
+        if (\Fiber::getCurrent() !== null) {
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+
+            $userCaller = null;
+            foreach ($backtrace as $frame) {
+                $file = $frame['file'] ?? '';
+
+                if (
+                    $file &&
+                    !str_contains($file, DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR) &&
+                    !str_contains($file, DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Handlers' . DIRECTORY_SEPARATOR)
+                ) {
+                    $userCaller = $frame;
+                    break;
+                }
+            }
+
+            $caller = $userCaller ?? $backtrace[1] ?? $backtrace[0];
+            $file = str_replace(getcwd() . DIRECTORY_SEPARATOR, '', $caller['file'] ?? 'unknown');
+            $line = $caller['line'] ?? 'unknown';
+
+            throw new Exceptions\InvalidContextException(
+                "Cannot call wait() inside a Fiber context.\n" .
+                    "  Location: {$file}:{$line}\n" .
+                    "  Problem: Calling wait() blocks the fiber and prevents event loop processing.\n" .
+                    "  Solution: Use Hibla\\await() instead to properly suspend the fiber."
+            );
+        }
     }
 
     /**
