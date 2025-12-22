@@ -6,7 +6,3 @@ parameters:
     paths:
         - src
     treatPhpDocTypesAsCertain: false
-    ignoreErrors:
-        - 
-            message: '#Method Hibla\\Promise\\Promise::wait\(\) should return TValue but returns TValue\|null#'
-            path: src/Promise.php

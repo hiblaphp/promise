@@ -136,10 +136,12 @@ class Promise implements PromiseInterface, PromiseStaticInterface
                     : new \Exception($this->safeStringCast($reason));
             }
 
+            // @phpstan-ignore-next-line identical.alwaysTrue - State changes during Loop::runOnce()
             while ($this->state === PromiseState::PENDING) {
                 Loop::runOnce();
             }
 
+            // @phpstan-ignore-next-line deadCode.unreachable - Reachable after event loop execution
             if ($this->state === PromiseState::CANCELLED) {
                 throw new Exceptions\PromiseCancelledException('Promise was cancelled during wait');
             }
@@ -710,7 +712,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
                 $file = $frame['file'] ?? '';
 
                 if (
-                    $file &&
+                    $file !== '' && 
                     !str_contains($file, DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR) &&
                     !str_contains($file, DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Handlers' . DIRECTORY_SEPARATOR)
                 ) {
