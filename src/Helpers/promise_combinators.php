@@ -193,3 +193,20 @@ function batchSettled(iterable $tasks, int $batchSize = 10, ?int $concurrency = 
 {
     return Promise::batchSettled($tasks, $batchSize, $concurrency);
 }
+
+/**
+ * Map over an iterable concurrently.
+ *
+ * @template TMapItem
+ * @template TMapResult
+ *
+ * @param iterable<int|string, TMapItem> $items
+ * @param callable(TMapItem, int|string): (TMapResult|PromiseInterface<TMapResult>) $mapper
+ * @param int $concurrency
+ *
+ * @return PromiseInterface<array<int|string, TMapResult>>
+ */
+function map(iterable $items, callable $mapper, ?int $concurrency = null): PromiseInterface
+{
+    return Promise::map($items, $mapper, $concurrency);
+}

@@ -229,4 +229,28 @@ interface PromiseStaticInterface
      * @static
      */
     public static function batchSettled(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface;
+
+    /**
+     * Iterates over an iterable, transforms each value using a mapper function, and returns a promise that resolves to an array of mapped values.
+     *
+     * This method automatically manages the execution queue. It pulls items from the iterable
+     * and processes them concurrently up to the specified limit.
+     *
+     * Key Features:
+     * - **Input Resolution**: If the input `$items` contains Promises, this method waits for them to resolve before passing the value to the `$mapper`.
+     * - **Concurrency Control**: Defaults to a safe limit (10) to prevent resource exhaustion.
+     * - **Order Preservation**: The resulting array keys and order match the input iterable.
+     *
+     * @template TMapItem
+     * @template TMapResult
+     *
+     * @param iterable<int|string, TMapItem> $items Input values. Can be scalar values or Promises.
+     * @param callable(TMapItem, int|string): (TMapResult|PromiseInterface<TMapResult>) $mapper Function to transform each item. Receives ($value, $key).
+     * @param int|null $concurrency Maximum number of concurrent executions.
+     *                              - Pass `null` for **Unlimited** concurrency.
+     *
+     * @return PromiseInterface<array<int|string, TMapResult>> A promise that resolves with an array of mapped results.
+     * @static
+     */
+    public static function map(iterable $items, callable $mapper, ?int $concurrency = null): PromiseInterface;
 }

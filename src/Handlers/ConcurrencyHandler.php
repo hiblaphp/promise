@@ -148,7 +148,9 @@ final readonly class ConcurrencyHandler
             Loop::microTask($processNext);
         });
 
-        $concurrentPromise->onCancel(fn () => $this->cancelAll($promiseInstances));
+        $concurrentPromise->onCancel(function () use (&$promiseInstances) {
+            $this->cancelAll($promiseInstances);
+        });
 
         return $concurrentPromise;
     }
@@ -286,12 +288,12 @@ final readonly class ConcurrencyHandler
             Loop::microTask($processNext);
         });
 
-        $concurrentPromise->onCancel(fn () => $this->cancelAll($promiseInstances));
+        $concurrentPromise->onCancel(function () use (&$promiseInstances) {
+            $this->cancelAll($promiseInstances);
+        });
 
         return $concurrentPromise;
     }
-
-    // ... rest of the code (batch, batchSettled, getIterator, reorder, cancelAll remain the same)
 
     /**
      * @template TBatchValue
@@ -394,6 +396,33 @@ final readonly class ConcurrencyHandler
 
             Loop::microTask($processNextBatch);
         });
+    }
+
+    /**
+     * @template TMapItem
+     * @template TMapResult
+     *
+     * @param iterable<int|string, TMapItem> $items
+     * @param callable(TMapItem, int|string): (TMapResult|PromiseInterface<TMapResult>) $mapper
+     * @param int|null $concurrency
+     *
+     * @return PromiseInterface<array<int|string, TMapResult>>
+     */
+    public function map(iterable $items, callable $mapper, ?int $concurrency = null): PromiseInterface
+    {
+        $tasks = (function () use ($items, $mapper) {
+            foreach ($items as $key => $item) {
+                yield $key => function () use ($item, $mapper, $key) {
+                    $inputPromise = $item instanceof PromiseInterface
+                        ? $item
+                        : Promise::resolved($item);
+
+                    return $inputPromise->then(fn ($resolvedValue) => $mapper($resolvedValue, $key));
+                };
+            }
+        })();
+
+        return $this->concurrent($tasks, $concurrency ?? PHP_INT_MAX);
     }
 
     /**

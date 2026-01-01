@@ -23,8 +23,8 @@ final readonly class PromiseCollectionHandler
     {
         $promises = \is_array($promises) ? $promises : \iterator_to_array($promises);
 
-        /** @var Promise<array<int|string, TAllValue>> */
-        return new Promise(function (callable $resolve, callable $reject) use ($promises): void {
+        /** @var Promise<array<int|string, TAllValue>> $allPromise */
+        $allPromise = new Promise(function (callable $resolve, callable $reject) use ($promises): void {
             if ($promises === []) {
                 $resolve([]);
 
@@ -92,6 +92,12 @@ final readonly class PromiseCollectionHandler
                 ;
             }
         });
+
+        $allPromise->onCancel(function () use ($promises): void {
+            $this->cancelAll($promises);
+        });
+
+        return $allPromise;
     }
 
     /**
@@ -103,8 +109,8 @@ final readonly class PromiseCollectionHandler
     {
         $promises = \is_array($promises) ? $promises : \iterator_to_array($promises);
 
-        /** @var Promise<array<int|string, SettledResult<TAllSettledValue, mixed>>> */
-        return new Promise(function (callable $resolve) use ($promises): void {
+        /** @var Promise<array<int|string, SettledResult<TAllSettledValue, mixed>>> $allPromise */
+        $allPromise = new Promise(function (callable $resolve) use ($promises): void {
             if ($promises === []) {
                 $resolve([]);
 
@@ -160,13 +166,15 @@ final readonly class PromiseCollectionHandler
                 ;
             }
         });
+
+        // FIXED: Attach cancellation handler to propagate cancel() to children
+        $allPromise->onCancel(function () use ($promises): void {
+            $this->cancelAll($promises);
+        });
+
+        return $allPromise;
     }
 
-    /**
-     * @template TRaceValue
-     * @param  iterable<int|string, PromiseInterface<TRaceValue>>  $promises
-     * @return PromiseInterface<TRaceValue>
-     */
     /**
      * @template TRaceValue
      * @param  iterable<int|string, PromiseInterface<TRaceValue>>  $promises

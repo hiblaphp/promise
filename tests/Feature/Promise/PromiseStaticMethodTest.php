@@ -607,4 +607,106 @@ describe('Promise Static Methods', function () {
             expect($promise->getReason())->toBe($exception);
         });
     });
+
+    describe('Promise::map', function () {
+        it('maps values using a callback function', function () {
+            $items = [1, 2, 3];
+            $result = Promise::map($items, fn ($i) => $i * 2)->wait();
+
+            expect($result)->toBe([2, 4, 6]);
+        });
+
+        it('waits for promises returned by the mapper', function () {
+            $items = [1, 2, 3];
+            $result = Promise::map($items, function ($i) {
+                return delay(0.01)->then(fn () => $i * 2);
+            })->wait();
+
+            expect($result)->toBe([2, 4, 6]);
+        });
+
+        it('resolves input promises before passing to mapper', function () {
+            $items = [
+                10,
+                Promise::resolved(20),
+                delay(0.05)->then(fn () => 30),
+            ];
+
+            $result = Promise::map($items, function ($val) {
+                return $val + 1;
+            })->wait();
+
+            expect($result)->toBe([11, 21, 31]);
+        });
+
+        it('respects concurrency limits', function () {
+            $startTime = microtime(true);
+            $items = [1, 2, 3, 4];
+
+            Promise::map($items, fn () => delay(0.1), 2)->wait();
+
+            $executionTime = microtime(true) - $startTime;
+
+            expect($executionTime)->toBeGreaterThan(0.2);
+            expect($executionTime)->toBeLessThan(0.35);
+        });
+
+        it('treats null concurrency as unlimited', function () {
+            $startTime = microtime(true);
+            $items = array_fill(0, 10, null);
+
+            Promise::map($items, fn () => delay(0.1), null)->wait();
+
+            $executionTime = microtime(true) - $startTime;
+
+            expect($executionTime)->toBeLessThan(0.2);
+        });
+
+        it('passes keys to the mapper', function () {
+            $items = ['a' => 1, 'b' => 2];
+
+            $result = Promise::map($items, function ($val, $key) {
+                return "{$key}:{$val}";
+            })->wait();
+
+            expect($result)->toBe(['a' => 'a:1', 'b' => 'b:2']);
+        });
+
+        it('preserves order of results even if they resolve out of order', function () {
+            $items = [0.1, 0.3, 0.05];
+
+            $result = Promise::map($items, function ($time) {
+                return delay($time)->then(fn () => $time);
+            })->wait();
+
+            expect($result)->toBe([0.1, 0.3, 0.05]);
+        });
+
+        it('rejects immediately if a mapper throws exception', function () {
+            try {
+                $items = [1, 2, 3];
+                Promise::map($items, function ($i) {
+                    if ($i === 2) {
+                        throw new Exception('map error');
+                    }
+
+                    return $i;
+                })->wait();
+                expect(false)->toBeTrue('Expected exception');
+            } catch (Exception $e) {
+                expect($e->getMessage())->toBe('map error');
+            }
+        });
+
+        it('works with generators/iterables', function () {
+            $generator = function () {
+                yield 'a' => 1;
+                yield 'b' => 2;
+            };
+
+            $result = Promise::map($generator(), fn ($i) => $i * 10)->wait();
+
+            expect($result)->toBe(['a' => 10, 'b' => 20]);
+        });
+    });
 });
