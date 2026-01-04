@@ -288,6 +288,15 @@ interface PromiseInterface
      * until the promise settles. Use this only at the top-level of your
      * application or in synchronous contexts.
      *
+     * **Behavior:**
+     * Processes only the events necessary to resolve THIS specific promise.
+     * The event loop runs incrementally (Loop::runOnce()) until this promise
+     * settles, which is ideal for most use cases where you want to wait for
+     * a single operation without processing unrelated queued work.
+     *
+     * **For streaming operations**, use forceWait() instead to ensure all
+     * chunks are processed completely.
+     *
      * IMPORTANT: This method CANNOT be called inside a Fiber context.
      * Calling wait() inside a Fiber will throw InvalidContextException
      * because it would block the fiber and prevent the event loop from
@@ -313,11 +322,41 @@ interface PromiseInterface
      * If the promise is rejected, this method will throw the rejection reason.
      * If the promise is resolved, this method will return the resolved value.
      *
-     * @param  bool  $resetEventLoop  Reset event loop after completion (default: false)
      * @return TValue The resolved value
      * @throws InvalidContextException If called inside a Fiber context
      * @throws PromiseCancelledException If the promise is cancelled
      * @throws \Throwable If the promise is rejected
      */
-    public function wait(bool $resetEventLoop = false): mixed;
+    public function wait(): mixed;
+
+    /**
+     * **[BLOCKING]** Wait for the promise to resolve and drain the entire event loop.
+     *
+     * This method BLOCKS the current thread and runs the event loop (Loop::run())
+     * until ALL pending work is complete, not just this specific promise.
+     *
+     * **Behavior:**
+     * Unlike wait(), which processes events incrementally until this promise settles,
+     * forceWait() ensures the entire event loop is drained. This is essential for
+     * streaming operations (like SSE) where the promise may resolve early but chunks
+     * continue to arrive and need processing.
+     *
+     * **Use this for:**
+     * - SSE/streaming responses where all chunks must be processed
+     * - Operations that spawn multiple async tasks that must complete
+     * - Ensuring all event loop work finishes before continuing
+     *
+     * **Use wait() for:**
+     * - Simple async operations (HTTP requests, database queries)
+     * - When you only care about this specific promise
+     * - Most general use cases
+     *
+     * IMPORTANT: This method CANNOT be called inside a Fiber context.
+     *
+     * @return TValue The resolved value
+     * @throws InvalidContextException If called inside a Fiber context
+     * @throws PromiseCancelledException If the promise is cancelled
+     * @throws \Throwable If the promise is rejected
+     */
+    public function forceWait(): mixed;
 }

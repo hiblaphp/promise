@@ -100,8 +100,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn ($value = null) => $this->resolve($value),
-                    fn ($reason = null) => $this->reject($reason)
+                    fn($value = null) => $this->resolve($value),
+                    fn($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -110,59 +110,77 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
      */
-    public function wait(bool $resetEventLoop = false): mixed
+    public function wait(): mixed
+    {
+        return $this->doWait(false);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function forceWait(): mixed
+    {
+        return $this->doWait(true);
+    }
+
+    /**
+     * Internal wait implementation.
+     * 
+     * @param bool $drainLoop Whether to drain the entire event loop
+     * @return TValue The resolved value
+     * @throws Exceptions\PromiseCancelledException If the promise is cancelled
+     * @throws \Throwable If the promise is rejected
+     */
+    private function doWait(bool $drainLoop): mixed
     {
         $this->throwIfInFiberContext();
 
-        try {
-            if ($this->state === PromiseState::CANCELLED) {
-                throw new Exceptions\PromiseCancelledException('Cannot wait on a cancelled promise');
-            }
+        if ($this->state === PromiseState::CANCELLED) {
+            throw new Exceptions\PromiseCancelledException('Cannot wait on a cancelled promise');
+        }
 
-            if ($this->state === PromiseState::FULFILLED) {
-                $this->valueAccessed = true;
+        if ($this->state === PromiseState::FULFILLED) {
+            $this->valueAccessed = true;
+            return $this->value;
+        }
 
-                return $this->value;
-            }
+        if ($this->state === PromiseState::REJECTED) {
+            $this->valueAccessed = true;
+            $reason = $this->reason;
 
-            if ($this->state === PromiseState::REJECTED) {
-                $this->valueAccessed = true;
-                $reason = $this->reason;
+            throw $reason instanceof \Throwable
+                ? $reason
+                : new \Exception($this->safeStringCast($reason));
+        }
 
-                throw $reason instanceof \Throwable
-                    ? $reason
-                    : new \Exception($this->safeStringCast($reason));
-            }
-
-            // @phpstan-ignore-next-line identical.alwaysTrue - State changes during Loop::runOnce()
+        if ($drainLoop) {
+            Loop::run();
+        } else {
+            // @phpstan-ignore-next-line promise state can change during runtime
             while ($this->state === PromiseState::PENDING) {
                 Loop::runOnce();
             }
-
-            // @phpstan-ignore-next-line deadCode.unreachable - Reachable after event loop execution
-            if ($this->state === PromiseState::CANCELLED) {
-                throw new Exceptions\PromiseCancelledException('Promise was cancelled during wait');
-            }
-
-            if ($this->state === PromiseState::REJECTED) {
-                $this->valueAccessed = true;
-                $reason = $this->reason;
-
-                throw $reason instanceof \Throwable
-                    ? $reason
-                    : new \Exception($this->safeStringCast($reason));
-            }
-
-            $this->valueAccessed = true;
-
-            return $this->value;
-        } finally {
-            if ($resetEventLoop) {
-                Loop::reset();
-            }
         }
+
+        // @phpstan-ignore-next-line promise state can change during runtime
+        if ($this->state === PromiseState::CANCELLED) {
+            throw new Exceptions\PromiseCancelledException('Promise was cancelled during wait');
+        }
+
+        // @phpstan-ignore-next-line promise state can change during runtime
+        if ($this->state === PromiseState::REJECTED) {
+            $this->valueAccessed = true;
+            $reason = $this->reason;
+
+            throw $reason instanceof \Throwable
+                ? $reason
+                : new \Exception($this->safeStringCast($reason));
+        }
+
+        $this->valueAccessed = true;
+        return $this->value;
     }
 
     /**
@@ -196,8 +214,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($value instanceof PromiseInterface) {
             $value->then(
-                fn ($v) => $this->resolve($v),
-                fn ($r) => $this->reject($r)
+                fn($v) => $this->resolve($v),
+                fn($r) => $this->reject($r)
             );
 
             // If THIS promise is cancelled, forward it to the inner promise
@@ -214,8 +232,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if (\is_object($value) && method_exists($value, 'then')) {
             try {
                 $value->then(
-                    fn ($v) => $this->resolve($v),
-                    fn ($r) => $this->reject($r)
+                    fn($v) => $this->resolve($v),
+                    fn($r) => $this->reject($r)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -448,9 +466,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             }
 
             if ($this->state === PromiseState::FULFILLED) {
-                Loop::microTask(fn () => $handleResolve($this->value));
+                Loop::microTask(fn() => $handleResolve($this->value));
             } elseif ($this->state === PromiseState::REJECTED) {
-                Loop::microTask(fn () => $handleReject($this->reason));
+                Loop::microTask(fn() => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -498,22 +516,20 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
-                    ->then(fn () => $value)
-                ;
+                return (new self(fn($resolve) => $resolve($result)))
+                    ->then(fn() => $value);
             },
             function ($reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
+                return (new self(fn($resolve) => $resolve($result)))
                     ->then(function () use ($reason): void {
                         if ($reason instanceof \Throwable) {
                             throw $reason;
                         }
 
                         throw new PromiseRejectionException($this->safeStringCast($reason));
-                    })
-                ;
+                    });
             }
         );
     }
