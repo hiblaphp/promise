@@ -110,30 +110,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function wait(): mixed
-    {
-        return $this->doWait(false);
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function forceWait(): mixed
-    {
-        return $this->doWait(true);
-    }
-
-    /**
-     * Internal wait implementation.
-     * 
-     * @param bool $drainLoop Whether to drain the entire event loop
-     * @return TValue The resolved value
-     * @throws Exceptions\PromiseCancelledException If the promise is cancelled
-     * @throws \Throwable If the promise is rejected
-     */
-    private function doWait(bool $drainLoop): mixed
     {
         $this->throwIfInFiberContext();
 
@@ -143,6 +122,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($this->state === PromiseState::FULFILLED) {
             $this->valueAccessed = true;
+
             return $this->value;
         }
 
@@ -155,21 +135,16 @@ class Promise implements PromiseInterface, PromiseStaticInterface
                 : new \Exception($this->safeStringCast($reason));
         }
 
-        if ($drainLoop) {
-            Loop::run();
-        } else {
-            // @phpstan-ignore-next-line promise state can change during runtime
-            while ($this->state === PromiseState::PENDING) {
-                Loop::runOnce();
-            }
+        // @phpstan-ignore-next-line identical.alwaysTrue - State changes during Loop::runOnce()
+        while ($this->state === PromiseState::PENDING) {
+            Loop::runOnce();
         }
 
-        // @phpstan-ignore-next-line promise state can change during runtime
+        // @phpstan-ignore-next-line deadCode.unreachable - Reachable after event loop execution
         if ($this->state === PromiseState::CANCELLED) {
             throw new Exceptions\PromiseCancelledException('Promise was cancelled during wait');
         }
 
-        // @phpstan-ignore-next-line promise state can change during runtime
         if ($this->state === PromiseState::REJECTED) {
             $this->valueAccessed = true;
             $reason = $this->reason;
@@ -180,6 +155,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         }
 
         $this->valueAccessed = true;
+
         return $this->value;
     }
 
