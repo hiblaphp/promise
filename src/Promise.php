@@ -41,7 +41,7 @@ use Hibla\Promise\Interfaces\PromiseStaticInterface;
  * This was controversial in JavaScript due to backwards compatibility,
  * but as a new PHP library we can make this opinionated choice.
  *
- * @template TValue
+ * @template-covariant TValue
  *
  * @implements PromiseInterface<TValue>
  */

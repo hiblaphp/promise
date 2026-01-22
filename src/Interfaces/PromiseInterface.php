@@ -17,7 +17,7 @@ use Hibla\Promise\Exceptions\PromiseCancelledException;
  * Cancellation propagates forward through promise chains (child promises are
  * cancelled when parent is cancelled).
  *
- * @template TValue The type of the value that the promise will resolve with.
+ * @template-covariant TValue The type of the value that the promise will resolve with.
  */
 interface PromiseInterface
 {
