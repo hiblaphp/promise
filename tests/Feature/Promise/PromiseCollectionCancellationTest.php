@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Hibla\EventLoop\Loop;
 use Hibla\Promise\Exceptions\AggregateErrorException;
-use Hibla\Promise\Exceptions\PromiseCancelledException;
+use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Promise;
 
 describe('Promise Cancellation Behavior', function () {
@@ -21,7 +21,7 @@ describe('Promise Cancellation Behavior', function () {
                 'p2' => $promise2,
                 'p3' => $promise3,
             ])->wait())
-                ->toThrow(PromiseCancelledException::class)
+                ->toThrow(CancelledException::class)
             ;
         });
 
@@ -33,7 +33,7 @@ describe('Promise Cancellation Behavior', function () {
 
             try {
                 Promise::all(['p1' => $promise1, 'p2' => $promise2])->wait();
-            } catch (PromiseCancelledException $e) {
+            } catch (CancelledException $e) {
                 expect($e->getMessage())->toContain('p2');
             }
         });
@@ -48,7 +48,7 @@ describe('Promise Cancellation Behavior', function () {
             $promises['p2']->cancel();
 
             expect(fn () => Promise::all($promises)->wait())
-                ->toThrow(PromiseCancelledException::class)
+                ->toThrow(CancelledException::class)
             ;
         });
     });
@@ -94,7 +94,7 @@ describe('Promise Cancellation Behavior', function () {
             ];
 
             expect(fn () => Promise::concurrent($tasks, concurrency: 2)->wait())
-                ->toThrow(PromiseCancelledException::class)
+                ->toThrow(CancelledException::class)
             ;
         });
 
@@ -132,12 +132,12 @@ describe('Promise Cancellation Behavior', function () {
         it('rejects when concurrent task executor throws cancellation', function () {
             $tasks = [
                 'task1' => fn () => Promise::resolved('value1'),
-                'task2' => fn () => new Promise(fn ($resolve, $reject) => $reject(new PromiseCancelledException('Cancelled'))),
+                'task2' => fn () => new Promise(fn ($resolve, $reject) => $reject(new CancelledException('Cancelled'))),
                 'task3' => fn () => Promise::resolved('value3'),
             ];
 
             expect(fn () => Promise::concurrent($tasks, concurrency: 2)->wait())
-                ->toThrow(PromiseCancelledException::class)
+                ->toThrow(CancelledException::class)
             ;
         });
     });
@@ -202,7 +202,7 @@ describe('Promise Cancellation Behavior', function () {
             ];
 
             expect(fn () => Promise::batch($tasks, batchSize: 2)->wait())
-                ->toThrow(PromiseCancelledException::class)
+                ->toThrow(CancelledException::class)
             ;
         });
 
@@ -220,7 +220,7 @@ describe('Promise Cancellation Behavior', function () {
             ];
 
             expect(fn () => Promise::batch($tasks, batchSize: 2)->wait())
-                ->toThrow(PromiseCancelledException::class)
+                ->toThrow(CancelledException::class)
             ;
         });
 
@@ -244,7 +244,7 @@ describe('Promise Cancellation Behavior', function () {
             ];
 
             expect(fn () => Promise::batch($tasks, batchSize: 2)->wait())
-                ->toThrow(PromiseCancelledException::class)
+                ->toThrow(CancelledException::class)
             ;
         });
     });
@@ -310,7 +310,7 @@ describe('Promise Cancellation Behavior', function () {
                 'p2' => $promise2,
                 'p3' => $promise3,
             ])->wait())
-                ->toThrow(PromiseCancelledException::class)
+                ->toThrow(CancelledException::class)
             ;
         });
 

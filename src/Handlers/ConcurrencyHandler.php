@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Promise\Handlers;
 
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\Exceptions\PromiseCancelledException;
+use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use Hibla\Promise\SettledResult;
@@ -87,7 +87,7 @@ final readonly class ConcurrencyHandler
                         if ($promise->isCancelled()) {
                             $state->isRejected = true;
                             $this->cancelAll($promiseInstances);
-                            $reject(new PromiseCancelledException(\sprintf('Promise at key "%s" was cancelled', $key)));
+                            $reject(new CancelledException(\sprintf('Promise at key "%s" was cancelled', $key)));
 
                             return;
                         }
@@ -100,7 +100,7 @@ final readonly class ConcurrencyHandler
                             }
                             $state->isRejected = true;
                             $this->cancelAll($promiseInstances);
-                            $reject(new PromiseCancelledException(\sprintf('Promise at key "%s" was cancelled', $key)));
+                            $reject(new CancelledException(\sprintf('Promise at key "%s" was cancelled', $key)));
                         });
                     } catch (Throwable $e) {
                         $state->isRejected = true;

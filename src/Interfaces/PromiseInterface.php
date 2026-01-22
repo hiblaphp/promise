@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hibla\Promise\Interfaces;
 
+use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Exceptions\InvalidContextException;
-use Hibla\Promise\Exceptions\PromiseCancelledException;
 
 /**
  * Represents the eventual result of an asynchronous operation.
@@ -315,7 +315,7 @@ interface PromiseInterface
      *
      * @return TValue The resolved value
      * @throws InvalidContextException If called inside a Fiber context
-     * @throws PromiseCancelledException If the promise is cancelled
+     * @throws CancelledException If the promise is cancelled
      * @throws \Throwable If the promise is rejected
      */
     public function wait(): mixed;

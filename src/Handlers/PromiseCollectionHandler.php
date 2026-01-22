@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Promise\Handlers;
 
 use Hibla\Promise\Exceptions\AggregateErrorException;
-use Hibla\Promise\Exceptions\PromiseCancelledException;
+use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Exceptions\TimeoutException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
@@ -48,7 +48,7 @@ final readonly class PromiseCollectionHandler
                 if ($promise->isCancelled()) {
                     $isSettled = true;
                     $this->cancelAll($promises);
-                    $reject(new PromiseCancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
+                    $reject(new CancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
 
                     return;
                 }
@@ -61,7 +61,7 @@ final readonly class PromiseCollectionHandler
                     }
                     $isSettled = true;
                     $this->cancelAll($promises);
-                    $reject(new PromiseCancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
+                    $reject(new CancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
                 });
 
                 $promise
@@ -84,7 +84,7 @@ final readonly class PromiseCollectionHandler
                         $this->cancelAll($promises);
 
                         if ($promise->isCancelled()) {
-                            $reject(new PromiseCancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
+                            $reject(new CancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
                         } else {
                             $reject($reason);
                         }
@@ -216,7 +216,7 @@ final readonly class PromiseCollectionHandler
                     if (\count($cancellations) === \count($promises)) {
                         $settled = true;
                         $this->cancelAll($promises);
-                        $reject(new PromiseCancelledException('All promises in race were cancelled'));
+                        $reject(new CancelledException('All promises in race were cancelled'));
                     }
                 });
 
@@ -240,7 +240,7 @@ final readonly class PromiseCollectionHandler
 
                         $reject(
                             $promise->isCancelled()
-                                ? new PromiseCancelledException("Race component at $index cancelled")
+                                ? new CancelledException("Race component at $index cancelled")
                                 : $reason
                         );
                     })
@@ -289,7 +289,7 @@ final readonly class PromiseCollectionHandler
                         return;
                     }
 
-                    $rejections[$index] = new PromiseCancelledException('Cancelled');
+                    $rejections[$index] = new CancelledException('Cancelled');
 
                     if (\count($rejections) === $total) {
                         $settled = true;
@@ -313,7 +313,7 @@ final readonly class PromiseCollectionHandler
                             return;
                         }
 
-                        $rejections[$index] = $promise->isCancelled() ? new PromiseCancelledException('Cancelled') : $reason;
+                        $rejections[$index] = $promise->isCancelled() ? new CancelledException('Cancelled') : $reason;
 
                         if (\count($rejections) === $total) {
                             $settled = true;
