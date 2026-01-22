@@ -18,9 +18,9 @@ use Hibla\Promise\Interfaces\PromiseStaticInterface;
  *
  * This library implements the "third state" approach to cancellation that
  * was debated (but ultimately withdrawn) in TC39's cancelable promises
- * proposal. The library believe this approach provides better semantics for PHP:
+ * proposal. We believe this approach provides better semantics for PHP:
  *
- *  Key Design: 4 States (not 3)
+ * Key Design: 4 States (not 3)
  * - Pending: waiting for resolution
  * - Fulfilled: successfully resolved
  * - Rejected: failed with error
@@ -28,18 +28,33 @@ use Hibla\Promise\Interfaces\PromiseStaticInterface;
  *
  * Differences from Promise/A+:
  * - Adds cancelled state (pending/fulfilled/rejected/cancelled)
- * - Cancelled promises don't settle to fulfilled or rejected nor it is a pending state anymore.
- * - Provides onCancel() for cleanup or execution on cancellation
+ * - Cancelled promises don't settle to fulfilled or rejected
+ * - Cancelled is neither pending nor a terminal state in the traditional sense
+ * - Provides onCancel() for cleanup on cancellation
  *
  * Why not follow Promise/A+ strictly?
- * Promise/A+ defines 3 states. This Library add a 4th (cancelled) because:
- * 1. Cancellation is not a rejection - it's user intent
- * 2. Cleanup logic differs from rejection handling
- * 3. Clearer resource management
+ * Promise/A+ defines 3 states. This library adds a 4th (cancelled) because:
+ * 1. Cancellation represents user intent to abort, not operational failure
+ * 2. Cleanup logic differs from error handling
+ * 3. Clearer resource management semantics
  * 4. Matches modern patterns (AbortController concept)
  *
  * This was controversial in JavaScript due to backwards compatibility,
  * but as a new PHP library we can make this opinionated choice.
+ *
+ * Cancellation Philosophy:
+ * - Cancellation itself is NOT an error - it's a normal control flow mechanism
+ * - Calling cancel() never throws; it cleanly transitions to cancelled state
+ * - However, WAITING on a cancelled promise IS a programming error:
+ *   * If you cancel an operation, you've stated you don't want its result
+ *   * Attempting to wait() for that result indicates a logic error
+ *   * Therefore wait() throws PromiseCancelledException for cancelled promises
+ *
+ * This design ensures:
+ * - Clean cancellation propagation through promise chains
+ * - Resources are freed via onCancel() handlers
+ * - Programming errors (waiting on cancelled promises) are caught early
+ * - Normal cancellation flow remains exception-free
  *
  * @template-covariant TValue
  *
@@ -100,8 +115,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn ($value = null) => $this->resolve($value),
-                    fn ($reason = null) => $this->reject($reason)
+                    fn($value = null) => $this->resolve($value),
+                    fn($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -190,8 +205,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($value instanceof PromiseInterface) {
             $value->then(
-                fn ($v) => $this->resolve($v),
-                fn ($r) => $this->reject($r)
+                fn($v) => $this->resolve($v),
+                fn($r) => $this->reject($r)
             );
 
             // If THIS promise is cancelled, forward it to the inner promise
@@ -208,8 +223,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if (\is_object($value) && method_exists($value, 'then')) {
             try {
                 $value->then(
-                    fn ($v) => $this->resolve($v),
-                    fn ($r) => $this->reject($r)
+                    fn($v) => $this->resolve($v),
+                    fn($r) => $this->reject($r)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -442,9 +457,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             }
 
             if ($this->state === PromiseState::FULFILLED) {
-                Loop::microTask(fn () => $handleResolve($this->value));
+                Loop::microTask(fn() => $handleResolve($this->value));
             } elseif ($this->state === PromiseState::REJECTED) {
-                Loop::microTask(fn () => $handleReject($this->reason));
+                Loop::microTask(fn() => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -492,22 +507,20 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
-                    ->then(fn () => $value)
-                ;
+                return (new self(fn($resolve) => $resolve($result)))
+                    ->then(fn() => $value);
             },
             function ($reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
+                return (new self(fn($resolve) => $resolve($result)))
                     ->then(function () use ($reason): void {
                         if ($reason instanceof \Throwable) {
                             throw $reason;
                         }
 
                         throw new PromiseRejectionException($this->safeStringCast($reason));
-                    })
-                ;
+                    });
             }
         );
     }
