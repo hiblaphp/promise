@@ -24,7 +24,7 @@ final readonly class PromiseCollectionHandler
         $promises = \is_array($promises) ? $promises : \iterator_to_array($promises);
 
         /** @var Promise<array<int|string, TAllValue>> $allPromise */
-        $allPromise = new Promise(function (callable $resolve, callable $reject) use ($promises): void {
+        $allPromise = new Promise(function (callable $resolve, callable $reject) use ($promises, &$allPromise): void {
             if ($promises === []) {
                 $resolve([]);
 
@@ -48,6 +48,11 @@ final readonly class PromiseCollectionHandler
                 if ($promise->isCancelled()) {
                     $isSettled = true;
                     $this->cancelAll($promises);
+
+                    if ($allPromise instanceof Promise && ! $allPromise->isCancelled()) {
+                        $allPromise->cancel();
+                    }
+
                     $reject(new CancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
 
                     return;
@@ -55,12 +60,17 @@ final readonly class PromiseCollectionHandler
             }
 
             foreach ($promises as $index => $promise) {
-                $promise->onCancel(function () use (&$isSettled, $reject, $promises, $index): void {
+                $promise->onCancel(function () use (&$isSettled, $reject, $promises, $index, &$allPromise): void {
                     if ($isSettled) {
                         return;
                     }
                     $isSettled = true;
                     $this->cancelAll($promises);
+
+                    if ($allPromise instanceof Promise && ! $allPromise->isCancelled()) {
+                        $allPromise->cancel();
+                    }
+
                     $reject(new CancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
                 });
 
@@ -76,7 +86,7 @@ final readonly class PromiseCollectionHandler
                             $resolve($results);
                         }
                     })
-                    ->catch(function ($reason) use (&$isSettled, $reject, $promises, $index, $promise): void {
+                    ->catch(function ($reason) use (&$isSettled, $reject, $promises, $index, $promise, &$allPromise): void {
                         if ($isSettled) {
                             return;
                         }
@@ -84,6 +94,9 @@ final readonly class PromiseCollectionHandler
                         $this->cancelAll($promises);
 
                         if ($promise->isCancelled()) {
+                            if ($allPromise instanceof Promise && ! $allPromise->isCancelled()) {
+                                $allPromise->cancel();
+                            }
                             $reject(new CancelledException(\sprintf('Promise at index "%s" was cancelled', $index)));
                         } else {
                             $reject($reason);
@@ -167,7 +180,6 @@ final readonly class PromiseCollectionHandler
             }
         });
 
-        // FIXED: Attach cancellation handler to propagate cancel() to children
         $allPromise->onCancel(function () use ($promises): void {
             $this->cancelAll($promises);
         });
