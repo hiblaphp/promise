@@ -37,7 +37,7 @@ interface PromiseInterface
      * @template TResult
      *
      * @param  callable(TValue): (TResult|PromiseInterface<TResult>)|null  $onFulfilled  Handler for successful resolution.
-     * @param  callable(mixed): (TResult|PromiseInterface<TResult>)|null  $onRejected  Handler for rejection.
+     * @param  callable(\Throwable): (TResult|PromiseInterface<TResult>)|null  $onRejected  Handler for rejection.
      * @return PromiseInterface<TResult> A new promise for method chaining.
      */
     public function then(?callable $onFulfilled = null, ?callable $onRejected = null): PromiseInterface;
@@ -50,10 +50,10 @@ interface PromiseInterface
      * Additionally, you can type hint the $reason argument of $onRejected to catch
      * only specific error types.
      *
-     * @template TResult
+     * @template TRejected The type of the value that the promise will reject with.
      *
-     * @param  callable(mixed): (TResult|PromiseInterface<TResult>)  $onRejected  Handler for rejection.
-     * @return PromiseInterface<TResult> A new promise for method chaining.
+     * @param  callable(\Throwable): (TRejected|PromiseInterface<TRejected>)  $onRejected  Handler for rejection.
+     * @return PromiseInterface<TRejected> A new promise for method chaining.
      */
     public function catch(callable $onRejected): PromiseInterface;
 

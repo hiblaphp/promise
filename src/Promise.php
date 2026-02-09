@@ -115,8 +115,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn ($value = null) => $this->resolve($value),
-                    fn ($reason = null) => $this->reject($reason)
+                    fn($value = null) => $this->resolve($value),
+                    fn($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -205,8 +205,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($value instanceof PromiseInterface) {
             $value->then(
-                fn ($v) => $this->resolve($v),
-                fn ($r) => $this->reject($r)
+                fn($v) => $this->resolve($v),
+                fn($r) => $this->reject($r)
             );
 
             // If THIS promise is cancelled, forward it to the inner promise
@@ -223,8 +223,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if (\is_object($value) && method_exists($value, 'then')) {
             try {
                 $value->then(
-                    fn ($v) => $this->resolve($v),
-                    fn ($r) => $this->reject($r)
+                    fn($v) => $this->resolve($v),
+                    fn($r) => $this->reject($r)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -395,7 +395,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
      * @template TResult
      *
      * @param  callable(TValue): (TResult|PromiseInterface<TResult>)|null  $onFulfilled
-     * @param  callable(mixed): (TResult|PromiseInterface<TResult>)|null  $onRejected
+     * @param  callable(\Throwable): (TResult|PromiseInterface<TResult>)|null  $onRejected
      * @return PromiseInterface<TResult>
      */
     public function then(?callable $onFulfilled = null, ?callable $onRejected = null): PromiseInterface
@@ -430,7 +430,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
                 }
             };
 
-            $handleReject = function ($reason) use ($onRejected, $resolve, $reject, &$newPromise) {
+            $handleReject = function (mixed $reason) use ($onRejected, $resolve, $reject, &$newPromise) {
                 if ($this->state === PromiseState::CANCELLED) {
                     return;
                 }
@@ -442,6 +442,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
                 if ($onRejected !== null) {
                     try {
+                        /** @phpstan-ignore argument.type (The code callback is preserve to mixed rather than throwable to get the orginal reason)*/
                         $result = $onRejected($reason);
                         $resolve($result);
                     } catch (\Throwable $e) {
@@ -457,9 +458,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             }
 
             if ($this->state === PromiseState::FULFILLED) {
-                Loop::microTask(fn () => $handleResolve($this->value));
+                Loop::microTask(fn() => $handleResolve($this->value));
             } elseif ($this->state === PromiseState::REJECTED) {
-                Loop::microTask(fn () => $handleReject($this->reason));
+                Loop::microTask(fn() => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -481,22 +482,25 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * {@inheritdoc}
      *
-     * @template TResult
+     * @template TRejected
      *
-     * @param  callable(mixed): (TResult|PromiseInterface<TResult>)  $onRejected
-     * @return PromiseInterface<TResult>
+     * @param  callable(\Throwable): (TRejected|PromiseInterface<TRejected>)  $onRejected
+     * @return PromiseInterface<TValue|TRejected>
      */
     public function catch(callable $onRejected): PromiseInterface
     {
         $this->hasRejectionHandler = true;
 
-        return $this->then(null, $onRejected);
+        /** @var callable(\Throwable): (TRejected|PromiseInterface<TRejected>) $handler */
+        $handler = $onRejected;
+
+        return $this->then(null, $handler);
     }
 
     /**
      * {@inheritdoc}
      *
-     * @param callable $onFinally Callback to execute on any outcome
+     * @param callable(): (void|PromiseInterface<void>) $onFinally Callback to execute on any outcome
      * @return PromiseInterface<TValue>
      */
     public function finally(callable $onFinally): PromiseInterface
@@ -507,22 +511,16 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
-                    ->then(fn () => $value)
-                ;
+                return (new self(fn($resolve) => $resolve($result)))
+                    ->then(fn(): mixed => $value);
             },
-            function ($reason) use ($onFinally): PromiseInterface {
+            function (\Throwable $reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
-                    ->then(function () use ($reason): void {
-                        if ($reason instanceof \Throwable) {
-                            throw $reason;
-                        }
-
-                        throw new PromiseRejectionException($this->safeStringCast($reason));
-                    })
-                ;
+                return (new self(fn($resolve) => $resolve($result)))
+                    ->then(function () use ($reason): never {
+                        throw $reason;
+                    });
             }
         );
     }
