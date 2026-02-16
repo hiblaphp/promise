@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hibla\Promise;
 
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\Exceptions\PromiseRejectionException;
 use Hibla\Promise\Handlers\ConcurrencyHandler;
 use Hibla\Promise\Handlers\PromiseCollectionHandler;
 use Hibla\Promise\Interfaces\PromiseInterface;
@@ -55,6 +54,59 @@ use Hibla\Promise\Interfaces\PromiseStaticInterface;
  * - Resources are freed via onCancel() handlers
  * - Programming errors (waiting on cancelled promises) are caught early
  * - Normal cancellation flow remains exception-free
+ *
+ * -------------------------------------------------------------------------
+ * IMPORTANT: What Cancellation Actually Does (and Does NOT Do)
+ * -------------------------------------------------------------------------
+ *
+ * Cancelling a promise is a TWO-LAYER concern. Understanding this distinction
+ * is critical to using the library correctly:
+ *
+ * Layer 1 — Promise state (what cancel() does automatically):
+ * - Transitions the promise from pending → cancelled
+ * - Prevents any registered then() callbacks from executing
+ * - Propagates cancellation forward to child promises in the chain
+ * - Stops the chain — no further then()/catch() handlers will fire
+ *
+ * Layer 2 — Resource cleanup (what YOU must do via onCancel()):
+ * - cancel() does NOT free underlying resources (timers, DB connections,
+ *   HTTP requests, file handles, etc.)
+ * - The actual work running beneath the promise has no awareness of the
+ *   promise state — it continues running until explicitly stopped
+ * - To release real resources, you MUST register an onCancel() handler
+ *   at the point where the promise is created
+ *
+ * Example — correct promise construction with resource cleanup:
+ *
+ *   $promise = new Promise(function($resolve) use (&$timerId) {
+ *       $timerId = Loop::addTimer(5, fn() => $resolve('done'));
+ *   });
+ *
+ *   // Without this, cancelling $promise only changes its state.
+ *   // The timer keeps firing. The callback still runs. Memory is held.
+ *   $promise->onCancel(function() use (&$timerId) {
+ *       Loop::cancelTimer($timerId); // ← THIS is what actually frees resources
+ *   });
+ *
+ * Example — incorrect, resource will leak on cancellation:
+ *
+ *   $promise = new Promise(function($resolve) {
+ *       $timerId = Loop::addTimer(5, fn() => $resolve('done'));
+ *       // No onCancel() registered — cancelling this promise does nothing
+ *       // to the underlying timer. It will still fire after 5 seconds.
+ *   });
+ *
+ * This cooperative cancellation model mirrors Swift's Task.checkCancellation()
+ * and Kotlin's ensureActive() — the promise layer signals intent to cancel,
+ * but the producer is responsible for acting on that signal via onCancel().
+ *
+ * Combinator Behaviour:
+ * - Promise::all()        → auto-cancels siblings on first rejection. Callers
+ *                           should not expect partial results — register onCancel()
+ *                           on each promise for proper resource cleanup.
+ * - Promise::race()       → auto-cancels losers when first promise settles.
+ * - Promise::any()        → auto-cancels remaining when first promise fulfils.
+ * - Promise::allSettled() → never cancels, always waits for every promise.
  *
  * @template-covariant TValue
  *

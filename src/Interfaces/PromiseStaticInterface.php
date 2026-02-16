@@ -60,14 +60,20 @@ interface PromiseStaticInterface
     /**
      * Wait for all promises to resolve and return their results.
      *
-     * If any promise rejects, the returned promise will reject with
-     * the first rejection reason.
+     * If any promise rejects, the returned promise rejects immediately with
+     * the first rejection reason and all remaining promises are automatically
+     * cancelled. This enforces structured concurrency semantics — callers
+     * should only think about getting results or handling failure, not about
+     * the lifecycle of individual promises.
+     *
+     * For scenarios where you need all outcomes regardless of failure, use
+     * Promise::allSettled() instead.
      *
      * !! STATIC METHOD - Must be called as Promise::all(), NOT $promise->all()
      *
      * @template TAllValue
      * @param  iterable<int|string, PromiseInterface<TAllValue>>  $promises  Iterable of PromiseInterface instances.
-     * @return PromiseInterface<array<int|string, TAllValue>> A promise that resolves with an array of results.
+     * @return PromiseInterface<array<int|string, TAllValue>>                A promise that resolves with an array of results.
      *
      * @static
      */
