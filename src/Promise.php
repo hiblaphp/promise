@@ -348,10 +348,16 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         while ($current->parentPromise !== null && ! $current->parentPromise->isCancelled()) {
             assert($current->parentPromise instanceof Promise);
-            $current = $current->parentPromise;
+            $parent = $current->parentPromise;
+
+            if ($parent->isSettled()) {
+                break;
+            }
+
+            $current = $parent;
         }
 
-        if (! $current->isSettled()) {
+        if (! $current->isSettled() && ! $current->isCancelled()) {
             $current->cancel();
         }
     }
