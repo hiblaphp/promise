@@ -135,6 +135,11 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     private array $cancelHandlers = [];
 
     /**
+     * @var callable(mixed, PromiseInterface<mixed>): void|null
+     */
+    private static mixed $rejectionHandler = null;
+
+    /**
      * @var PromiseInterface<mixed>|null
      */
     private ?PromiseInterface $parentPromise = null;
@@ -167,8 +172,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn($value = null) => $this->resolve($value),
-                    fn($reason = null) => $this->reject($reason)
+                    fn ($value = null) => $this->resolve($value),
+                    fn ($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -257,8 +262,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($value instanceof PromiseInterface) {
             $value->then(
-                fn($v) => $this->resolve($v),
-                fn($r) => $this->reject($r)
+                fn ($v) => $this->resolve($v),
+                fn ($r) => $this->reject($r)
             );
 
             // If THIS promise is cancelled, forward it to the inner promise
@@ -275,8 +280,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if (\is_object($value) && method_exists($value, 'then')) {
             try {
                 $value->then(
-                    fn($v) => $this->resolve($v),
-                    fn($r) => $this->reject($r)
+                    fn ($v) => $this->resolve($v),
+                    fn ($r) => $this->reject($r)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -516,9 +521,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             }
 
             if ($this->state === PromiseState::FULFILLED) {
-                Loop::microTask(fn() => $handleResolve($this->value));
+                Loop::microTask(fn () => $handleResolve($this->value));
             } elseif ($this->state === PromiseState::REJECTED) {
-                Loop::microTask(fn() => $handleReject($this->reason));
+                Loop::microTask(fn () => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -569,16 +574,18 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn($resolve) => $resolve($result)))
-                    ->then(fn(): mixed => $value);
+                return (new self(fn ($resolve) => $resolve($result)))
+                    ->then(fn (): mixed => $value)
+                ;
             },
             function (\Throwable $reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                return (new self(fn($resolve) => $resolve($result)))
+                return (new self(fn ($resolve) => $resolve($result)))
                     ->then(function () use ($reason): never {
                         throw $reason;
-                    });
+                    })
+                ;
             }
         );
     }
@@ -757,6 +764,30 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     }
 
     /**
+     * Set a global handler for unhandled promise rejections.
+     *
+     * Called in __destruct() when a rejected promise is garbage collected
+     * without a rejection handler having been attached.
+     *
+     * Pass null to restore the default stderr behaviour.
+     * Returns the previously registered handler (or null if none was set),
+     * mirroring the convention of PHP's set_error_handler().
+     *
+     * WARNING: The handler MUST NOT throw. PHP silently swallows exceptions
+     * thrown from __destruct(). Wrap your handler body in try/catch if needed.
+     *
+     * @param  callable(mixed $reason, PromiseInterface<mixed> $promise): void|null  $handler
+     * @return callable(mixed $reason, PromiseInterface<mixed> $promise): void|null
+     */
+    public static function setRejectionHandler(?callable $handler): ?callable
+    {
+        $previous = self::$rejectionHandler;
+        self::$rejectionHandler = $handler;
+
+        return $previous;
+    }
+
+    /**
      * Get or create the PromiseCollectionHandler instance.
      */
     private static function getCollectionHandler(): PromiseCollectionHandler
@@ -884,6 +915,12 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         }
 
         if ($this->state === PromiseState::REJECTED && ! $this->hasRejectionHandler) {
+            if (self::$rejectionHandler !== null) {
+                (self::$rejectionHandler)($this->reason, $this);
+
+                return;
+            }
+
             $reason = $this->reason;
             $message = $reason instanceof \Throwable
                 ? \sprintf(
