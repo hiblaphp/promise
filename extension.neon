@@ -1,0 +1,5 @@
+services:
+    -
+        class: Hibla\Promise\PHPStan\PromiseResolvedReturnTypeExtension
+        tags:
+            - phpstan.broker.dynamicStaticMethodReturnTypeExtension

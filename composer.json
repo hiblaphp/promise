@@ -39,6 +39,13 @@
             "pestphp/pest-plugin": true
         }
     },
+    "extra": {
+        "phpstan": {
+            "includes": [
+                "extension.neon"
+            ]
+        }
+    },
     "scripts": {
         "analyze": "./vendor/bin/phpstan analyse",
         "format": "./vendor/bin/pint",

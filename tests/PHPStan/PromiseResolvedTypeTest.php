@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hibla\Promise\Tests\PHPStan;
+
+use PHPStan\Testing\TypeInferenceTestCase;
+
+class PromiseResolvedTypeTest extends TypeInferenceTestCase
+{
+    /**
+     * @return iterable<mixed>
+     */
+    public static function dataFileAsserts(): iterable
+    {
+        yield from self::gatherAssertTypes(__DIR__ . '/data/promise-resolved-types.php');
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('dataFileAsserts')]
+    public function testFileAsserts(string $assertType, string $file, mixed ...$args): void
+    {
+        $this->assertFileAsserts($assertType, $file, ...$args);
+    }
+
+    public static function getAdditionalConfigFiles(): array
+    {
+        return [__DIR__ . '/../../extension.neon'];
+    }
+}
