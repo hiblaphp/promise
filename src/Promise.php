@@ -248,7 +248,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
      * @param  mixed  $value  The value to resolve the promise with
      * @return void
      */
-    public function resolve(mixed $value): void
+    public function resolve(mixed $value = null): void
     {
         if (! $this->canSettle()) {
             return;
