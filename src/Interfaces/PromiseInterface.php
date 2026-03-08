@@ -190,7 +190,7 @@ interface PromiseInterface
 
     /**
      * Set a handler to be called when the promise is cancelled.
-     * You can register multiple cancel handlers, and they will be called in reverse order of registration.
+     * You can register multiple cancel handlers, and they will be called in FIFO order of registration.
      *
      * This is useful for cleanup operations like:
      * - Cancelling timers
