@@ -15,10 +15,6 @@ use Hibla\Promise\Interfaces\PromiseStaticInterface;
  * cancellation support. Extends the standard 3-state model with a
  * distinct cancelled state for better resource management.
  *
- * This library implements the "third state" approach to cancellation that
- * was debated (but ultimately withdrawn) in TC39's cancelable promises
- * proposal. We believe this approach provides better semantics for PHP:
- *
  * Key Design: 4 States (not 3)
  * - Pending: waiting for resolution
  * - Fulfilled: successfully resolved
@@ -59,25 +55,27 @@ use Hibla\Promise\Interfaces\PromiseStaticInterface;
  * IMPORTANT: What Cancellation Actually Does (and Does NOT Do)
  * -------------------------------------------------------------------------
  *
- * Cancelling a promise is a TWO-LAYER concern. Understanding this distinction
- * is critical to using the library correctly:
+ * This library uses a **cooperative cancellation model**. This means cancelling a
+ * promise is a TWO-LAYER concern. The library signals the intent to cancel,
+ * but the underlying task must "cooperate" by providing the logic to stop its
+ * own work. Understanding this distinction is critical.
  *
- * Layer 1 — Promise state (what cancel() does automatically):
- * - Transitions the promise from pending → cancelled
- * - Prevents any registered then() callbacks from executing
- * - Propagates cancellation forward to child promises in the chain
- * - Stops the chain — no further then()/catch() handlers will fire
+ * Layer 1 — Promise State (what the library does for you):
+ * - Signals intent to cancel by transitioning the promise from pending → cancelled.
+ * - Prevents any future `then()` or `catch()` callbacks from executing.
+ * - Propagates the cancellation signal forward to all child promises in the chain.
  *
- * Layer 2 — Resource cleanup (what YOU must do via onCancel()):
- * - cancel() does NOT free underlying resources (timers, DB connections,
- *   HTTP requests, file handles, etc.)
- * - The actual work running beneath the promise has no awareness of the
- *   promise state — it continues running until explicitly stopped
- * - To release real resources, you MUST register an onCancel() handler
- *   at the point where the promise is created
+ * Layer 2 — Resource Cleanup (what YOU must do via onCancel()):
+ * - `cancel()` does NOT magically terminate underlying work (e.g., it will not
+ *   interrupt a running `sleep()` or a `curl_exec()` call).
+ * - The library has no knowledge of your specific task. Only you know how to
+ *   properly close the file handle, abort the HTTP request, or clear the timer.
+ * - To release real-world resources, you MUST register the cleanup logic in an
+ *   `onCancel()` handler at the point where the asynchronous work is initiated.
  *
  * Example — correct promise construction with resource cleanup:
  *
+ * ```php
  *   $promise = new Promise(function($resolve) use (&$timerId) {
  *       $timerId = Loop::addTimer(5, fn() => $resolve('done'));
  *   });
@@ -87,18 +85,20 @@ use Hibla\Promise\Interfaces\PromiseStaticInterface;
  *   $promise->onCancel(function() use (&$timerId) {
  *       Loop::cancelTimer($timerId); // ← THIS is what actually frees resources
  *   });
+ *  ```
  *
  * Example — incorrect, resource will leak on cancellation:
- *
+ * ```php
  *   $promise = new Promise(function($resolve) {
  *       $timerId = Loop::addTimer(5, fn() => $resolve('done'));
  *       // No onCancel() registered — cancelling this promise does nothing
  *       // to the underlying timer. It will still fire after 5 seconds.
  *   });
- *
- * This cooperative cancellation model mirrors Swift's Task.checkCancellation()
- * and Kotlin's ensureActive() — the promise layer signals intent to cancel,
- * but the producer is responsible for acting on that signal via onCancel().
+ *  ```
+ * This cooperative model mirrors modern async patterns like JavaScript's
+ * AbortController, Swift's Task.checkCancellation(), and Kotlin's ensureActive().
+ * The promise layer signals intent, but the producer of the value is responsible
+ * for acting on that signal.
  *
  * Combinator Behaviour:
  * - Promise::all()        → auto-cancels siblings on first rejection. Callers
@@ -140,9 +140,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     private static mixed $rejectionHandler = null;
 
     /**
-     * @var PromiseInterface<mixed>|null
+     * @var \WeakReference<PromiseInterface<mixed>>|null
      */
-    private ?PromiseInterface $parentPromise = null;
+    private ?\WeakReference $parentPromise = null;
 
     private static ?PromiseCollectionHandler $collectionHandler = null;
 
@@ -172,8 +172,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn ($value = null) => $this->resolve($value),
-                    fn ($reason = null) => $this->reject($reason)
+                    fn($value = null) => $this->resolve($value),
+                    fn($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -262,8 +262,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($value instanceof PromiseInterface) {
             $value->then(
-                fn ($v) => $this->resolve($v),
-                fn ($r) => $this->reject($r)
+                fn($v) => $this->resolve($v),
+                fn($r) => $this->reject($r)
             );
 
             // If THIS promise is cancelled, forward it to the inner promise
@@ -280,8 +280,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if (\is_object($value) && method_exists($value, 'then')) {
             try {
                 $value->then(
-                    fn ($v) => $this->resolve($v),
-                    fn ($r) => $this->reject($r)
+                    $this->resolve(...),
+                    $this->reject(...),
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -351,11 +351,15 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     {
         $current = $this;
 
-        while ($current->parentPromise !== null && ! $current->parentPromise->isCancelled()) {
-            assert($current->parentPromise instanceof Promise);
-            $parent = $current->parentPromise;
+        while (true) {
+            $weakParent = $current->parentPromise;
+            $parent = $weakParent?->get();
 
-            if ($parent->isSettled()) {
+            if (! $parent instanceof Promise) {
+                break;
+            }
+
+            if ($parent->isCancelled() || $parent->isSettled()) {
                 break;
             }
 
@@ -470,9 +474,18 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         /** @var Promise<TResult>|null $newPromise */
         $newPromise = null;
 
-        $executor = function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected, &$newPromise) {
-            $handleResolve = function ($value) use ($onFulfilled, $resolve, $reject, &$newPromise) {
-                if ($this->state === PromiseState::CANCELLED) {
+        //Create a WeakReference to $this. This prevents the closures
+        // below from creating a strong reference cycle that leaks memory.
+        $weakSelf = \WeakReference::create($this);
+
+        $executor = function (callable $resolve, callable $reject) use ($onFulfilled, $onRejected, &$newPromise, $weakSelf) {
+            // Use a static function to prevent implicit capture of $this
+            $handleResolve = static function ($value) use ($onFulfilled, $resolve, $reject, &$newPromise, $weakSelf) {
+                // Unwrap the parent promise from the weak reference
+                $self = $weakSelf->get();
+
+                // If parent has been garbage collected or was cancelled, abort
+                if ($self === null || $self->state === PromiseState::CANCELLED) {
                     return;
                 }
 
@@ -493,8 +506,11 @@ class Promise implements PromiseInterface, PromiseStaticInterface
                 }
             };
 
-            $handleReject = function (mixed $reason) use ($onRejected, $resolve, $reject, &$newPromise) {
-                if ($this->state === PromiseState::CANCELLED) {
+            // Use a static function to prevent implicit capture of $this
+            $handleReject = static function (mixed $reason) use ($onRejected, $resolve, $reject, &$newPromise, $weakSelf) {
+                $self = $weakSelf->get();
+
+                if ($self === null || $self->state === PromiseState::CANCELLED) {
                     return;
                 }
 
@@ -521,9 +537,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             }
 
             if ($this->state === PromiseState::FULFILLED) {
-                Loop::microTask(fn () => $handleResolve($this->value));
+                Loop::microTask(fn() => $handleResolve($this->value));
             } elseif ($this->state === PromiseState::REJECTED) {
-                Loop::microTask(fn () => $handleReject($this->reason));
+                Loop::microTask(fn() => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -532,7 +548,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         /** @var Promise<TResult> $newPromise */
         $newPromise = new self($executor);
-        $newPromise->parentPromise = $this;
+        // Use WeakReference for parent to prevent child->parent cycle
+        $newPromise->parentPromise = \WeakReference::create($this);
         $this->childPromises[] = $newPromise;
 
         if ($this->state === PromiseState::CANCELLED) {
@@ -571,21 +588,19 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         $this->onCancel($onFinally);
 
         return $this->then(
-            function ($value) use ($onFinally) {
+            static function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
-                    ->then(fn (): mixed => $value)
-                ;
+                return (new self(fn($resolve) => $resolve($result)))
+                    ->then(fn(): mixed => $value);
             },
-            function (\Throwable $reason) use ($onFinally): PromiseInterface {
+            static function (\Throwable $reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
+                return (new self(fn($resolve) => $resolve($result)))
                     ->then(function () use ($reason): never {
                         throw $reason;
-                    })
-                ;
+                    });
             }
         );
     }
