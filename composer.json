@@ -8,8 +8,7 @@
             "Hibla\\Promise\\": "src/"
         },
         "files": [
-            "src/Helpers/delay.php",
-            "src/Helpers/promise_combinators.php"
+            "src/functions.php"
         ]
     },
     "autoload-dev": {

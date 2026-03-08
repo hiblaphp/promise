@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hibla\Promise\Tests\PHPStan;
+namespace Tests\PHPStan;
 
 use PHPStan\Testing\TypeInferenceTestCase;
 

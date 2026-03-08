@@ -259,4 +259,32 @@ interface PromiseStaticInterface
      * @static
      */
     public static function map(iterable $items, callable $mapper, ?int $concurrency = null): PromiseInterface;
+
+    /**
+     * Iterates over an iterable, transforms each value using a mapper function, and returns a promise
+     * that resolves to an array of settled results — one per item — regardless of individual failures.
+     *
+     * Behaves identically to {@see map()} in terms of input handling, concurrency control, and order
+     * preservation, but never rejects or cancels on individual mapper failures. Each item's outcome
+     * is captured as a {@see SettledResult} instead of short-circuiting the entire operation.
+     *
+     * Key Features:
+     * - **Input Resolution**: If the input `$items` contains Promises, this method waits for them to resolve before passing the value to the `$mapper`.
+     * - **Never Fails**: The returned promise always fulfills, even if every mapper invocation rejects or is cancelled.
+     * - **Concurrency Control**: Defaults to a safe limit (10) to prevent resource exhaustion.
+     * - **Order Preservation**: The resulting array keys and order match the input iterable.
+     * - **Full Outcome Capture**: Each result is a {@see SettledResult} with a status of fulfilled, rejected, or cancelled.
+     *
+     * @template TMapItem
+     * @template TMapResult
+     *
+     * @param iterable<int|string, TMapItem> $items Input values. Can be scalar values or Promises.
+     * @param callable(TMapItem, int|string): (TMapResult|PromiseInterface<TMapResult>) $mapper Function to transform each item. Receives ($value, $key).
+     * @param int|null $concurrency Maximum number of concurrent executions.
+     *                              - Pass `null` for **Unlimited** concurrency.
+     *
+     * @return PromiseInterface<array<int|string, SettledResult<TMapResult, mixed>>> A promise that always resolves with an array of settled results.
+     * @static
+     */
+    public static function mapSettled(iterable $items, callable $mapper, ?int $concurrency = null): PromiseInterface;
 }
