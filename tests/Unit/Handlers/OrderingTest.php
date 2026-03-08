@@ -1166,4 +1166,202 @@ describe('Edge Cases for Ordering', function () {
             expect($results['KEY'])->toBe('uppercase');
         });
     });
+
+    describe('ConcurrencyHandler map functions', function () {
+        it('preserves order for indexed arrays even when items resolve out of order', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->map(
+                [30, 10, 20],
+                fn (int $ms) => delayedValue("item_{$ms}ms", $ms),
+            )->wait();
+
+            expect($results)->toBe(['item_30ms', 'item_10ms', 'item_20ms']);
+            expect(array_keys($results))->toBe([0, 1, 2]);
+        });
+
+        it('preserves string keys in map()', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->map(
+                ['slow' => 30, 'fast' => 10, 'medium' => 20],
+                fn (int $ms, string $key) => delayedValue("{$key}_{$ms}ms", $ms),
+            )->wait();
+
+            expect(array_keys($results))->toBe(['slow', 'fast', 'medium']);
+            expect($results['slow'])->toBe('slow_30ms');
+            expect($results['fast'])->toBe('fast_10ms');
+            expect($results['medium'])->toBe('medium_20ms');
+        });
+
+        it('preserves non-sequential numeric keys in map()', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->map(
+                [5 => 30, 10 => 10, 15 => 20],
+                fn (int $ms) => delayedValue("item_{$ms}ms", $ms),
+            )->wait();
+
+            expect(array_keys($results))->toBe([5, 10, 15]);
+            expect($results[5])->toBe('item_30ms');
+            expect($results[10])->toBe('item_10ms');
+            expect($results[15])->toBe('item_20ms');
+        });
+
+        it('preserves order in map() with low concurrency and out-of-order completion', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->map(
+                [50, 5, 25, 1, 100],
+                fn (int $ms) => delayedValue("item_{$ms}ms", $ms),
+                concurrency: 2
+            )->wait();
+
+            expect(array_keys($results))->toBe([0, 1, 2, 3, 4]);
+            expect($results[0])->toBe('item_50ms');
+            expect($results[1])->toBe('item_5ms');
+            expect($results[2])->toBe('item_25ms');
+            expect($results[3])->toBe('item_1ms');
+            expect($results[4])->toBe('item_100ms');
+        });
+
+        it('preserves unicode string keys in map()', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->map(
+                ['café' => 30, '日本' => 10, '🚀' => 20],
+                fn (int $ms, string $key) => delayedValue($key, $ms),
+            )->wait();
+
+            expect(array_keys($results))->toBe(['café', '日本', '🚀']);
+            expect($results['café'])->toBe('café');
+            expect($results['🚀'])->toBe('🚀');
+        });
+
+        it('preserves order with negative and mixed numeric keys in map()', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->map(
+                [-10 => 30, 0 => 10, 10 => 20],
+                fn (int $ms, int $key) => delayedValue("key_{$key}", $ms),
+            )->wait();
+
+            expect(array_keys($results))->toBe([-10, 0, 10]);
+            expect($results[-10])->toBe('key_-10');
+            expect($results[0])->toBe('key_0');
+            expect($results[10])->toBe('key_10');
+        });
+
+        it('preserves order with duplicate values in map()', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->map(
+                ['a' => 30, 'b' => 10, 'c' => 20, 'd' => 5],
+                fn (int $ms) => delayedValue('same', $ms),
+            )->wait();
+
+            expect(array_keys($results))->toBe(['a', 'b', 'c', 'd']);
+            expect(array_values($results))->toBe(['same', 'same', 'same', 'same']);
+        });
+
+        it('preserves order in map() consuming a generator with mixed completion times', function () {
+            $handler = new ConcurrencyHandler();
+
+            $gen = (function () {
+                yield 'first' => 30;
+                yield 'second' => 10;
+                yield 'third' => 20;
+            })();
+
+            $results = $handler->map(
+                $gen,
+                fn (int $ms, string $key) => delayedValue("{$key}_{$ms}ms", $ms),
+            )->wait();
+
+            expect(array_keys($results))->toBe(['first', 'second', 'third']);
+            expect($results['first'])->toBe('first_30ms');
+            expect($results['second'])->toBe('second_10ms');
+            expect($results['third'])->toBe('third_20ms');
+        });
+
+        it('preserves order in mapSettled() even with mixed success and failure', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->mapSettled(
+                ['slow' => 30, 'fast' => 10, 'medium' => 20],
+                function (int $ms, string $key) {
+                    if ($key === 'fast') {
+                        return delayedReject("failed_{$key}", $ms);
+                    }
+
+                    return delayedValue("{$key}_{$ms}ms", $ms);
+                },
+            )->wait();
+
+            expect(array_keys($results))->toBe(['slow', 'fast', 'medium']);
+            expect($results['slow']->isFulfilled())->toBeTrue();
+            expect($results['slow']->value)->toBe('slow_30ms');
+            expect($results['fast']->isRejected())->toBeTrue();
+            expect($results['medium']->isFulfilled())->toBeTrue();
+            expect($results['medium']->value)->toBe('medium_20ms');
+        });
+
+        it('preserves non-sequential numeric keys in mapSettled()', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->mapSettled(
+                [5 => 30, 10 => 10, 15 => 20],
+                fn (int $ms) => delayedValue("item_{$ms}ms", $ms),
+            )->wait();
+
+            expect(array_keys($results))->toBe([5, 10, 15]);
+            expect($results[5]->isFulfilled())->toBeTrue();
+            expect($results[5]->value)->toBe('item_30ms');
+            expect($results[10]->isFulfilled())->toBeTrue();
+            expect($results[15]->isFulfilled())->toBeTrue();
+        });
+
+        it('preserves order in mapSettled() with low concurrency and out-of-order completion', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->mapSettled(
+                [50, 5, 25, 1, 100],
+                fn (int $ms) => delayedValue("item_{$ms}ms", $ms),
+                concurrency: 2
+            )->wait();
+
+            expect(array_keys($results))->toBe([0, 1, 2, 3, 4]);
+            expect($results[0]->value)->toBe('item_50ms');
+            expect($results[1]->value)->toBe('item_5ms');
+            expect($results[2]->value)->toBe('item_25ms');
+            expect($results[3]->value)->toBe('item_1ms');
+            expect($results[4]->value)->toBe('item_100ms');
+        });
+
+        it('preserves order in mapSettled() consuming a generator with rejections', function () {
+            $handler = new ConcurrencyHandler();
+
+            $gen = (function () {
+                yield 'first' => 30;
+                yield 'second' => 10;
+                yield 'third' => 20;
+            })();
+
+            $results = $handler->mapSettled(
+                $gen,
+                function (int $ms, string $key) {
+                    if ($key === 'second') {
+                        return delayedReject("rejected_{$key}", $ms);
+                    }
+
+                    return delayedValue("{$key}_{$ms}ms", $ms);
+                },
+            )->wait();
+
+            expect(array_keys($results))->toBe(['first', 'second', 'third']);
+            expect($results['first']->isFulfilled())->toBeTrue();
+            expect($results['second']->isRejected())->toBeTrue();
+            expect($results['third']->isFulfilled())->toBeTrue();
+        });
+    });
 });

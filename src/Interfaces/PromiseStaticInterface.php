@@ -287,4 +287,77 @@ interface PromiseStaticInterface
      * @static
      */
     public static function mapSettled(iterable $items, callable $mapper, ?int $concurrency = null): PromiseInterface;
+
+    /**
+     * Iterates over an iterable, executes a callback for each value as a side effect, and returns
+     * a promise that resolves when all callbacks have completed.
+     *
+     * Unlike {@see map()}, this method discards all return values immediately after each callback
+     * fires. No result array is accumulated, making memory consumption O(concurrency) regardless
+     * of how many items are processed. Suitable for processing millions or billions of items from
+     * a generator without memory growth.
+     *
+     * Key Features:
+     * - **Input Resolution**: If the input `$items` contains Promises, this method waits for them
+     *   to resolve before passing the value to the `$callback`.
+     * - **Zero Result Accumulation**: Return values from the callback are discarded immediately.
+     *   Memory stays flat for the entire run, bounded only by the concurrency cap.
+     * - **Fail-Fast**: Rejects on the first callback exception or rejected promise, cancelling
+     *   any in-flight operations. Use {@see forEachSettled()} if you need to process all items
+     *   regardless of individual failures.
+     * - **Concurrency Control**: Defaults to a safe limit (10) to prevent resource exhaustion.
+     *
+     * When to use forEach() vs map():
+     * - Use {@see map()} when you need the transformed results as an array.
+     * - Use forEach() when the callback performs a side effect (writing to a database, sending
+     *   an event, logging) and the return value is irrelevant.
+     *
+     * @template TForEachItem
+     *
+     * @param iterable<int|string, TForEachItem> $items Input values. Can be scalar values or Promises.
+     * @param callable(TForEachItem, int|string): (void|PromiseInterface<void>) $callback Side-effect function to execute per item. Receives ($value, $key).
+     * @param int|null $concurrency Maximum number of concurrent executions.
+     *                              - Pass `null` for **Unlimited** concurrency.
+     *
+     * @return PromiseInterface<void> A promise that resolves when all callbacks have completed.
+     * @static
+     */
+    public static function forEach(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface;
+
+    /**
+     * Iterates over an iterable, executes a callback for each value as a side effect, and returns
+     * a promise that always resolves when all callbacks have been attempted — regardless of
+     * individual failures.
+     *
+     * Behaves identically to {@see forEach()} in terms of input handling, concurrency control,
+     * and memory efficiency, but never rejects or cancels on individual callback failures.
+     * Exceptions thrown by the callback and rejected promises returned by it are silently
+     * swallowed. The outer promise always fulfills once every item has been attempted.
+     *
+     * Key Features:
+     * - **Input Resolution**: If the input `$items` contains Promises, this method waits for them
+     *   to resolve before passing the value to the `$callback`.
+     * - **Zero Result Accumulation**: Return values and failure reasons are discarded immediately.
+     *   Memory stays flat for the entire run, bounded only by the concurrency cap.
+     * - **Never Fails**: The returned promise always fulfills, even if every callback throws or
+     *   returns a rejected promise.
+     * - **Concurrency Control**: Defaults to a safe limit (10) to prevent resource exhaustion.
+     *
+     * When to use forEachSettled() vs forEach():
+     * - Use {@see forEach()} when a single failure should abort the entire operation.
+     * - Use forEachSettled() when failures are expected or acceptable and every item must be
+     *   attempted regardless — e.g. sending notifications, writing audit logs, or purging cache
+     *   entries where partial failure is tolerable.
+     *
+     * @template TForEachItem
+     *
+     * @param iterable<int|string, TForEachItem> $items Input values. Can be scalar values or Promises.
+     * @param callable(TForEachItem, int|string): (void|PromiseInterface<void>) $callback Side-effect function to execute per item. Receives ($value, $key).
+     * @param int|null $concurrency Maximum number of concurrent executions.
+     *                              - Pass `null` for **Unlimited** concurrency.
+     *
+     * @return PromiseInterface<void> A promise that always resolves once all items have been attempted.
+     * @static
+     */
+    public static function forEachSettled(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface;
 }

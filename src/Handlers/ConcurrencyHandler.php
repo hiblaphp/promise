@@ -467,7 +467,7 @@ final readonly class ConcurrencyHandler
                         ? $item
                         : Promise::resolved($item);
 
-                    return $inputPromise->then(fn($resolvedValue) => $mapper($resolvedValue, $key));
+                    return $inputPromise->then(fn ($resolvedValue) => $mapper($resolvedValue, $key));
                 };
             }
         })();
@@ -494,12 +494,308 @@ final readonly class ConcurrencyHandler
                         ? $item
                         : Promise::resolved($item);
 
-                    return $inputPromise->then(fn($resolvedValue) => $mapper($resolvedValue, $key));
+                    return $inputPromise->then(fn ($resolvedValue) => $mapper($resolvedValue, $key));
                 };
             }
         })();
 
         return $this->concurrentSettled($tasks, $concurrency ?? PHP_INT_MAX);
+    }
+
+    /**
+     * @template TForEachItem
+     *
+     * @param iterable<int|string, TForEachItem> $items
+     * @param callable(TForEachItem, int|string): (void|PromiseInterface<void>) $callback
+     * @param int|null $concurrency
+     *
+     * @return PromiseInterface<void>
+     */
+    public function forEach(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface
+    {
+        /** @var array<int|string, PromiseInterface<mixed>> $promiseInstances */
+        $promiseInstances = [];
+
+        /** @var Promise<void> $forEachPromise */
+        $forEachPromise = new Promise(function (callable $resolve, callable $reject) use ($items, $callback, $concurrency, &$promiseInstances): void {
+            $concurrency ??= PHP_INT_MAX;
+
+            if ($concurrency <= 0) {
+                $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));
+
+                return;
+            }
+
+            try {
+                $iterator = $this->getIterator(
+                    (function () use ($items, $callback) {
+                        foreach ($items as $key => $item) {
+                            yield $key => function () use ($item, $callback, $key) {
+                                $inputPromise = $item instanceof PromiseInterface
+                                    ? $item
+                                    : Promise::resolved($item);
+
+                                return $inputPromise->then(fn ($resolvedValue) => $callback($resolvedValue, $key));
+                            };
+                        }
+                    })()
+                );
+
+                $iterator->rewind();
+
+                if (! $iterator->valid()) {
+                    $resolve(null);
+
+                    return;
+                }
+            } catch (Throwable $e) {
+                $reject($e);
+
+                return;
+            }
+
+            $running = 0;
+            $state = (object) ['isRejected' => false, 'exhausted' => false, 'scheduled' => false];
+
+            $processNext = function () use (
+                &$processNext,
+                $iterator,
+                &$running,
+                $state,
+                &$promiseInstances,
+                $concurrency,
+                $resolve,
+                $reject,
+            ): void {
+                $state->scheduled = false;
+
+                if ($state->isRejected) {
+                    return;
+                }
+
+                try {
+                    while ($running < $concurrency && $iterator->valid()) {
+                        $key = $iterator->key();
+                        $task = $iterator->current();
+                        $iterator->next();
+                        $running++;
+
+                        try {
+                            $promise = $task();
+
+                            if (! $promise instanceof PromiseInterface) {
+                                throw new RuntimeException(sprintf(
+                                    'Task at key "%s" must return a PromiseInterface, %s given',
+                                    $key,
+                                    get_debug_type($promise)
+                                ));
+                            }
+
+                            if ($promise->isCancelled()) {
+                                $state->isRejected = true;
+                                $this->cancelAll($promiseInstances);
+                                $reject(new CancelledException(sprintf('Promise at key "%s" was cancelled', $key)));
+
+                                return;
+                            }
+
+                            $promiseInstances[$key] = $promise;
+
+                            $promise->onCancel(function () use ($key, $state, &$promiseInstances, $reject): void {
+                                if ($state->isRejected) {
+                                    return;
+                                }
+                                $state->isRejected = true;
+                                $this->cancelAll($promiseInstances);
+                                $reject(new CancelledException(sprintf('Promise at key "%s" was cancelled', $key)));
+                            });
+                        } catch (Throwable $e) {
+                            $state->isRejected = true;
+                            $this->cancelAll($promiseInstances);
+                            $reject($e);
+
+                            return;
+                        }
+
+                        $promise->then(
+                            function () use ($key, &$running, &$promiseInstances, $state, $resolve, $processNext): void {
+                                if ($state->isRejected) {
+                                    return;
+                                }
+
+                                unset($promiseInstances[$key]);
+                                $running--;
+
+                                if ($state->exhausted && $running === 0) {
+                                    $resolve(null);
+                                } elseif (! $state->scheduled) {
+                                    $state->scheduled = true;
+                                    Loop::microTask($processNext);
+                                }
+                            },
+                            function ($error) use ($state, &$promiseInstances, $reject): void {
+                                if ($state->isRejected) {
+                                    return;
+                                }
+                                $state->isRejected = true;
+                                $this->cancelAll($promiseInstances);
+                                $reject($error);
+                            }
+                        );
+                    }
+
+                    if (! $iterator->valid()) {
+                        $state->exhausted = true;
+                        if ($running === 0) {
+                            $resolve(null);
+                        }
+                    }
+                } catch (Throwable $e) {
+                    $state->isRejected = true;
+                    $this->cancelAll($promiseInstances);
+                    $reject($e);
+                }
+            };
+
+            Loop::microTask($processNext);
+        });
+
+        $forEachPromise->onCancel(function () use (&$promiseInstances): void {
+            $this->cancelAll($promiseInstances);
+        });
+
+        return $forEachPromise;
+    }
+
+    /**
+     * @template TForEachItem
+     *
+     * @param iterable<int|string, TForEachItem> $items
+     * @param callable(TForEachItem, int|string): (void|PromiseInterface<void>) $callback
+     * @param int|null $concurrency
+     *
+     * @return PromiseInterface<void>
+     */
+    public function forEachSettled(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface
+    {
+        /** @var array<int|string, PromiseInterface<mixed>> $promiseInstances */
+        $promiseInstances = [];
+
+        /** @var Promise<void> $forEachPromise */
+        $forEachPromise = new Promise(function (callable $resolve, callable $reject) use ($items, $callback, $concurrency, &$promiseInstances): void {
+            $concurrency ??= PHP_INT_MAX;
+
+            if ($concurrency <= 0) {
+                $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));
+
+                return;
+            }
+
+            try {
+                $iterator = $this->getIterator(
+                    (function () use ($items, $callback) {
+                        foreach ($items as $key => $item) {
+                            yield $key => function () use ($item, $callback, $key) {
+                                $inputPromise = $item instanceof PromiseInterface
+                                    ? $item
+                                    : Promise::resolved($item);
+
+                                return $inputPromise->then(fn ($resolvedValue) => $callback($resolvedValue, $key));
+                            };
+                        }
+                    })()
+                );
+
+                $iterator->rewind();
+
+                if (! $iterator->valid()) {
+                    $resolve(null);
+
+                    return;
+                }
+            } catch (Throwable $e) {
+                $reject($e);
+
+                return;
+            }
+
+            $running = 0;
+            $state = (object) ['exhausted' => false, 'scheduled' => false];
+
+            $processNext = function () use (
+                &$processNext,
+                $iterator,
+                &$running,
+                $state,
+                &$promiseInstances,
+                $concurrency,
+                $resolve,
+                $reject,
+            ): void {
+                $state->scheduled = false;
+
+                try {
+                    while ($running < $concurrency && $iterator->valid()) {
+                        $key = $iterator->key();
+                        $task = $iterator->current();
+                        $iterator->next();
+                        $running++;
+
+                        $settle = function () use ($key, &$running, &$promiseInstances, $state, $resolve, $processNext): void {
+                            unset($promiseInstances[$key]);
+                            $running--;
+
+                            if ($state->exhausted && $running === 0) {
+                                $resolve(null);
+                            } elseif (! $state->scheduled) {
+                                $state->scheduled = true;
+                                Loop::microTask($processNext);
+                            }
+                        };
+
+                        try {
+                            $promise = $task();
+
+                            if (! $promise instanceof PromiseInterface || $promise->isCancelled()) {
+                                $running--;
+                                if ($state->exhausted && $running === 0) {
+                                    $resolve(null);
+                                }
+
+                                continue;
+                            }
+
+                            $promiseInstances[$key] = $promise;
+                            $promise->onCancel($settle);
+                            $promise->then($settle, $settle);
+                        } catch (Throwable) {
+                            $running--;
+                            if ($state->exhausted && $running === 0) {
+                                $resolve(null);
+                            }
+                        }
+                    }
+
+                    if (! $iterator->valid()) {
+                        $state->exhausted = true;
+                        if ($running === 0) {
+                            $resolve(null);
+                        }
+                    }
+                } catch (Throwable $e) {
+                    $this->cancelAll($promiseInstances);
+                    $reject($e);
+                }
+            };
+
+            Loop::microTask($processNext);
+        });
+
+        $forEachPromise->onCancel(function () use (&$promiseInstances): void {
+            $this->cancelAll($promiseInstances);
+        });
+
+        return $forEachPromise;
     }
 
     /**
@@ -517,7 +813,7 @@ final readonly class ConcurrencyHandler
             return $tasks->getIterator();
         }
 
-        return (fn() => yield from $tasks)();
+        return (fn () => yield from $tasks)();
     }
 
     /**

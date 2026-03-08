@@ -788,6 +788,16 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         return self::getConcurrencyHandler()->mapSettled($items, $mapper, $concurrency);
     }
 
+    public static function forEach(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface
+    {
+        return self::getConcurrencyHandler()->forEach($items, $callback, $concurrency);
+    }
+
+    public static function forEachSettled(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface
+    {
+        return self::getConcurrencyHandler()->forEachSettled($items, $callback, $concurrency);
+    }
+
     /**
      * Set a global handler for unhandled promise rejections.
      *

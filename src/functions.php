@@ -40,7 +40,7 @@ function delay(float $seconds): PromiseInterface
  * @param  callable(mixed $reason, PromiseInterface<mixed> $promise): void|null  $handler
  * @return callable(mixed $reason, PromiseInterface<mixed> $promise): void|null
  */
-function setRejectionHandler(callable $handler): ?callable
+function setRejectionHandler(?callable $handler = null): ?callable
 {
     return Promise::setRejectionHandler($handler);
 }

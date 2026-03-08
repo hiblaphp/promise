@@ -145,6 +145,7 @@ describe('ConcurrencyHandler', function () {
                 ['x' => 10, 'y' => 20],
                 function (int $n, string $key) use (&$capturedKeys) {
                     $capturedKeys[] = $key;
+
                     return Promise::resolved($n);
                 }
             )->wait();
@@ -172,6 +173,7 @@ describe('ConcurrencyHandler', function () {
                     if ($n === 2) {
                         return Promise::rejected(new RuntimeException('Rejected at 2'));
                     }
+
                     return Promise::resolved($n);
                 }
             )->wait())->toThrow(RuntimeException::class, 'Rejected at 2');
@@ -186,6 +188,7 @@ describe('ConcurrencyHandler', function () {
                     if ($n === 2) {
                         throw new RuntimeException('Sync throw at 2');
                     }
+
                     return Promise::resolved($n);
                 }
             )->wait())->toThrow(RuntimeException::class, 'Sync throw at 2');
@@ -203,9 +206,9 @@ describe('ConcurrencyHandler', function () {
             $handler = new ConcurrencyHandler();
 
             $gen = (function () {
-                yield 'first'  => 1;
+                yield 'first' => 1;
                 yield 'second' => 2;
-                yield 'third'  => 3;
+                yield 'third' => 3;
             })();
 
             $results = $handler->map(
@@ -241,10 +244,6 @@ describe('ConcurrencyHandler', function () {
         });
     });
 
-    // -------------------------------------------------------------------------
-    // mapSettled()
-    // -------------------------------------------------------------------------
-
     describe('mapSettled', function () {
         it('returns fulfilled results for all successful items', function () {
             $handler = new ConcurrencyHandler();
@@ -272,6 +271,7 @@ describe('ConcurrencyHandler', function () {
                     if ($n === 2) {
                         return Promise::rejected(new RuntimeException('Rejected at 2'));
                     }
+
                     return Promise::resolved($n * 10);
                 }
             )->wait();
@@ -308,6 +308,7 @@ describe('ConcurrencyHandler', function () {
                     if ($n === 2) {
                         throw new RuntimeException('Sync throw at 2');
                     }
+
                     return Promise::resolved($n * 10);
                 }
             )->wait();
@@ -359,9 +360,9 @@ describe('ConcurrencyHandler', function () {
             $handler = new ConcurrencyHandler();
 
             $gen = (function () {
-                yield 'first'  => 1;
+                yield 'first' => 1;
                 yield 'second' => 2;
-                yield 'third'  => 3;
+                yield 'third' => 3;
             })();
 
             $results = $handler->mapSettled(
@@ -370,6 +371,7 @@ describe('ConcurrencyHandler', function () {
                     if ($key === 'second') {
                         return Promise::rejected(new RuntimeException("Rejected at: $key"));
                     }
+
                     return Promise::resolved("$key=$n");
                 }
             )->wait();
@@ -422,6 +424,339 @@ describe('ConcurrencyHandler', function () {
             expect($results[0]->value)->toBe(3);
             expect($results[1]->value)->toBe(2);
             expect($results[2]->value)->toBe(1);
+        });
+    });
+
+    describe('forEach', function () {
+        it('executes callback for each item as a side effect', function () {
+            $handler = new ConcurrencyHandler();
+            $visited = [];
+
+            $handler->forEach(
+                [1, 2, 3, 4, 5],
+                function (int $n) use (&$visited) {
+                    $visited[] = $n;
+                }
+            )->wait();
+
+            expect($visited)->toBe([1, 2, 3, 4, 5]);
+        });
+
+        it('passes string keys as second argument to callback', function () {
+            $handler = new ConcurrencyHandler();
+            $capturedKeys = [];
+
+            $handler->forEach(
+                ['foo' => 1, 'bar' => 2, 'baz' => 3],
+                function (int $n, string $key) use (&$capturedKeys) {
+                    $capturedKeys[] = $key;
+                }
+            )->wait();
+
+            expect($capturedKeys)->toBe(['foo', 'bar', 'baz']);
+        });
+
+        it('resolves promise items before passing to callback', function () {
+            $handler = new ConcurrencyHandler();
+            $received = [];
+
+            $handler->forEach(
+                [Promise::resolved(10), Promise::resolved(20), Promise::resolved(30)],
+                function (int $n) use (&$received) {
+                    $received[] = $n;
+                }
+            )->wait();
+
+            expect($received)->toBe([10, 20, 30]);
+        });
+
+        it('handles empty input', function () {
+            $handler = new ConcurrencyHandler();
+            $called = false;
+
+            $handler->forEach([], function () use (&$called) {
+                $called = true;
+            })->wait();
+
+            expect($called)->toBeFalse();
+        });
+
+        it('rejects if callback throws synchronously', function () {
+            $handler = new ConcurrencyHandler();
+
+            expect(fn () => $handler->forEach(
+                [1, 2, 3],
+                function (int $n) {
+                    if ($n === 2) {
+                        throw new RuntimeException('Failed at 2');
+                    }
+                }
+            )->wait())->toThrow(RuntimeException::class, 'Failed at 2');
+        });
+
+        it('rejects if callback returns a rejected promise', function () {
+            $handler = new ConcurrencyHandler();
+
+            expect(fn () => $handler->forEach(
+                [1, 2, 3],
+                function (int $n) {
+                    if ($n === 2) {
+                        return Promise::rejected(new RuntimeException('Async failure at 2'));
+                    }
+
+                    return Promise::resolved(null);
+                }
+            )->wait())->toThrow(RuntimeException::class, 'Async failure at 2');
+        });
+
+        it('respects the concurrency cap', function () {
+            $handler = new ConcurrencyHandler();
+            $peak = 0;
+            $running = 0;
+
+            $handler->forEach(
+                range(1, 6),
+                function (int $n) use (&$peak, &$running) {
+                    $running++;
+                    $peak = max($peak, $running);
+
+                    return new Promise(function ($resolve) use (&$running) {
+                        Loop::addTimer(0.001, function () use ($resolve, &$running) {
+                            $running--;
+                            $resolve(null);
+                        });
+                    });
+                },
+                concurrency: 2
+            )->wait();
+
+            expect($peak)->toBeLessThanOrEqual(2);
+        });
+
+        it('consumes a generator without materializing it', function () {
+            $handler = new ConcurrencyHandler();
+            $count = 0;
+
+            $gen = (function () {
+                for ($i = 0; $i < 1000; $i++) {
+                    yield $i;
+                }
+            })();
+
+            $handler->forEach(
+                $gen,
+                function (int $n) use (&$count) {
+                    $count++;
+                },
+                concurrency: 50
+            )->wait();
+
+            expect($count)->toBe(1000);
+        });
+
+        it('does not accumulate results — memory stays flat', function () {
+            $handler = new ConcurrencyHandler();
+            $memBefore = memory_get_usage(true);
+
+            $handler->forEach(
+                (function () {
+                    for ($i = 0; $i < 10_000; $i++) {
+                        yield $i;
+                    }
+                })(),
+                fn (int $n) => Promise::resolved(null),
+                concurrency: 500
+            )->wait();
+
+            $bytesPerItem = (memory_get_usage(true) - $memBefore) / 10_000;
+
+            expect($bytesPerItem)->toBeLessThan(1000);
+        });
+
+        it('validates concurrency parameter', function () {
+            $handler = new ConcurrencyHandler();
+
+            expect(fn () => $handler->forEach([], fn () => null, 0)->wait())
+                ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0')
+            ;
+
+            expect(fn () => $handler->forEach([], fn () => null, -1)->wait())
+                ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0')
+            ;
+        });
+    });
+
+    describe('forEachSettled', function () {
+        it('executes callback for all items regardless of failures', function () {
+            $handler = new ConcurrencyHandler();
+            $processed = [];
+
+            $handler->forEachSettled(
+                [1, 2, 3, 4, 5],
+                function (int $n) use (&$processed) {
+                    $processed[] = $n;
+                    if ($n === 2 || $n === 4) {
+                        throw new RuntimeException("Failed at $n");
+                    }
+                }
+            )->wait();
+
+            expect($processed)->toBe([1, 2, 3, 4, 5]);
+        });
+
+        it('outer promise always fulfills even when all callbacks throw', function () {
+            $handler = new ConcurrencyHandler();
+            $outerFulfilled = false;
+
+            $handler->forEachSettled(
+                [1, 2, 3],
+                fn (int $n) => throw new RuntimeException("Always fails: $n")
+            )->then(function () use (&$outerFulfilled) {
+                $outerFulfilled = true;
+            })->wait();
+
+            expect($outerFulfilled)->toBeTrue();
+        });
+
+        it('outer promise always fulfills even when all callbacks return rejected promises', function () {
+            $handler = new ConcurrencyHandler();
+            $outerFulfilled = false;
+
+            $handler->forEachSettled(
+                [1, 2, 3],
+                fn (int $n) => Promise::rejected(new RuntimeException("Rejected: $n"))
+            )->then(function () use (&$outerFulfilled) {
+                $outerFulfilled = true;
+            })->wait();
+
+            expect($outerFulfilled)->toBeTrue();
+        });
+
+        it('passes string keys as second argument to callback', function () {
+            $handler = new ConcurrencyHandler();
+            $capturedKeys = [];
+
+            $handler->forEachSettled(
+                ['a' => 1, 'b' => 2, 'c' => 3],
+                function (int $n, string $key) use (&$capturedKeys) {
+                    $capturedKeys[] = $key;
+                    if ($key === 'b') {
+                        throw new RuntimeException("Failed at $key");
+                    }
+                }
+            )->wait();
+
+            expect($capturedKeys)->toBe(['a', 'b', 'c']);
+        });
+
+        it('resolves promise items before passing to callback', function () {
+            $handler = new ConcurrencyHandler();
+            $received = [];
+
+            $handler->forEachSettled(
+                [Promise::resolved(10), Promise::resolved(20), Promise::resolved(30)],
+                function (int $n) use (&$received) {
+                    $received[] = $n;
+                }
+            )->wait();
+
+            expect($received)->toBe([10, 20, 30]);
+        });
+
+        it('handles empty input', function () {
+            $handler = new ConcurrencyHandler();
+            $called = false;
+
+            $handler->forEachSettled([], function () use (&$called) {
+                $called = true;
+            })->wait();
+
+            expect($called)->toBeFalse();
+        });
+
+        it('respects the concurrency cap', function () {
+            $handler = new ConcurrencyHandler();
+            $peak = 0;
+            $running = 0;
+
+            $handler->forEachSettled(
+                range(1, 6),
+                function (int $n) use (&$peak, &$running) {
+                    $running++;
+                    $peak = max($peak, $running);
+
+                    return new Promise(function ($resolve) use (&$running) {
+                        Loop::addTimer(0.001, function () use ($resolve, &$running) {
+                            $running--;
+                            $resolve(null);
+                        });
+                    });
+                },
+                concurrency: 2
+            )->wait();
+
+            expect($peak)->toBeLessThanOrEqual(2);
+        });
+
+        it('consumes a generator without materializing it', function () {
+            $handler = new ConcurrencyHandler();
+            $count = 0;
+
+            $gen = (function () {
+                for ($i = 0; $i < 1000; $i++) {
+                    yield $i;
+                }
+            })();
+
+            $handler->forEachSettled(
+                $gen,
+                function (int $n) use (&$count) {
+                    $count++;
+                    if ($n % 100 === 0) {
+                        throw new RuntimeException("Simulated failure at $n");
+                    }
+                },
+                concurrency: 50
+            )->wait();
+
+            expect($count)->toBe(1000);
+        });
+
+        it('does not accumulate results — memory stays flat', function () {
+            $handler = new ConcurrencyHandler();
+            $memBefore = memory_get_usage(true);
+
+            $handler->forEachSettled(
+                (function () {
+                    for ($i = 0; $i < 10_000; $i++) {
+                        yield $i;
+                    }
+                })(),
+                function (int $n) {
+                    if ($n % 500 === 0) {
+                        throw new RuntimeException("Simulated failure at $n");
+                    }
+
+                    return Promise::resolved(null);
+                },
+                concurrency: 500
+            )->wait();
+
+            $bytesPerItem = (memory_get_usage(true) - $memBefore) / 10_000;
+
+            expect($bytesPerItem)->toBeLessThan(1);
+        });
+
+        it('validates concurrency parameter', function () {
+            $handler = new ConcurrencyHandler();
+
+            expect(fn () => $handler->forEachSettled([], fn () => null, 0)->wait())
+                ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0')
+            ;
+
+            expect(fn () => $handler->forEachSettled([], fn () => null, -1)->wait())
+                ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0')
+            ;
         });
     });
 });
