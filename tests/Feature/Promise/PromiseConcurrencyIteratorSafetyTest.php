@@ -196,6 +196,71 @@ describe('Concurrency Iterator Graceful Rejection', function () {
         expect($results[2]->isFulfilled())->toBeTrue();
     });
 
+    test('filter rejects gracefully when iterator throws synchronously', function () {
+        $generator = function () {
+            yield 1;
+            yield 2;
+
+            throw new RuntimeException('Iterator Failure in filter');
+        };
+
+        $promise = Promise::filter(
+            $generator(),
+            fn (int $n) => Promise::resolved(true)
+        );
+
+        expect(fn () => $promise->wait())
+            ->toThrow(RuntimeException::class, 'Iterator Failure in filter')
+        ;
+    });
+
+    test('filter rejects gracefully when predicate throws synchronously', function () {
+        $promise = Promise::filter(
+            [1, 2, 3],
+            function (int $n) {
+                if ($n === 2) {
+                    throw new Exception('Predicate Setup Failed');
+                }
+
+                return Promise::resolved(true);
+            },
+            concurrency: 2
+        );
+
+        expect(fn () => $promise->wait())
+            ->toThrow(Exception::class, 'Predicate Setup Failed')
+        ;
+    });
+
+    test('filter rejects gracefully when predicate returns a rejected promise', function () {
+        $promise = Promise::filter(
+            [1, 2, 3],
+            fn (int $n) => $n === 2
+                ? Promise::rejected(new RuntimeException('Async Predicate Failure'))
+                : Promise::resolved(true),
+            concurrency: 2
+        );
+
+        expect(fn () => $promise->wait())
+            ->toThrow(RuntimeException::class, 'Async Predicate Failure')
+        ;
+    });
+
+    test('filter does not reject when predicate uses catch to handle errors', function () {
+        $promise = Promise::filter(
+            [1, 2, 3],
+            fn (int $n) => $n === 2
+                ? Promise::rejected(new RuntimeException('Recoverable'))
+                ->catch(fn () => false)
+                : Promise::resolved(true),
+            concurrency: 2
+        );
+
+        $result = $promise->wait();
+
+        expect($result)->toBe([0 => 1, 2 => 3]);
+    });
+
     test('forEach rejects gracefully when iterator throws synchronously', function () {
         $generator = function () {
             yield 1;

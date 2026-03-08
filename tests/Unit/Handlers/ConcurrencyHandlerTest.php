@@ -427,6 +427,239 @@ describe('ConcurrencyHandler', function () {
         });
     });
 
+    describe('filter', function () {
+        it('returns only items that pass the predicate', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                [1, 2, 3, 4, 5, 6],
+                fn (int $n) => $n % 2 === 0
+            )->wait();
+
+            expect($results)->toBe([1 => 2, 3 => 4, 5 => 6]);
+        });
+
+        it('returns all items when all pass the predicate', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                [1, 2, 3],
+                fn (int $n) => true
+            )->wait();
+
+            expect($results)->toBe([1, 2, 3]);
+        });
+
+        it('returns empty array when no items pass the predicate', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                [1, 2, 3],
+                fn (int $n) => false
+            )->wait();
+
+            expect($results)->toBe([]);
+        });
+
+        it('handles empty input', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter([], fn ($n) => true)->wait();
+
+            expect($results)->toBe([]);
+        });
+
+        it('preserves string keys', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                ['alice' => 30, 'bob' => 17, 'charlie' => 25, 'dave' => 15],
+                fn (int $age) => $age >= 18
+            )->wait();
+
+            expect($results)->toBe(['alice' => 30, 'charlie' => 25]);
+            expect(array_keys($results))->toBe(['alice', 'charlie']);
+        });
+
+        it('preserves non-sequential numeric keys', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                [10 => 'ten', 20 => 'twenty', 30 => 'thirty'],
+                fn (string $v, int $k) => $k !== 20
+            )->wait();
+
+            expect(array_keys($results))->toBe([10, 30]);
+            expect($results)->toBe([10 => 'ten', 30 => 'thirty']);
+        });
+
+        it('passes key as second argument to predicate', function () {
+            $handler = new ConcurrencyHandler();
+            $capturedKeys = [];
+
+            $handler->filter(
+                ['a' => 1, 'b' => 2, 'c' => 3],
+                function (int $n, string $key) use (&$capturedKeys) {
+                    $capturedKeys[] = $key;
+
+                    return true;
+                }
+            )->wait();
+
+            expect($capturedKeys)->toBe(['a', 'b', 'c']);
+        });
+
+        it('works with async predicate returning a promise', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                [1, 2, 3, 4, 5],
+                fn (int $n) => Promise::resolved($n > 3)
+            )->wait();
+
+            expect($results)->toBe([3 => 4, 4 => 5]);
+        });
+
+        it('resolves promise items before passing to predicate', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                [Promise::resolved(5), Promise::resolved(10), Promise::resolved(15)],
+                fn (int $n) => $n >= 10
+            )->wait();
+
+            expect(array_values($results))->toBe([10, 15]);
+        });
+
+        it('preserves order when async predicates resolve out of order', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                ['slow' => 100, 'fast' => 10, 'medium' => 50],
+                function (int $ms) {
+                    return new Promise(function ($resolve) use ($ms) {
+                        Loop::addTimer($ms / 1000, fn () => $resolve(true));
+                    });
+                }
+            )->wait();
+
+            expect(array_keys($results))->toBe(['slow', 'fast', 'medium']);
+        });
+
+        it('respects the concurrency cap', function () {
+            $handler = new ConcurrencyHandler();
+            $peak = 0;
+            $running = 0;
+
+            $handler->filter(
+                range(1, 6),
+                function (int $n) use (&$peak, &$running) {
+                    $running++;
+                    $peak = max($peak, $running);
+
+                    return new Promise(function ($resolve) use ($n, &$running) {
+                        Loop::addTimer(0.001, function () use ($n, $resolve, &$running) {
+                            $running--;
+                            $resolve($n % 2 === 0);
+                        });
+                    });
+                },
+                concurrency: 2
+            )->wait();
+
+            expect($peak)->toBeLessThanOrEqual(2);
+        });
+
+        it('consumes a generator without materializing it', function () {
+            $handler = new ConcurrencyHandler();
+
+            $gen = (function () {
+                for ($i = 1; $i <= 10; $i++) {
+                    yield $i;
+                }
+            })();
+
+            $results = $handler->filter(
+                $gen,
+                fn (int $n) => $n % 3 === 0
+            )->wait();
+
+            expect(array_values($results))->toBe([3, 6, 9]);
+        });
+
+        it('rejects when predicate throws synchronously', function () {
+            $handler = new ConcurrencyHandler();
+
+            expect(fn () => $handler->filter(
+                [1, 2, 3],
+                function (int $n) {
+                    if ($n === 2) {
+                        throw new RuntimeException('Predicate failed at 2');
+                    }
+
+                    return true;
+                }
+            )->wait())->toThrow(RuntimeException::class, 'Predicate failed at 2');
+        });
+
+        it('rejects when predicate returns a rejected promise', function () {
+            $handler = new ConcurrencyHandler();
+
+            expect(fn () => $handler->filter(
+                [1, 2, 3],
+                fn (int $n) => $n === 2
+                    ? Promise::rejected(new RuntimeException('Async predicate failure'))
+                    : Promise::resolved(true)
+            )->wait())->toThrow(RuntimeException::class, 'Async predicate failure');
+        });
+
+        it('rejects when iterator throws synchronously', function () {
+            $handler = new ConcurrencyHandler();
+
+            $generator = function () {
+                yield 1;
+
+                throw new RuntimeException('Iterator failure in filter');
+            };
+
+            expect(fn () => $handler->filter(
+                $generator(),
+                fn (int $n) => true
+            )->wait())->toThrow(RuntimeException::class, 'Iterator failure in filter');
+        });
+
+        it('validates concurrency parameter', function () {
+            $handler = new ConcurrencyHandler();
+
+            expect(fn () => $handler->filter([], fn () => true, 0)->wait())
+                ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0')
+            ;
+
+            expect(fn () => $handler->filter([], fn () => true, -1)->wait())
+                ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0')
+            ;
+        });
+
+        it('treats errors as false when predicate uses catch', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                [1, 2, 3, 4, 5],
+                function (int $n) {
+                    if ($n === 3) {
+                        return Promise::rejected(new RuntimeException('Unavailable'))
+                            ->catch(fn () => false)
+                        ;
+                    }
+
+                    return Promise::resolved($n % 2 === 0);
+                }
+            )->wait();
+
+            expect(array_values($results))->toBe([2, 4]);
+        });
+    });
+
     describe('forEach', function () {
         it('executes callback for each item as a side effect', function () {
             $handler = new ConcurrencyHandler();
@@ -755,8 +988,7 @@ describe('ConcurrencyHandler', function () {
             ;
 
             expect(fn () => $handler->forEachSettled([], fn () => null, -1)->wait())
-                ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0')
-            ;
+                ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0');
         });
     });
 });

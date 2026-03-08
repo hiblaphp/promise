@@ -799,6 +799,204 @@ final readonly class ConcurrencyHandler
     }
 
     /**
+     * @template TFilterItem
+     *
+     * @param iterable<int|string, TFilterItem> $items
+     * @param callable(TFilterItem, int|string): (bool|PromiseInterface<bool>) $predicate
+     * @param int|null $concurrency
+     *
+     * @return PromiseInterface<array<int|string, TFilterItem>>
+     */
+    public function filter(iterable $items, callable $predicate, ?int $concurrency = null): PromiseInterface
+    {
+        /** @var array<int|string, PromiseInterface<mixed>> $promiseInstances */
+        $promiseInstances = [];
+
+        /** @var Promise<array<int|string, TFilterItem>> $filterPromise */
+        $filterPromise = new Promise(function (callable $resolve, callable $reject) use ($items, $predicate, $concurrency, &$promiseInstances): void {
+            $concurrency ??= PHP_INT_MAX;
+
+            if ($concurrency <= 0) {
+                $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));
+
+                return;
+            }
+
+            // Snapshot the items since it need both the original value and the predicate result.
+            $snapshot = [];
+            $tasks = (function () use ($items, $predicate, &$snapshot) {
+                foreach ($items as $key => $item) {
+                    $snapshot[$key] = $item;
+
+                    yield $key => function () use ($item, $predicate, $key, &$snapshot) {
+                        $inputPromise = $item instanceof PromiseInterface
+                            ? $item
+                            : Promise::resolved($item);
+
+                        return $inputPromise->then(function ($resolvedValue) use ($predicate, $key, &$snapshot) {
+                            $snapshot[$key] = $resolvedValue;
+
+                            return $predicate($resolvedValue, $key);
+                        });
+                    };
+                }
+            })();
+
+            try {
+                $iterator = $this->getIterator($tasks);
+                $iterator->rewind();
+
+                if (! $iterator->valid()) {
+                    $resolve([]);
+
+                    return;
+                }
+            } catch (Throwable $e) {
+                $reject($e);
+
+                return;
+            }
+
+            $predicateResults = [];
+            $keyOrder = [];
+            $running = 0;
+            $state = (object) ['isRejected' => false, 'exhausted' => false, 'scheduled' => false];
+
+            $processNext = function () use (
+                &$processNext,
+                $iterator,
+                &$running,
+                &$predicateResults,
+                &$keyOrder,
+                &$snapshot,
+                $state,
+                &$promiseInstances,
+                $concurrency,
+                $resolve,
+                $reject,
+            ): void {
+                $state->scheduled = false;
+
+                if ($state->isRejected) {
+                    return;
+                }
+
+                try {
+                    while ($running < $concurrency && $iterator->valid()) {
+                        $key = $iterator->key();
+                        $task = $iterator->current();
+                        $iterator->next();
+                        $running++;
+                        $keyOrder[] = $key;
+
+                        try {
+                            $promise = $task();
+
+                            if (! $promise instanceof PromiseInterface) {
+                                throw new RuntimeException(sprintf(
+                                    'Predicate at key "%s" must return a bool or PromiseInterface, %s given',
+                                    $key,
+                                    get_debug_type($promise)
+                                ));
+                            }
+
+                            if ($promise->isCancelled()) {
+                                $state->isRejected = true;
+                                $this->cancelAll($promiseInstances);
+                                $reject(new CancelledException(sprintf('Promise at key "%s" was cancelled', $key)));
+
+                                return;
+                            }
+
+                            $promiseInstances[$key] = $promise;
+
+                            $promise->onCancel(function () use ($key, $state, &$promiseInstances, $reject): void {
+                                if ($state->isRejected) {
+                                    return;
+                                }
+                                $state->isRejected = true;
+                                $this->cancelAll($promiseInstances);
+                                $reject(new CancelledException(sprintf('Promise at key "%s" was cancelled', $key)));
+                            });
+                        } catch (Throwable $e) {
+                            $state->isRejected = true;
+                            $this->cancelAll($promiseInstances);
+                            $reject($e);
+
+                            return;
+                        }
+
+                        $promise->then(
+                            function (mixed $passed) use ($key, &$running, &$predicateResults, &$keyOrder, &$snapshot, $state, $resolve, $processNext): void {
+                                if ($state->isRejected) {
+                                    return;
+                                }
+
+                                $predicateResults[$key] = (bool) $passed;
+                                $running--;
+
+                                if ($state->exhausted && $running === 0) {
+                                    $resolve($this->applyFilter($keyOrder, $predicateResults, $snapshot));
+                                } elseif (! $state->scheduled) {
+                                    $state->scheduled = true;
+                                    Loop::microTask($processNext);
+                                }
+                            },
+                            function ($error) use ($state, &$promiseInstances, $reject): void {
+                                if ($state->isRejected) {
+                                    return;
+                                }
+                                $state->isRejected = true;
+                                $this->cancelAll($promiseInstances);
+                                $reject($error);
+                            }
+                        );
+                    }
+
+                    if (! $iterator->valid()) {
+                        $state->exhausted = true;
+                        if ($running === 0) {
+                            $resolve($this->applyFilter($keyOrder, $predicateResults, $snapshot));
+                        }
+                    }
+                } catch (Throwable $e) {
+                    $state->isRejected = true;
+                    $this->cancelAll($promiseInstances);
+                    $reject($e);
+                }
+            };
+
+            Loop::microTask($processNext);
+        });
+
+        $filterPromise->onCancel(function () use (&$promiseInstances): void {
+            $this->cancelAll($promiseInstances);
+        });
+
+        return $filterPromise;
+    }
+
+    /**
+     * Builds the filtered result array in original key order.
+     *
+     * @param array<int, int|string>       $keyOrder
+     * @param array<int|string, bool>      $predicateResults
+     * @param array<int|string, mixed>     $snapshot
+     * @return array<int|string, mixed>
+     */
+    private function applyFilter(array $keyOrder, array $predicateResults, array $snapshot): array
+    {
+        $filtered = [];
+        foreach ($keyOrder as $key) {
+            if ($predicateResults[$key] ?? false) {
+                $filtered[$key] = $snapshot[$key];
+            }
+        }
+
+        return $filtered;
+    }
+
+    /**
      * Normalizes an iterable into a manual Iterator without materializing it.
      *
      * @param  iterable<int|string, callable(): PromiseInterface<mixed>>  $tasks

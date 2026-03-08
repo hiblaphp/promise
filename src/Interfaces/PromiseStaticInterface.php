@@ -289,6 +289,92 @@ interface PromiseStaticInterface
     public static function mapSettled(iterable $items, callable $mapper, ?int $concurrency = null): PromiseInterface;
 
     /**
+     * Iterates over an iterable, tests each value against a predicate function, and returns
+     * a promise that resolves to an array containing only the items that passed.
+     *
+     * This method automatically manages the execution queue. It pulls items from the iterable
+     * and evaluates predicates concurrently up to the specified limit.
+     *
+     * Key Features:
+     * - **Input Resolution**: If the input `$items` contains Promises, this method waits for
+     *   them to resolve before passing the value to the `$predicate`.
+     * - **Order Preservation**: The resulting array keys and order match the input iterable.
+     *   Items are included or excluded based on predicate result, but their relative order
+     *   is never changed.
+     * - **Key Preservation**: Original keys (string or numeric) are preserved in the output.
+     * - **Concurrency Control**: Defaults to a safe limit (10) to prevent resource exhaustion.
+     * - **Fail-Fast**: Rejects on the first predicate exception or rejected promise. If you
+     *   need resilience, handle errors inside the predicate using ->catch(fn () => false) to
+     *   treat failures as a non-passing result.
+     *
+     * When to use filter() vs map():
+     * - Use {@see map()} when you want to transform every item.
+     * - Use filter() when you want to select a subset of items based on a condition.
+     *
+     * Resilient predicate pattern (filterSettled equivalent):
+     * ```php
+     * Promise::filter($items, function ($item) {
+     *     return checkItem($item)
+     *         ->catch(fn () => false); // treat predicate errors as non-passing
+     * });
+     * ```
+     *
+     * @template TFilterItem
+     *
+     * @param iterable<int|string, TFilterItem> $items Input values. Can be scalar values or Promises.
+     * @param callable(TFilterItem, int|string): (bool|PromiseInterface<bool>) $predicate
+     *        Function to test each item. Receives ($value, $key). Must return a bool or
+     *        a Promise that resolves to a bool.
+     * @param int|null $concurrency Maximum number of concurrent predicate evaluations.
+     *                              - Pass `null` for **Unlimited** concurrency.
+     *
+     * @return PromiseInterface<array<int|string, TFilterItem>>
+     *         A promise that resolves with an array of items that passed the predicate,
+     *         preserving original keys and order.
+     * @static
+     */
+    public static function filter(iterable $items, callable $predicate, ?int $concurrency = null): PromiseInterface;
+
+    /**
+     * Iterates over an iterable sequentially, accumulating a single value by applying
+     * a reducer function to each item and the running carry, and returns a promise that
+     * resolves to the final accumulated value.
+     *
+     * Unlike {@see map()} and {@see filter()}, reduce() is inherently sequential —
+     * each step waits for the previous one to complete before proceeding, because each
+     * iteration receives the result of the prior step as its carry value.
+     *
+     *  **Sequential**: There is no concurrency parameter. If your reducer does not depend
+     * on the previous carry value, consider {@see map()} followed by array_reduce() for
+     * better throughput.
+     *
+     * Key Features:
+     * - **Sequential Execution**: Each reducer invocation waits for the previous to settle.
+     * - **Input Resolution**: If `$items` contains Promises, each is resolved before being
+     *   passed to the reducer.
+     * - **Async Reducer**: The reducer may return a plain value or a Promise. If a Promise
+     *   is returned, the next step waits for it to resolve before proceeding.
+     * - **Fail-Fast**: Rejects immediately if any reducer invocation throws or returns a
+     *   rejected promise.
+     * - **Empty Input**: Resolves immediately with the initial value if the iterable is empty.
+     *
+     * @template TReduceItem
+     * @template TReduceCarry
+     *
+     * @param iterable<int|string, TReduceItem> $items
+     *        Input values. Can be scalar values or Promises.
+     * @param callable(TReduceCarry, TReduceItem, int|string): (TReduceCarry|PromiseInterface<TReduceCarry>) $reducer
+     *        Function receiving ($carry, $value, $key). May return a plain value or a Promise.
+     * @param TReduceCarry $initial
+     *        The initial carry value passed to the first reducer invocation.
+     *
+     * @return PromiseInterface<TReduceCarry>
+     *         A promise that resolves with the final accumulated value.
+     * @static
+     */
+    public static function reduce(iterable $items, callable $reducer, mixed $initial = null): PromiseInterface;
+
+    /**
      * Iterates over an iterable, executes a callback for each value as a side effect, and returns
      * a promise that resolves when all callbacks have completed.
      *

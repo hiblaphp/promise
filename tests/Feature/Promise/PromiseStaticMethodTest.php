@@ -881,6 +881,348 @@ describe('Promise Static Methods', function () {
         });
     });
 
+    describe('Promise::filter', function () {
+        it('returns only items that pass the predicate', function () {
+            $items = [1, 2, 3, 4, 5, 6];
+            $result = Promise::filter($items, fn ($n) => $n % 2 === 0)->wait();
+
+            expect($result)->toBe([1 => 2, 3 => 4, 5 => 6]);
+        });
+
+        it('returns all items when all pass the predicate', function () {
+            $result = Promise::filter([1, 2, 3], fn ($n) => true)->wait();
+
+            expect($result)->toBe([1, 2, 3]);
+        });
+
+        it('returns empty array when no items pass', function () {
+            $result = Promise::filter([1, 2, 3], fn ($n) => false)->wait();
+
+            expect($result)->toBe([]);
+        });
+
+        it('handles empty input', function () {
+            $result = Promise::filter([], fn ($n) => true)->wait();
+
+            expect($result)->toBe([]);
+        });
+
+        it('works with async predicate', function () {
+            $result = Promise::filter(
+                [1, 2, 3, 4, 5],
+                fn (int $n) => delay(0.01)->then(fn () => $n > 3)
+            )->wait();
+
+            expect($result)->toBe([3 => 4, 4 => 5]);
+        });
+
+        it('resolves input promises before passing to predicate', function () {
+            $items = [
+                10,
+                Promise::resolved(20),
+                delay(0.05)->then(fn () => 30),
+            ];
+
+            $result = Promise::filter($items, fn (int $n) => $n >= 20)->wait();
+
+            expect(array_values($result))->toBe([20, 30]);
+        });
+
+        it('preserves string keys', function () {
+            $result = Promise::filter(
+                ['alice' => 30, 'bob' => 17, 'charlie' => 25, 'dave' => 15],
+                fn (int $age) => $age >= 18
+            )->wait();
+
+            expect($result)->toBe(['alice' => 30, 'charlie' => 25]);
+            expect(array_keys($result))->toBe(['alice', 'charlie']);
+        });
+
+        it('preserves non-sequential numeric keys', function () {
+            $result = Promise::filter(
+                [10 => 'ten', 20 => 'twenty', 30 => 'thirty'],
+                fn (string $v, int $k) => $k !== 20
+            )->wait();
+
+            expect(array_keys($result))->toBe([10, 30]);
+            expect($result)->toBe([10 => 'ten', 30 => 'thirty']);
+        });
+
+        it('passes keys to the predicate', function () {
+            $capturedKeys = [];
+
+            Promise::filter(
+                ['a' => 1, 'b' => 2, 'c' => 3],
+                function (int $n, string $key) use (&$capturedKeys) {
+                    $capturedKeys[] = $key;
+
+                    return true;
+                }
+            )->wait();
+
+            expect($capturedKeys)->toBe(['a', 'b', 'c']);
+        });
+
+        it('preserves order even when async predicates resolve out of order', function () {
+            $items = [0.1, 0.3, 0.05];
+
+            $result = Promise::filter(
+                $items,
+                fn (float $time) => delay($time)->then(fn () => true)
+            )->wait();
+
+            expect(array_keys($result))->toBe([0, 1, 2]);
+        });
+
+        it('respects concurrency limits', function () {
+            $startTime = microtime(true);
+            $items = [1, 2, 3, 4];
+
+            Promise::filter($items, fn () => delay(0.1)->then(fn () => true), 2)->wait();
+
+            $executionTime = microtime(true) - $startTime;
+
+            expect($executionTime)->toBeGreaterThan(0.2);
+            expect($executionTime)->toBeLessThan(0.35);
+        });
+
+        it('treats null concurrency as unlimited', function () {
+            $startTime = microtime(true);
+            $items = array_fill(0, 10, null);
+
+            Promise::filter($items, fn () => delay(0.1)->then(fn () => true), null)->wait();
+
+            $executionTime = microtime(true) - $startTime;
+
+            expect($executionTime)->toBeLessThan(0.2);
+        });
+
+        it('works with generators', function () {
+            $generator = function () {
+                yield 'a' => 1;
+                yield 'b' => 2;
+                yield 'c' => 3;
+            };
+
+            $result = Promise::filter($generator(), fn (int $n) => $n !== 2)->wait();
+
+            expect(array_keys($result))->toBe(['a', 'c']);
+            expect(array_values($result))->toBe([1, 3]);
+        });
+
+        it('rejects immediately if predicate throws', function () {
+            try {
+                Promise::filter(
+                    [1, 2, 3],
+                    function (int $n) {
+                        if ($n === 2) {
+                            throw new Exception('filter error');
+                        }
+
+                        return true;
+                    }
+                )->wait();
+                expect(false)->toBeTrue('Expected exception');
+            } catch (Exception $e) {
+                expect($e->getMessage())->toBe('filter error');
+            }
+        });
+
+        it('rejects immediately if predicate returns rejected promise', function () {
+            try {
+                Promise::filter(
+                    [1, 2, 3],
+                    fn (int $n) => $n === 2
+                        ? Promise::rejected(new Exception('async filter error'))
+                        : Promise::resolved(true)
+                )->wait();
+                expect(false)->toBeTrue('Expected exception');
+            } catch (Exception $e) {
+                expect($e->getMessage())->toBe('async filter error');
+            }
+        });
+
+        it('treats predicate errors as false when using catch', function () {
+            $result = Promise::filter(
+                [1, 2, 3, 4, 5],
+                function (int $n) {
+                    if ($n === 3) {
+                        return Promise::rejected(new Exception('Unavailable'))
+                            ->catch(fn () => false)
+                        ;
+                    }
+
+                    return Promise::resolved($n % 2 === 0);
+                }
+            )->wait();
+
+            expect(array_values($result))->toBe([2, 4]);
+        });
+
+        it('chains naturally with map and reduce', function () {
+            $result = Promise::filter(
+                [1, 2, 3, 4, 5, 6],
+                fn (int $n) => $n % 2 === 0
+            )->then(fn (array $evens) => Promise::map(
+                $evens,
+                fn (int $n) => Promise::resolved($n * 10)
+            ))->then(fn (array $mapped) => Promise::reduce(
+                $mapped,
+                fn (int $carry, int $n) => $carry + $n,
+                0
+            ))->wait();
+
+            // evens: [2, 4, 6] → mapped: [20, 40, 60] → sum: 120
+            expect($result)->toBe(120);
+        });
+    });
+
+    describe('Promise::reduce', function () {
+        it('reduces integers to a sum with synchronous reducer', function () {
+            $result = Promise::reduce(
+                [1, 2, 3, 4, 5],
+                fn (int $carry, int $n) => $carry + $n,
+                0
+            )->wait();
+
+            expect($result)->toBe(15);
+        });
+
+        it('reduces with an async reducer', function () {
+            $result = Promise::reduce(
+                [1, 2, 3, 4, 5],
+                fn (int $carry, int $n) => delay(0.01)->then(fn () => $carry + $n),
+                0
+            )->wait();
+
+            expect($result)->toBe(15);
+        });
+
+        it('resolves input promises before passing to reducer', function () {
+            $result = Promise::reduce(
+                [
+                    10,
+                    Promise::resolved(20),
+                    delay(0.05)->then(fn () => 30),
+                ],
+                fn (int $carry, int $n) => $carry + $n,
+                0
+            )->wait();
+
+            expect($result)->toBe(60);
+        });
+
+        it('passes key as third argument to reducer', function () {
+            $capturedKeys = [];
+
+            Promise::reduce(
+                ['a' => 1, 'b' => 2, 'c' => 3],
+                function (int $carry, int $n, string $key) use (&$capturedKeys) {
+                    $capturedKeys[] = $key;
+
+                    return $carry + $n;
+                },
+                0
+            )->wait();
+
+            expect($capturedKeys)->toBe(['a', 'b', 'c']);
+        });
+
+        it('returns initial value for empty input', function () {
+            $result = Promise::reduce([], fn ($carry, $n) => $carry + $n, 99)->wait();
+
+            expect($result)->toBe(99);
+        });
+
+        it('executes sequentially', function () {
+            $executionOrder = [];
+
+            Promise::reduce(
+                [1, 2, 3],
+                function (array $carry, int $n) use (&$executionOrder) {
+                    $executionOrder[] = "step_{$n}_carry_" . count($carry);
+                    $carry[] = $n;
+
+                    return delay(0.01)->then(fn () => $carry);
+                },
+                []
+            )->wait();
+
+            expect($executionOrder)->toBe([
+                'step_1_carry_0',
+                'step_2_carry_1',
+                'step_3_carry_2',
+            ]);
+        });
+
+        it('works with generators', function () {
+            $generator = function () {
+                yield 'a' => 1;
+                yield 'b' => 2;
+                yield 'c' => 3;
+            };
+
+            $result = Promise::reduce(
+                $generator(),
+                fn (int $carry, int $n) => $carry + $n,
+                0
+            )->wait();
+
+            expect($result)->toBe(6);
+        });
+
+        it('rejects immediately if reducer throws', function () {
+            try {
+                Promise::reduce(
+                    [1, 2, 3],
+                    function (int $carry, int $n) {
+                        if ($n === 2) {
+                            throw new Exception('reduce error');
+                        }
+
+                        return $carry + $n;
+                    },
+                    0
+                )->wait();
+                expect(false)->toBeTrue('Expected exception');
+            } catch (Exception $e) {
+                expect($e->getMessage())->toBe('reduce error');
+            }
+        });
+
+        it('rejects immediately if reducer returns rejected promise', function () {
+            try {
+                Promise::reduce(
+                    [1, 2, 3],
+                    fn (int $carry, int $n) => $n === 2
+                        ? Promise::rejected(new Exception('async reduce error'))
+                        : Promise::resolved($carry + $n),
+                    0
+                )->wait();
+                expect(false)->toBeTrue('Expected exception');
+            } catch (Exception $e) {
+                expect($e->getMessage())->toBe('async reduce error');
+            }
+        });
+
+        it('chains naturally after filter and map', function () {
+            $result = Promise::filter(
+                [1, 2, 3, 4, 5, 6],
+                fn (int $n) => $n % 2 === 0
+            )->then(fn (array $evens) => Promise::map(
+                $evens,
+                fn (int $n) => Promise::resolved($n * 10)
+            ))->then(fn (array $mapped) => Promise::reduce(
+                $mapped,
+                fn (int $carry, int $n) => $carry + $n,
+                0
+            ))->wait();
+
+            // evens: [2, 4, 6] → mapped: [20, 40, 60] → sum: 120
+            expect($result)->toBe(120);
+        });
+    });
+
     describe('Promise::forEach', function () {
         it('executes callback for each item as a side effect', function () {
             $visited = [];

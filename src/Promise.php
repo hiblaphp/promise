@@ -7,6 +7,7 @@ namespace Hibla\Promise;
 use Hibla\EventLoop\Loop;
 use Hibla\Promise\Handlers\ConcurrencyHandler;
 use Hibla\Promise\Handlers\PromiseCollectionHandler;
+use Hibla\Promise\Handlers\ReduceHandler;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Interfaces\PromiseStaticInterface;
 
@@ -147,6 +148,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     private static ?PromiseCollectionHandler $collectionHandler = null;
 
     private static ?ConcurrencyHandler $concurrencyHandler = null;
+
+    private static ?ReduceHandler $reduceHandler = null;
 
     private PromiseState $state = PromiseState::PENDING;
 
@@ -788,11 +791,30 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         return self::getConcurrencyHandler()->mapSettled($items, $mapper, $concurrency);
     }
 
+    /**
+     * @inheritDoc
+     */
+    public static function filter(iterable $items, callable $predicate, ?int $concurrency = null): PromiseInterface
+    {
+        return self::getConcurrencyHandler()->filter($items, $predicate, $concurrency);
+    }
+
+    public static function reduce(iterable $items, callable $reducer, mixed $initial = null): PromiseInterface
+    {
+        return self::getReduceHandler()->reduce($items, $reducer, $initial);
+    }
+
+    /**
+     * @inheritDoc
+     */
     public static function forEach(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface
     {
         return self::getConcurrencyHandler()->forEach($items, $callback, $concurrency);
     }
 
+    /**
+     * @inheritDoc
+     */
     public static function forEachSettled(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface
     {
         return self::getConcurrencyHandler()->forEachSettled($items, $callback, $concurrency);
@@ -836,6 +858,14 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     private static function getConcurrencyHandler(): ConcurrencyHandler
     {
         return self::$concurrencyHandler ??= new ConcurrencyHandler();
+    }
+
+    /**
+     * Get or create the ReduceHandler instance.
+     */
+    private static function getReduceHandler(): ReduceHandler
+    {
+        return self::$reduceHandler ??= new ReduceHandler();
     }
 
     /**

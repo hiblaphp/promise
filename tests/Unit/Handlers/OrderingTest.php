@@ -1364,4 +1364,145 @@ describe('Edge Cases for Ordering', function () {
             expect($results['third']->isFulfilled())->toBeTrue();
         });
     });
+
+    describe('ConcurrencyHandler filter() Ordering', function () {
+
+        it('preserves input order even when async predicates resolve out of order', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                ['slow' => 50, 'fast' => 5, 'medium' => 25],
+                fn (int $ms) => delayedValue(true, $ms)
+            )->wait();
+
+            expect(array_keys($results))->toBe(['slow', 'fast', 'medium']);
+        });
+
+        it('preserves non-sequential numeric keys in filtered output', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                [5 => 'five', 10 => 'ten', 15 => 'fifteen', 20 => 'twenty'],
+                fn (string $v, int $k) => $k !== 10
+            )->wait();
+
+            expect(array_keys($results))->toBe([5, 15, 20]);
+            expect($results)->toBe([5 => 'five', 15 => 'fifteen', 20 => 'twenty']);
+        });
+
+        it('preserves negative and mixed numeric keys after filtering', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                [-10 => 'neg', 0 => 'zero', 10 => 'pos'],
+                fn (string $v, int $k) => $k !== 0
+            )->wait();
+
+            expect(array_keys($results))->toBe([-10, 10]);
+        });
+
+        it('preserves string key order when subset is returned', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                ['alice' => 30, 'bob' => 17, 'charlie' => 25, 'dave' => 15, 'eve' => 22],
+                fn (int $age) => delayedValue($age >= 18, 50 - $age) // older = resolves later
+            )->wait();
+
+            expect(array_keys($results))->toBe(['alice', 'charlie', 'eve']);
+        });
+
+        it('preserves unicode string keys after filtering', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                ['café' => 1, '日本' => 2, '🚀' => 3],
+                fn (int $n) => $n !== 2
+            )->wait();
+
+            expect(array_keys($results))->toBe(['café', '🚀']);
+            expect($results['café'])->toBe(1);
+            expect($results['🚀'])->toBe(3);
+        });
+
+        it('preserves order with low concurrency and out-of-order resolution', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                ['a' => 50, 'b' => 5, 'c' => 25, 'd' => 1, 'e' => 100],
+                fn (int $ms) => delayedValue(true, $ms),
+                concurrency: 2
+            )->wait();
+
+            expect(array_keys($results))->toBe(['a', 'b', 'c', 'd', 'e']);
+        });
+
+        it('preserves order when only first item passes', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                ['first' => 1, 'second' => 2, 'third' => 3],
+                fn (int $n, string $key) => delayedValue($key === 'first', 30)
+            )->wait();
+
+            expect(array_keys($results))->toBe(['first']);
+            expect($results['first'])->toBe(1);
+        });
+
+        it('preserves order when only last item passes', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                ['first' => 1, 'second' => 2, 'third' => 3],
+                fn (int $n, string $key) => delayedValue($key === 'third', 30)
+            )->wait();
+
+            expect(array_keys($results))->toBe(['third']);
+            expect($results['third'])->toBe(3);
+        });
+
+        it('returns empty array in correct type when nothing passes', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                ['a' => 1, 'b' => 2, 'c' => 3],
+                fn () => delayedValue(false, 10)
+            )->wait();
+
+            expect($results)->toBe([]);
+            expect(is_array($results))->toBeTrue();
+        });
+
+        it('preserves order with duplicate values across different keys', function () {
+            $handler = new ConcurrencyHandler();
+
+            $results = $handler->filter(
+                ['key_a' => 5, 'key_b' => 5, 'key_c' => 5, 'key_d' => 10],
+                fn (int $n) => delayedValue($n === 5, 10)
+            )->wait();
+
+            expect(array_keys($results))->toBe(['key_a', 'key_b', 'key_c']);
+        });
+
+        it('preserves order with large number of items and low concurrency', function () {
+            $handler = new ConcurrencyHandler();
+            $items = [];
+            $expected = [];
+
+            for ($i = 0; $i < 20; $i++) {
+                $items["key_{$i}"] = $i;
+                if ($i % 2 === 0) {
+                    $expected[] = "key_{$i}";
+                }
+            }
+
+            $results = $handler->filter(
+                $items,
+                fn (int $n) => delayedValue($n % 2 === 0, 20 - $n % 10),
+                concurrency: 3
+            )->wait();
+
+            expect(array_keys($results))->toBe($expected);
+        });
+    });
 });
