@@ -6,8 +6,12 @@ namespace Hibla\Promise\Exceptions;
 
 class TimeoutException extends \RuntimeException
 {
-    public function __construct(float $timeout)
+    public function __construct(string|float $timeout)
     {
-        parent::__construct("Operation timed out after {$timeout} seconds");
+        $message = \is_string($timeout)
+            ? $timeout
+            : "Operation timed out after {$timeout} seconds";
+
+        parent::__construct($message);
     }
 }
