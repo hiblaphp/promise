@@ -27,8 +27,8 @@ cancellation, structured concurrency, and a rich set of collection and concurren
 ## Contents
 
 - [Installation](#installation)
-- [What is a Promise](#what-is-a-promise?)
-- [How Hibla Promise Differes from other Implentations](#how-hibla-promise-differs-from-other-implementations)
+- [What is a Promise](#what-is-a-promise)
+- [How Hibla Promise Differs from Other Implementations](#how-hibla-promise-differs-from-other-implementations)
 - [Basic Usage](#basic-usage)
 - [The Deferred Pattern](#the-deferred-pattern)
 - [Chaining](#chaining)
