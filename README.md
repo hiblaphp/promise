@@ -24,6 +24,24 @@ cancellation, structured concurrency, and a rich set of collection and concurren
 
 ---
 
+## Contents
+
+- [Installation](#installation)
+- [Basic Usage](#basic-usage)
+- [The Deferred Pattern](#the-deferred-pattern)
+- [Chaining](#chaining)
+- [Blocking — wait()](#blocking--wait)
+- [Async Delay](#async-delay)
+- [Cancellation](#cancellation)
+- [Collection Methods](#collection-methods)
+- [Concurrency Utilities](#concurrency-utilities)
+- [Unhandled Rejections](#unhandled-rejections)
+- [SettledResult](#settledresult)
+- [API Reference](#api-reference)
+- [Development](#development)
+
+---
+
 ## Installation
 ```bash
 composer require hiblaphp/promise
@@ -35,7 +53,7 @@ composer require hiblaphp/promise
 
 ---
 
-## 1. Basic Usage
+## Basic Usage
 
 ### Creating a Promise
 ```php
@@ -88,7 +106,7 @@ $promise = Promise::rejected(new \RuntimeException('Already failed'));
 
 ---
 
-## 2. The Deferred Pattern
+## The Deferred Pattern
 
 The deferred pattern separates the **creation** of a promise from its
 **resolution**. Instead of resolving inside an executor callback, you create
@@ -168,7 +186,7 @@ function readOnce($stream): PromiseInterface
 
 ---
 
-## 3. Chaining
+## Chaining
 
 `then()` returns a new promise that resolves with the return value of the
 callback, enabling chains. A value returned from a `catch()` handler recovers
@@ -341,7 +359,7 @@ $promise
 
 ---
 
-## 4. Blocking — `wait()`
+## Blocking — `wait()`
 
 `wait()` drives the event loop synchronously until the promise settles. Use
 it at the top level of your application to get a result without restructuring
@@ -367,7 +385,7 @@ try {
 
 ---
 
-## 5. Async Delay
+## Async Delay
 
 The global `delay()` function returns a promise that resolves after the
 given number of seconds. It is cancellable — cancelling it also cancels
@@ -380,7 +398,7 @@ delay(1.5)->then(fn() => print("1.5 seconds later\n"));
 
 ---
 
-## 6. Cancellation
+## Cancellation
 
 ### The 4-state model
 
@@ -501,7 +519,7 @@ $processed->cancelChain(); // Cancels download AND processed
 
 ---
 
-## 7. Collection Methods
+## Collection Methods
 
 All collection methods are static and must be called on the `Promise` class,
 not on promise instances.
@@ -799,7 +817,7 @@ queries, HTTP requests, user input, or any external I/O.
 
 ---
 
-## 8. Concurrency Utilities
+## Concurrency Utilities
 
 All concurrency methods accept **callables that return promises**, not
 pre-created promise instances. This is fundamental — a pre-created promise is
@@ -1191,7 +1209,7 @@ always faster.
 
 ---
 
-## 9. Unhandled Rejections
+## Unhandled Rejections
 
 If a promise is rejected and no `catch()` or rejection handler is ever
 attached, the rejection reason is written to `STDERR` when the promise is
@@ -1221,7 +1239,7 @@ Promise::setRejectionHandler(null);
 
 ---
 
-## 10. `SettledResult`
+## `SettledResult`
 
 `SettledResult` is the value object returned by `allSettled()`,
 `concurrentSettled()`, `batchSettled()`, `mapSettled()`, and
