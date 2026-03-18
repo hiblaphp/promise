@@ -194,11 +194,72 @@ $promise->isCancelled();  // false
 $promise->isFulfilled();  // true
 ```
 
-This guarantee means you never need to guard against a promise being both cancelled and fulfilled simultaneously. Whichever transition happens first wins, and all subsequent state changes are ignored.
+This guarantee means you never need to guard against a promise being both
+cancelled and fulfilled simultaneously. Whichever transition happens first
+wins, and all subsequent state changes are ignored.
 
-Having `cancelled` as a distinct, unambiguous state is also what makes **structured concurrency** possible. Because the library can reliably distinguish between a promise that failed and one that was deliberately stopped, the collection combinators — `all()`, `race()`, `any()`, and `timeout()` — can make precise decisions about what to do with siblings. When one promise in a collection rejects, the others are still pending, and the library can cancel them cleanly knowing that cancellation will never be confused with a failure. When a cancelled promise is detected inside a collection, the library knows it was an intentional abort and can propagate that intent outward rather than swallowing it or misreporting it as an error.
+### The cancelled state is what makes structured concurrency possible
 
-Without a dedicated cancelled state, this falls apart. If cancellation is just rejection in disguise, a combinator cannot tell whether a sibling failed on its own or was cancelled as a side effect of another failure — which makes it impossible to enforce clean, predictable cleanup across the collection.
+This is not just a cleaner API — the cancelled state is the **prerequisite**
+that makes structured concurrency semantically correct. The two concepts are
+directly linked.
+
+Structured concurrency requires that when one operation in a group fails, all
+sibling operations can be cleanly stopped and the failure reason propagates
+outward accurately. For this to work, the library needs to reliably distinguish
+between two fundamentally different situations:
+
+- A promise that **rejected on its own** — something went wrong, the error
+  should propagate
+- A promise that was **cancelled as a side effect** of a sibling failing —
+  nothing went wrong with this promise, it was deliberately stopped, and its
+  stopping should not be reported as an error
+
+Without a distinct cancelled state this distinction is impossible. If
+cancellation is just rejection with a special exception, a combinator like
+`all()` cannot tell whether a sibling rejected because of a genuine failure or
+because it was cancelled as cleanup after another sibling failed. The
+combinator would have to inspect exception types at every level, which is
+fragile, leaks implementation details, and corrupts the error that eventually
+reaches the `catch()` handler — instead of the original failure reason, the
+caller gets a cascade of cancellation exceptions from all the siblings that
+were stopped.
+
+This is the exact problem Kotlin documents with its `Deferred` type — because
+Kotlin merges cancelled into the rejection path via `CancellationException`,
+that exception ends up leading a double life. The same exception type is thrown
+for two entirely different reasons — genuine cancellation and operational
+failure — and developers have to manually inspect and filter it at every catch
+site to tell them apart.
+
+With a distinct cancelled state the logic in every combinator is exact and
+unambiguous:
+
+- `isRejected()` — something went wrong, propagate the error outward
+- `isCancelled()` — deliberately stopped, clean up silently, do not report as
+  an error
+
+This is why `Promise::all()` can cancel siblings when one fails and still
+report only the original failure reason to the caller — the cancelled siblings
+do not contribute any error of their own. Their `onCancel()` handlers run,
+their resources are freed, and they disappear cleanly. The `catch()` handler
+at the top receives exactly one error: the one that actually caused the failure.
+```php
+Promise::all([
+    fetchUser(1),    // rejects with DatabaseException
+    fetchOrders(1),  // cancelled as side effect — onCancel() fires, no error reported
+    fetchStats(1),   // cancelled as side effect — onCancel() fires, no error reported
+])->catch(function (\Throwable $e) {
+    // $e is DatabaseException — exactly one error, from exactly one source
+    // The two cancellations are invisible here because they were not failures
+    echo $e->getMessage();
+});
+```
+
+This is also why `allSettled()` can return `SettledResult::cancelled()` as a
+distinct outcome rather than folding it into `SettledResult::rejected()` — the
+caller gets an accurate picture of what happened to every operation in the
+group, not a homogenized view where cancellations look like failures.
 ```php
 $userPromise  = fetchUser(1);
 $orderPromise = fetchOrders(1);
@@ -216,6 +277,11 @@ Promise::all([$userPromise, $orderPromise, $statsPromise])
         // and no connections are left open — all without touching this handler
     });
 ```
+
+The cancelled state is not a convenience feature. It is the foundation that
+everything in the structured concurrency model is built on.
+
+---
 
 ---
 
