@@ -311,8 +311,6 @@ everything in the structured concurrency model is built on.
 
 ---
 
----
-
 ## Basic Usage
 
 ### Creating a Promise
