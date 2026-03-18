@@ -200,6 +200,34 @@ wins, and all subsequent state changes are ignored.
 
 ### The cancelled state is what makes structured concurrency possible
 
+The cancelled state was a deliberate design decision — cancellation is not a
+failure, so it should not live in the failure state. What was not anticipated
+was what that decision unlocked. During experimentation with the combinators,
+a deeper consequence emerged: because the library could now reliably tell the
+difference between a promise that failed and one that was deliberately stopped,
+the collection combinators gained the ability to enforce controlled scope
+naturally — without any special mechanism designed for that purpose.
+
+Structured concurrency requires that when one operation in a group fails, all
+sibling operations can be cleanly stopped and the failure reason propagates
+outward accurately. For this to work, the library needs to reliably distinguish
+between two fundamentally different situations:
+
+When something goes wrong inside a collection, the combinator can cancel the
+remaining siblings knowing that those cancellations will only trigger
+`onCancel()` hooks — never `catch()` handlers, never error propagation, never
+corrupted error reporting. The cancellation is invisible to the error handling
+path. This means the `catch()` at the top of the chain receives exactly one
+error — the one that actually caused the failure — and nothing else leaks
+through.
+
+That is structured concurrency: the lifetime and failure scope of every
+operation in a group is controlled by the collection that owns them, and
+cleanup is guaranteed without any of that cleanup being mistaken for a failure.
+The cancelled state is what makes the boundary between "something failed" and
+"we are cleaning up after a failure" precise and enforceable at the type level
+rather than by convention.
+
 This is not just a cleaner API — the cancelled state is the **prerequisite**
 that makes structured concurrency semantically correct. The two concepts are
 directly linked.
