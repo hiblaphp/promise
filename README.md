@@ -801,6 +801,72 @@ $processed = downloadFile($url)->then(fn($file) => processFile($file));
 $processed->cancelChain(); // Cancels download AND processed
 ```
 
+### The cost of non-cooperative cancellation
+
+The difference between registering an `onCancel()` handler and not registering
+one is not just architectural — it has a direct, measurable impact on how long
+your script runs.
+
+Consider two versions of the same delay function. Both return a promise that
+resolves after 5 seconds. Both are cancelled after 1 second. Only one actually
+stops:
+```php
+use Hibla\EventLoop\Loop;
+use Hibla\Promise\Promise;
+
+// No onCancel() handler — cancelling this promise changes its state
+// but does nothing to the underlying timer. The timer keeps running.
+function nonCancellableDelay(float $seconds): PromiseInterface
+{
+    return new Promise(function (callable $resolve) use ($seconds) {
+        Loop::addTimer($seconds, function () use ($resolve) {
+            $resolve();
+        });
+    });
+}
+
+// onCancel() handler registered — cancelling this promise also cancels
+// the timer, removing it from the loop immediately.
+function cancellableDelay(float $seconds): PromiseInterface
+{
+    $promise = new Promise();
+
+    $timerId = Loop::addTimer($seconds, function () use ($promise) {
+        $promise->resolve();
+    });
+
+    $promise->onCancel(function () use ($timerId) {
+        Loop::cancelTimer($timerId);
+    });
+
+    return $promise;
+}
+
+// Cancel both promises after 1 second and measure how long the loop runs
+
+$start = microtime(true);
+$promise = nonCancellableDelay(5);
+Loop::addTimer(1, $promise->cancel(...));
+Loop::run();
+echo 'Non-cancellable: ' . round(microtime(true) - $start, 2) . 's' . PHP_EOL;
+// Non-cancellable: 5.01s — loop waited for the timer even though the promise was cancelled
+
+$start = microtime(true);
+$promise = cancellableDelay(5);
+Loop::addTimer(1, $promise->cancel(...));
+Loop::run();
+echo 'Cancellable: ' . round(microtime(true) - $start, 2) . 's' . PHP_EOL;
+// Cancellable: 1.00s — timer was cancelled immediately, loop exited cleanly
+```
+
+Both promises were cancelled at the 1 second mark. The difference is 4 seconds
+of the event loop sitting idle waiting for a timer that nobody cares about
+anymore. In a real application this means open connections, allocated memory,
+and event loop slots held by work that has already been abandoned.
+
+`cancel()` changes the promise state. `onCancel()` is what actually stops the
+work. Both are required for cancellation to be meaningful.
+
 ---
 
 ## Collection Methods
