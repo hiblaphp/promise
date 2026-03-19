@@ -22,8 +22,13 @@ final readonly class ReduceHandler
      */
     public function reduce(iterable $items, callable $reducer, mixed $initial = null): PromiseInterface
     {
+        /** @var PromiseInterface<TReduceCarry>|null $currentStepPromise */
+        $currentStepPromise = null;
+
+        $state = (object) ['cancelled' => false];
+
         /** @var Promise<TReduceCarry> $reducePromise */
-        $reducePromise = new Promise(function (callable $resolve, callable $reject) use ($items, $reducer, $initial): void {
+        $reducePromise = new Promise(function (callable $resolve, callable $reject) use ($items, $reducer, $initial, &$currentStepPromise, $state): void {
             try {
                 $iterator = $this->getIterator($items);
                 $iterator->rewind();
@@ -39,14 +44,18 @@ final readonly class ReduceHandler
                 return;
             }
 
-            $step = function (mixed $carry) use (&$step, $iterator, $reducer, $resolve, $reject): void {
+            $step = function (mixed $carry) use (&$step, $iterator, $reducer, $resolve, $reject, &$currentStepPromise, $state): void {
+                if ($state->cancelled) {
+                    return;
+                }
+
                 if (! $iterator->valid()) {
                     $resolve($carry);
 
                     return;
                 }
 
-                $key = $iterator->key();
+                $key  = $iterator->key();
                 $item = $iterator->current();
                 $iterator->next();
 
@@ -55,10 +64,11 @@ final readonly class ReduceHandler
                         ? $item
                         : Promise::resolved($item);
 
-                    $inputPromise
+                    $currentStepPromise = $inputPromise
                         ->then(fn ($resolvedValue) => $reducer($carry, $resolvedValue, $key))
                         ->then(
-                            function (mixed $nextCarry) use (&$step): void {
+                            function (mixed $nextCarry) use (&$step, &$currentStepPromise): void {
+                                $currentStepPromise = null;
                                 Loop::microTask(fn () => $step($nextCarry));
                             },
                             $reject
@@ -70,6 +80,11 @@ final readonly class ReduceHandler
             };
 
             Loop::microTask(fn () => $step($initial));
+        });
+
+        $reducePromise->onCancel(function () use (&$currentStepPromise, $state): void {
+            $state->cancelled = true;
+            $currentStepPromise?->cancelChain();
         });
 
         return $reducePromise;

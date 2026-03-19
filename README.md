@@ -38,6 +38,7 @@ concurrency utilities.
 ### Reference
 - [Unhandled Rejections](#unhandled-rejections)
 - [API Reference](#api-reference)
+- [PHPStan Integration](#phpstan-integration)
 
 ### Meta
 - [Development](#development)
@@ -1585,6 +1586,86 @@ wait()          No                         Yes                  Yes — intentio
 | ----------------------------------------------- | ------------------------------------------------------------------ |
 | `Hibla\delay(float $seconds)`                   | Returns a cancellable promise that resolves after the given delay. |
 | `Hibla\setRejectionHandler(?callable $handler)` | Alias for `Promise::setRejectionHandler()`.                        |
+
+---
+
+## PHPStan Integration
+
+Hibla Promise ships a PHPStan extension that improves type inference for
+`Promise::resolved()`. 
+
+### Why the extension is needed
+
+`void` and `null` are distinct types in static analysis:
+
+| Type                     | Meaning                                             |
+| ------------------------ | --------------------------------------------------- |
+| `PromiseInterface<null>` | Resolves with the value `null` — a concrete result  |
+| `PromiseInterface<void>` | Resolves with no meaningful value — a side effect   |
+
+Without the extension, PHPStan infers `Promise::resolved()` with no argument
+as `PromiseInterface<null>` because the parameter defaults to `null`. This
+means any function that correctly declares a `PromiseInterface<void>` return
+type will fail analysis:
+```php
+/** @return PromiseInterface<void> */
+function sendEmail(): PromiseInterface
+{
+    return Promise::resolved();
+}
+```
+```
+Function sendEmail() should return PromiseInterface<void>
+but returns PromiseInterface<null>.
+```
+
+With the extension registered, `Promise::resolved()` with no argument is
+correctly inferred as `PromiseInterface<void>` and the error disappears.
+`Promise::resolved($value)` is inferred as `PromiseInterface<T>` where `T`
+is the type of `$value`:
+```php
+Promise::resolved();        // PromiseInterface<void>
+Promise::resolved(42);      // PromiseInterface<int>
+Promise::resolved('hello'); // PromiseInterface<string>
+Promise::resolved($user);   // PromiseInterface<User>
+```
+
+Without this extension, every side-effect promise in your codebase would
+require a manual `@return PromiseInterface<void>` annotation just to satisfy
+the analyzer — or worse, the return type would silently degrade to
+`PromiseInterface<null>`, losing the distinction entirely.
+
+### Registering the extension
+
+**Option 1 — Manual `phpstan.neon` include:**
+```neon
+includes:
+    - vendor/hiblaphp/promise/extension.neon
+```
+
+**Option 2 — Automatic registration via PHPStan Extension Installer:**
+
+If you have [`phpstan/extension-installer`](https://github.com/phpstan/extension-installer)
+in your project, the extension is registered automatically with no
+`phpstan.neon` changes needed. Just install it:
+```bash
+composer require --dev phpstan/extension-installer
+```
+
+Then allow the plugin in your `composer.json`:
+```json
+{
+    "config": {
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
+    }
+}
+```
+
+From that point on, any Composer package that ships a PHPStan extension —
+including `hiblaphp/promise` — is discovered and registered automatically.
+No manual includes required.
 
 ---
 

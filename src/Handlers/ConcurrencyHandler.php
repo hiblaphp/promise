@@ -329,8 +329,11 @@ final readonly class ConcurrencyHandler
      */
     public function batch(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
-        /** @var Promise<array<int|string, TBatchValue>> */
-        return new Promise(function (callable $resolve, callable $reject) use ($tasks, $batchSize, $concurrency): void {
+        /** @var PromiseInterface<array<int|string, TBatchValue>>|null $currentBatchPromise */
+        $currentBatchPromise = null;
+
+        /** @var Promise<array<int|string, TBatchValue>> $batchPromise */
+        $batchPromise = new Promise(function (callable $resolve, callable $reject) use ($tasks, $batchSize, $concurrency, &$currentBatchPromise): void {
             if ($batchSize <= 0) {
                 $reject(new InvalidArgumentException('Batch size must be greater than 0'));
 
@@ -349,7 +352,7 @@ final readonly class ConcurrencyHandler
             $allResults = [];
             $concurrency ??= $batchSize;
 
-            $processNextBatch = function () use (&$processNextBatch, $iterator, &$allResults, $batchSize, $concurrency, $resolve, $reject): void {
+            $processNextBatch = function () use (&$processNextBatch, $iterator, &$allResults, $batchSize, $concurrency, $resolve, $reject, &$currentBatchPromise): void {
                 try {
                     if (! $iterator->valid()) {
                         $resolve($allResults);
@@ -368,8 +371,11 @@ final readonly class ConcurrencyHandler
                     return;
                 }
 
-                $this->concurrent($batchTasks, $concurrency)
-                    ->then(function ($batchResults) use (&$allResults, $processNextBatch): void {
+                $currentBatchPromise = $this->concurrent($batchTasks, $concurrency);
+                $currentBatchPromise
+                    ->then(function ($batchResults) use (&$allResults, $processNextBatch, &$currentBatchPromise): void {
+                        $currentBatchPromise = null;
+
                         foreach ($batchResults as $key => $result) {
                             $allResults[$key] = $result;
                         }
@@ -382,6 +388,12 @@ final readonly class ConcurrencyHandler
 
             Loop::microTask($processNextBatch);
         });
+
+        $batchPromise->onCancel(function () use (&$currentBatchPromise): void {
+            $currentBatchPromise?->cancel();
+        });
+
+        return $batchPromise;
     }
 
     /**
@@ -393,8 +405,11 @@ final readonly class ConcurrencyHandler
      */
     public function batchSettled(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
     {
-        /** @var Promise<array<int|string, SettledResult<TBatchSettledValue, mixed>>> */
-        return new Promise(function (callable $resolve, callable $reject) use ($tasks, $batchSize, $concurrency): void {
+        /** @var PromiseInterface<array<int|string, SettledResult<TBatchSettledValue, mixed>>>|null $currentBatchPromise */
+        $currentBatchPromise = null;
+
+        /** @var Promise<array<int|string, SettledResult<TBatchSettledValue, mixed>>> $batchPromise */
+        $batchPromise = new Promise(function (callable $resolve, callable $reject) use ($tasks, $batchSize, $concurrency, &$currentBatchPromise): void {
             if ($batchSize <= 0) {
                 $reject(new InvalidArgumentException('Batch size must be greater than 0'));
 
@@ -413,7 +428,7 @@ final readonly class ConcurrencyHandler
             $allResults = [];
             $concurrency ??= $batchSize;
 
-            $processNextBatch = function () use (&$processNextBatch, $iterator, &$allResults, $batchSize, $concurrency, $resolve, $reject): void {
+            $processNextBatch = function () use (&$processNextBatch, $iterator, &$allResults, $batchSize, $concurrency, $resolve, $reject, &$currentBatchPromise): void {
                 try {
                     if (! $iterator->valid()) {
                         $resolve($allResults);
@@ -432,20 +447,27 @@ final readonly class ConcurrencyHandler
                     return;
                 }
 
-                $this->concurrentSettled($batchTasks, $concurrency)
-                    ->then(function ($batchResults) use (&$allResults, $processNextBatch): void {
+                $currentBatchPromise = $this->concurrentSettled($batchTasks, $concurrency);
+                $currentBatchPromise
+                    ->then(function ($batchResults) use (&$allResults, $processNextBatch, &$currentBatchPromise): void {
+                        $currentBatchPromise = null;
+
                         foreach ($batchResults as $key => $result) {
                             $allResults[$key] = $result;
                         }
                         unset($batchResults);
                         Loop::microTask($processNextBatch);
-                    })
-                ;
-                // No catch needed here for concurrency failure, but we added try/catch around iteration above
+                    });
             };
 
             Loop::microTask($processNextBatch);
         });
+
+        $batchPromise->onCancel(function () use (&$currentBatchPromise): void {
+            $currentBatchPromise?->cancel();
+        });
+
+        return $batchPromise;
     }
 
     /**
@@ -467,7 +489,7 @@ final readonly class ConcurrencyHandler
                         ? $item
                         : Promise::resolved($item);
 
-                    return $inputPromise->then(fn ($resolvedValue) => $mapper($resolvedValue, $key));
+                    return $inputPromise->then(fn($resolvedValue) => $mapper($resolvedValue, $key));
                 };
             }
         })();
@@ -494,7 +516,7 @@ final readonly class ConcurrencyHandler
                         ? $item
                         : Promise::resolved($item);
 
-                    return $inputPromise->then(fn ($resolvedValue) => $mapper($resolvedValue, $key));
+                    return $inputPromise->then(fn($resolvedValue) => $mapper($resolvedValue, $key));
                 };
             }
         })();
@@ -535,7 +557,7 @@ final readonly class ConcurrencyHandler
                                     ? $item
                                     : Promise::resolved($item);
 
-                                return $inputPromise->then(fn ($resolvedValue) => $callback($resolvedValue, $key));
+                                return $inputPromise->then(fn($resolvedValue) => $callback($resolvedValue, $key));
                             };
                         }
                     })()
@@ -700,7 +722,7 @@ final readonly class ConcurrencyHandler
                                     ? $item
                                     : Promise::resolved($item);
 
-                                return $inputPromise->then(fn ($resolvedValue) => $callback($resolvedValue, $key));
+                                return $inputPromise->then(fn($resolvedValue) => $callback($resolvedValue, $key));
                             };
                         }
                     })()
@@ -1011,7 +1033,7 @@ final readonly class ConcurrencyHandler
             return $tasks->getIterator();
         }
 
-        return (fn () => yield from $tasks)();
+        return (fn() => yield from $tasks)();
     }
 
     /**
