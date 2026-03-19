@@ -538,6 +538,50 @@ $promise
 > method. Arrays and primitives are never treated as thenables regardless
 > of their contents.
 
+### Cancellation and thenable interoperability
+
+When a `then()` handler returns a Hibla `PromiseInterface`, cancelling the
+outer promise automatically propagates inward — the inner promise is cancelled
+too, triggering its `onCancel()` handlers and freeing its resources.
+```php
+$outer = fetchUser(1)->then(fn($user) => fetchOrders($user->id));
+
+// fetchOrders returns a Hibla PromiseInterface — cancellation propagates
+$outer->cancel();
+// fetchOrders promise is also cancelled, its onCancel() handlers run
+```
+
+This forwarding only works for `PromiseInterface` instances. When a `then()`
+handler returns a **foreign thenable** — a ReactPHP promise, a Guzzle promise,
+or any object with a `then()` method that is not a `PromiseInterface` —
+cancelling the outer promise changes its state but does **not** cancel the
+foreign thenable. The foreign promise keeps running.
+```php
+// Hibla PromiseInterface — cancellation propagates ✓
+$outer = $promise->then(fn($v) => hiblaDerivedPromise($v));
+$outer->cancel(); // inner promise also cancelled
+
+// Foreign thenable — cancellation does NOT propagate ✗
+$outer = $promise->then(fn($v) => $reactPhpPromise);
+$outer->cancel(); // outer state changes, but $reactPhpPromise keeps running
+```
+
+If you need cancellation to propagate into a foreign promise, wrap it
+manually with an `onCancel()` handler:
+```php
+$outer = $promise->then(function ($v) use (&$foreignPromise) {
+    $foreignPromise = fetchWithReactPhp($v);
+    return $foreignPromise; // foreign thenable
+});
+
+$outer->onCancel(function () use (&$foreignPromise) {
+    // manually forward cancellation to the foreign promise
+    if ($foreignPromise !== null) {
+        $foreignPromise->cancel();
+    }
+});
+```
+
 ### Cyclic chain detection
 
 If a `then()` handler returns the same promise it belongs to, resolving that
