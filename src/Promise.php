@@ -175,8 +175,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn ($value = null) => $this->resolve($value),
-                    fn ($reason = null) => $this->reject($reason)
+                    fn($value = null) => $this->resolve($value),
+                    fn($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -265,8 +265,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($value instanceof PromiseInterface) {
             $value->then(
-                fn ($v) => $this->resolve($v),
-                fn ($r) => $this->reject($r)
+                fn($v) => $this->resolve($v),
+                fn($r) => $this->reject($r)
             );
 
             // If THIS promise is cancelled, forward it to the inner promise
@@ -540,9 +540,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             }
 
             if ($this->state === PromiseState::FULFILLED) {
-                Loop::microTask(fn () => $handleResolve($this->value));
+                Loop::microTask(fn() => $handleResolve($this->value));
             } elseif ($this->state === PromiseState::REJECTED) {
-                Loop::microTask(fn () => $handleReject($this->reason));
+                Loop::microTask(fn() => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -594,18 +594,16 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             static function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
-                    ->then(fn (): mixed => $value)
-                ;
+                return (new self(fn($resolve) => $resolve($result)))
+                    ->then(fn(): mixed => $value);
             },
             static function (\Throwable $reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
+                return (new self(fn($resolve) => $resolve($result)))
                     ->then(function () use ($reason): never {
                         throw $reason;
-                    })
-                ;
+                    });
             }
         );
     }
@@ -830,9 +828,6 @@ class Promise implements PromiseInterface, PromiseStaticInterface
      * Returns the previously registered handler (or null if none was set),
      * mirroring the convention of PHP's set_error_handler().
      *
-     * WARNING: The handler MUST NOT throw. PHP silently swallows exceptions
-     * thrown from __destruct(). Wrap your handler body in try/catch if needed.
-     *
      * @param  callable(mixed $reason, PromiseInterface<mixed> $promise): void|null  $handler
      * @return callable(mixed $reason, PromiseInterface<mixed> $promise): void|null
      */
@@ -979,26 +974,19 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             return;
         }
 
-        if ($this->state === PromiseState::REJECTED && ! $this->hasRejectionHandler) {
+        if ($this->state === PromiseState::REJECTED && !$this->hasRejectionHandler) {
             if (self::$rejectionHandler !== null) {
                 (self::$rejectionHandler)($this->reason, $this);
-
                 return;
             }
 
-            $reason = $this->reason;
-            $message = $reason instanceof \Throwable
-                ? \sprintf(
-                    "Unhandled promise rejection with %s: %s in %s:%d\nStack trace:\n%s",
-                    \get_class($reason),
-                    $reason->getMessage(),
-                    $reason->getFile(),
-                    $reason->getLine(),
-                    $reason->getTraceAsString()
-                )
-                : 'Unhandled promise rejection: ' . print_r($reason, true);
+            if ($this->reason instanceof \Throwable) {
+                throw $this->reason;
+            }
 
-            fwrite(STDERR, $message . PHP_EOL);
+            throw new \Exception(
+                $this->safeStringCast($this->reason)
+            );
         }
     }
 }
