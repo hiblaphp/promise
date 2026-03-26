@@ -1828,6 +1828,7 @@ composer install
   and the JavaScript `Promise` API, with the addition of a first-class cancelled
   state and cooperative cancellation.
 - **Event Loop:** Powered by [hiblaphp/event-loop](https://github.com/hiblaphp/event-loop).
+- **Cancellation is not an Error** by Kirk Shoop [pdf](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1677r1.pdf)
 
 ---
 
