@@ -1586,10 +1586,11 @@ acceptable and every item should be attempted regardless.
 ## Unhandled Rejections
 
 If a promise is rejected and no `catch()` or rejection handler is ever
-attached, the rejection reason is written to `STDERR` when the promise is
-garbage collected. This mirrors Node.js unhandled rejection behavior.
+attached, the rejection reason is **thrown as an exception** when the promise
+is garbage collected. This mirrors **Node.js v15+ behavior**, where unhandled
+rejections crash the process rather than printing a warning.
 ```
-Unhandled promise rejection with RuntimeException: Something went wrong
+Fatal error: Uncaught RuntimeException: Something went wrong
 in /path/to/file.php:42
 Stack trace:
 #0 ...
@@ -1603,17 +1604,22 @@ Promise::setRejectionHandler(function (mixed $reason, $promise) {
     logger()->error('Unhandled rejection', ['reason' => $reason]);
 });
 
-// Restore default stderr behavior
+// Restore default throw behavior
 Promise::setRejectionHandler(null);
 ```
 
-> **Warning:** The rejection handler must not throw. PHP silently swallows
-> exceptions thrown from `__destruct()`. Wrap your handler body in
-> `try/catch` if needed.
+This maps to the Node.js equivalent:
+```
+PHP                                         Node.js
+────────────────────────────────────────────────────────────────
+__destruct() throws                         process crashes (v15+)
+Promise::setRejectionHandler($fn)           process.on('unhandledRejection', fn)
+Promise::setRejectionHandler(null)          removes the handler, restores default
+```
 
 ### What silences unhandled rejection tracking
 
-There are two ways an unhandled rejection warning is suppressed. Only one of
+There are two ways an unhandled rejection throw is suppressed. Only one of
 them is intentional:
 
 **Intentional — attaching a rejection handler:**
@@ -1634,18 +1640,18 @@ $promise = Promise::rejected(new \RuntimeException('Something went wrong'));
 // Inspecting the reason marks the promise as "accessed"
 $reason = $promise->getReason(); // sets valueAccessed = true
 
-// No catch() attached — but the unhandled rejection warning never fires
-// The exception is silently swallowed
+// No catch() attached — but the exception is never thrown on destruct.
+// The rejection is silently swallowed.
 ```
 
-This means debugging missing rejection warnings can be non-obvious. If you
-are inspecting a promise for logging or diagnostics and still want unhandled
-rejection tracking to work, attach a `catch()` explicitly:
+This means debugging missing unhandled rejection errors can be non-obvious. If
+you are inspecting a promise for logging or diagnostics and still want
+unhandled rejection tracking to work, attach a `catch()` explicitly:
 ```php
-// Wrong — inspection silences the warning
+// Wrong — inspection silences the throw
 if ($promise->isRejected()) {
     $reason = $promise->getReason();
-    // warning suppressed — rejection is silent if no catch() is attached
+    // Exception never thrown on destruct — rejection is silent
 }
 
 // Correct — attach a handler to keep tracking active
@@ -1661,14 +1667,13 @@ explicitly handling the rejection via the thrown exception. It is only a
 footgun when using `getValue()` or `getReason()` for inspection rather than
 for handling.
 ```
-Method          Sets hasRejectionHandler   Sets valueAccessed   Silences warning?
+Method          Sets hasRejectionHandler   Sets valueAccessed   Silences throw?
 catch()         Yes                        No                   Yes — intentionally
 then(null, fn)  Yes                        No                   Yes — intentionally
 getValue()      No                         Yes                  Yes — side effect
 getReason()     No                         Yes                  Yes — side effect
 wait()          No                         Yes                  Yes — intentional
 ```
-
 ---
 
 ## API Reference
