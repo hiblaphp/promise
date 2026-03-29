@@ -39,6 +39,7 @@ concurrency utilities.
   - [`finally()` — always runs](#finally--always-runs)
 - [Blocking — `wait()`](#blocking--wait)
 - [Async Delay](#async-delay)
+
 **Cancellation**
 - [The 4-state model](#the-4-state-model)
 - [Cancellation is synchronous](#cancellation-is-synchronous)
@@ -101,7 +102,7 @@ composer require hiblaphp/promise
 
 ## What is a Promise?
 
-Asynchronous code — HTTP requests, database queries, file reads, timers —
+Asynchronous code (HTTP requests, database queries, file reads, timers)
 doesn't return a value immediately. Traditionally in PHP, you'd pass a
 callback to be called when the work finishes. This works for simple cases,
 but as logic grows, callbacks nest inside callbacks, error handling scatters
@@ -132,7 +133,7 @@ fetchUser(1, function ($user, $error) {
 
 A **Promise** is an object that represents the eventual result of an async
 operation. Instead of passing a callback into a function, the function
-returns a Promise — a placeholder you can hold, pass around, chain, and
+returns a Promise: a placeholder you can hold, pass around, chain, and
 attach handlers to later. Error handling consolidates into a single `catch()`
 at the end of the chain, and the flow reads top to bottom like synchronous
 code:
@@ -153,7 +154,7 @@ Every standard promise has three states:
 | `rejected`  | The work failed and the promise holds a reason (typically an exception). |
 
 State transitions are **one-way and final**. Once a promise leaves `pending`,
-it can never change state again — a fulfilled promise stays fulfilled, a
+it can never change state again: a fulfilled promise stays fulfilled, a
 rejected promise stays rejected. Handlers attached via `then()` and `catch()`
 are guaranteed to fire at most once.
 
@@ -161,7 +162,7 @@ Hibla Promise is inspired by the
 [Promise/A+ specification](https://promisesaplus.com/) and the JavaScript
 `Promise` API, and is fully interoperable with other PHP promise libraries
 like [ReactPHP](https://github.com/reactphp/promise) and
-[Guzzle](https://github.com/guzzle/promises) that return thenables — you can
+[Guzzle](https://github.com/guzzle/promises) that return thenables. You can
 return a ReactPHP or Guzzle promise inside a Hibla `then()` handler and the
 chain will correctly wait for it. However, Hibla makes several deliberate,
 opinionated departures that those implementations do not.
@@ -172,36 +173,36 @@ opinionated departures that those implementations do not.
 
 ### A fourth state: `cancelled`
 
-Every standard promise implementation — JavaScript native promises, ReactPHP,
-Guzzle — defines exactly three states. Hibla adds a fourth: **`cancelled`**.
+Every standard promise implementation (JavaScript native promises, ReactPHP,
+Guzzle) defines exactly three states. Hibla adds a fourth: **`cancelled`**.
 
 In all other implementations, the only way to abandon a promise is to reject
 it with a special cancellation exception. This forces you to distinguish
 between "the HTTP request timed out" and "the user clicked cancel" by
 inspecting the exception type at every catch site. Cancellation is a normal
-control-flow decision — it is not a failure — yet every other implementation
+control-flow decision and not a failure, yet every other implementation
 models it as one.
 
 In Hibla, `cancelled` is a proper terminal state, entirely separate from
 `rejected`. A cancelled promise never calls `then()` or `catch()` handlers.
 It does not pretend to have failed. It simply stopped. This clean separation
-means **cleanup logic and error handling live in completely different places**
-— `onCancel()` handles resource cleanup when work is deliberately aborted,
+means **cleanup logic and error handling live in completely different places**:
+`onCancel()` handles resource cleanup when work is deliberately aborted,
 while `catch()` handles genuine failures. The two concerns never bleed into
 each other.
 ```
 Standard Promise implementations:
 
-  pending ──→ fulfilled
-          ──→ rejected  ← cancellation disguised as failure,
+  pending --> fulfilled
+          --> rejected  <- cancellation disguised as failure,
                           cleanup mixed with error handling
 
 
 Hibla Promise:
 
-  pending ──→ fulfilled
-          ──→ rejected   ← genuine failures, handled in catch()
-          ──→ cancelled  ← deliberate abort, handled in onCancel()
+  pending --> fulfilled
+          --> rejected   <- genuine failures, handled in catch()
+          --> cancelled  <- deliberate abort, handled in onCancel()
 ```
 ```php
 // Standard promise implementations — cancellation is modelled as rejection.
@@ -273,22 +274,22 @@ wins, and all subsequent state changes are ignored.
 
 ### The cancelled state is what makes structured concurrency possible
 
-The cancelled state was a deliberate design decision — cancellation is not a
+The cancelled state was a deliberate design decision: cancellation is not a
 failure, so it should not live in the failure state. What was not anticipated
 was what that decision unlocked. During experimentation with the combinators,
 a deeper consequence emerged: because the library could now reliably tell the
 difference between a promise that failed and one that was deliberately stopped,
 the collection combinators gained the ability to enforce controlled scope
-naturally — without any special mechanism designed for that purpose.
+naturally, without any special mechanism designed for that purpose.
 
 Structured concurrency requires that when one operation in a group fails, all
 sibling operations can be cleanly stopped and the failure reason propagates
 outward accurately. For this to work, the library needs to reliably distinguish
 between two fundamentally different situations:
 
-- A promise that **rejected on its own** — something went wrong, the error
+- A promise that **rejected on its own**: something went wrong, the error
   should propagate
-- A promise that was **cancelled as a side effect** of a sibling failing —
+- A promise that was **cancelled as a side effect** of a sibling failing:
   nothing went wrong with this promise, it was deliberately stopped, and its
   stopping should not be reported as an error
 
@@ -298,26 +299,26 @@ cancellation is just rejection with a special exception, a combinator like
 or because it was cancelled as cleanup after another sibling failed. The
 combinator would have to inspect exception types at every level, which is
 fragile, leaks implementation details, and corrupts the error that eventually
-reaches the `catch()` handler — instead of the original failure reason, the
+reaches the `catch()` handler. Instead of the original failure reason, the
 caller gets a cascade of cancellation exceptions from all the siblings that
 were stopped.
 
-This is the exact problem Kotlin documents with its `Deferred` type — because
+This is the exact problem Kotlin documents with its `Deferred` type. Because
 Kotlin merges cancelled into the rejection path via `CancellationException`,
 that exception ends up leading a double life. The same exception type is thrown
-for two entirely different reasons — genuine cancellation and operational
-failure — and developers have to manually inspect and filter it at every catch
+for two entirely different reasons (genuine cancellation and operational
+failure), and developers have to manually inspect and filter it at every catch
 site to tell them apart.
 
 With a distinct cancelled state the logic in every combinator is exact and
 unambiguous:
 
-- `isRejected()` — something went wrong, propagate the error outward
-- `isCancelled()` — deliberately stopped, clean up silently, do not report
+- `isRejected()`: something went wrong, propagate the error outward
+- `isCancelled()`: deliberately stopped, clean up silently, do not report
   as an error
 
 This is why `Promise::all()` can cancel siblings when one fails and still
-report only the original failure reason to the caller — the cancelled siblings
+report only the original failure reason to the caller. The cancelled siblings
 do not contribute any error of their own. Their `onCancel()` handlers run,
 their resources are freed, and they disappear cleanly. The `catch()` handler
 at the top receives exactly one error: the one that actually caused the
@@ -368,8 +369,8 @@ $promise->catch(function (\Throwable $e) {
 
 ### Resolving and rejecting manually
 
-If you need to resolve or reject from outside the executor — for example,
-from an event callback — construct the promise without an executor and call
+If you need to resolve or reject from outside the executor (for example,
+from an event callback), construct the promise without an executor and call
 `resolve()` or `reject()` directly:
 ```php
 $promise = new Promise();
@@ -397,7 +398,7 @@ $promise = Promise::rejected(new \RuntimeException('Already failed'));
 The deferred pattern separates the **creation** of a promise from its
 **resolution**. Instead of resolving inside an executor callback, you create
 the promise in a pending state and call `resolve()` or `reject()` on it later
-from outside — typically from an event callback.
+from outside, typically from an event callback.
 
 This is the pattern used internally by `delay()` and
 `Loop::addCurlRequest()`, and it is the primary way to bridge non-promise
@@ -416,7 +417,7 @@ $promise->then(fn($value) => print($value));
 
 Any deferred promise that wraps a real resource must register an `onCancel()`
 handler to clean up that resource if the promise is cancelled before it
-resolves. Without it, cancelling the promise only changes its state — the
+resolves. Without it, cancelling the promise only changes its state and the
 underlying work keeps running.
 ```php
 $promise = new Promise();
@@ -449,8 +450,8 @@ function delay(float $seconds): PromiseInterface
 }
 ```
 
-The same pattern applies to any resource — curl handles, stream watchers,
-signals, or any other event-driven callback:
+The same pattern applies to any resource (curl handles, stream watchers,
+signals, or any other event-driven callback):
 ```php
 // Wrapping a stream read into a promise
 function readOnce($stream): PromiseInterface
@@ -493,7 +494,7 @@ dispatched through `Loop::microTask()` and will not execute until all
 currently running synchronous code has finished and control returns to the
 event loop.
 
-This guarantee is known as the **Zalgo prevention** rule — a callback either
+This guarantee is known as the **Zalgo prevention** rule: a callback either
 always runs asynchronously or always runs synchronously, never both depending
 on timing. Without it, code that looks sequential can behave
 non-deterministically depending on whether the promise happened to already be
@@ -510,7 +511,7 @@ print("A\n"); // runs first — we are still in synchronous code
 // B: immediate   ← then() fires only after sync code finishes
 ```
 
-This applies everywhere — inside timers, inside other `then()` handlers, and
+This applies everywhere: inside timers, inside other `then()` handlers, and
 even inside Fibers. Calling `resolve()` on a promise never immediately invokes
 downstream handlers in the same stack frame:
 ```php
@@ -534,7 +535,7 @@ print("B\n");               // still runs before the then() handler
 
 Because every `then()` handler runs as a separate microtask dispatched
 through the event loop, the PHP call stack is never deeply nested regardless
-of how long the chain is. Each handler runs in its own flat loop tick — the
+of how long the chain is. Each handler runs in its own flat loop tick: the
 event loop acts as a **trampoline**, bouncing between handlers without
 accumulating stack frames.
 
@@ -556,17 +557,17 @@ $promise->then(fn($n) => print("Final: $n\n")); // Final: 10000
 
 ### `catch()` — handling rejection
 
-`catch()` is shorthand for `then(null, $fn)` — it attaches a rejection handler
+`catch()` is shorthand for `then(null, $fn)`. It attaches a rejection handler
 only and returns a new promise, making it a full participant in the chain rather
 than a terminal sink.
 
-Like `then()`, `catch()` always runs asynchronously via microtask — it is never
+Like `then()`, `catch()` always runs asynchronously via microtask. It is never
 called synchronously even if the promise is already rejected when `catch()` is
 registered.
 
 #### Stopping vs recovering
 
-Returning a value from `catch()` recovers the chain — the next `then()` receives
+Returning a value from `catch()` recovers the chain: the next `then()` receives
 that value as if no rejection happened. Re-throwing keeps the chain rejected and
 passes the error downstream:
 ```php
@@ -621,8 +622,8 @@ $promise
 
 ### Thenable interoperability
 
-If a `then()` handler returns any object that has a `then` method — not just
-a `Promise` instance — the library will treat it as a thenable and wait for
+If a `then()` handler returns any object that has a `then` method (not just
+a `Promise` instance), the library will treat it as a thenable and wait for
 it to resolve before continuing the chain. This means you can return promises
 from other libraries inside a `then()` handler and the chain will correctly
 wait for them without any explicit wrapping:
@@ -653,7 +654,7 @@ $promise
 ### Cancellation and thenable interoperability
 
 When a `then()` handler returns a Hibla `PromiseInterface`, cancelling the
-outer promise automatically propagates inward — the inner promise is cancelled
+outer promise automatically propagates inward: the inner promise is cancelled
 too, triggering its `onCancel()` handlers and freeing its resources:
 ```php
 $outer = fetchUser(1)->then(fn($user) => fetchOrders($user->id));
@@ -664,8 +665,8 @@ $outer->cancel();
 ```
 
 This forwarding only works for `PromiseInterface` instances. When a `then()`
-handler returns a **foreign thenable** — a ReactPHP promise, a Guzzle promise,
-or any object with a `then()` method that is not a `PromiseInterface` —
+handler returns a **foreign thenable** (a ReactPHP promise, a Guzzle promise,
+or any object with a `then()` method that is not a `PromiseInterface`),
 cancelling the outer promise changes its state but does **not** cancel the
 foreign thenable. The foreign promise keeps running:
 ```php
@@ -698,7 +699,7 @@ $outer->onCancel(function () use (&$foreignPromise) {
 ### Cyclic chain detection
 
 If a `then()` handler returns the same promise it belongs to, resolving that
-promise would cause it to wait on itself forever — a deadlock. The library
+promise would cause it to wait on itself forever in a deadlock. The library
 detects this and immediately rejects the promise with a `TypeError` rather
 than hanging:
 ```php
@@ -729,19 +730,20 @@ $promise
 ```
 
 > **Timing note:** On fulfillment and rejection, `finally()` runs
-> asynchronously via microtask — same as `then()`. On cancellation, it runs
+> asynchronously via microtask, the same as `then()`. On cancellation, it runs
 > **synchronously** to ensure immediate resource cleanup before the cancel
 > call returns.
+
 ---
 
 ## Blocking — `wait()`
 
 `wait()` returns immediately if the promise is already settled. If the promise
-is still pending, it drives the event loop — running full iterations via
-`Loop::runOnce()` — until the promise settles, then returns the resolved value.
+is still pending, it drives the event loop (running full iterations via
+`Loop::runOnce()`) until the promise settles, then returns the resolved value.
 
 The script cannot advance past the `wait()` line until it returns, but the
-event loop is fully alive underneath — timers fire, I/O callbacks run, and
+event loop is fully alive underneath: timers fire, I/O callbacks run, and
 other in-flight work continues normally on every iteration while it waits:
 ```php
 Loop::addPeriodicTimer(1.0, fn() => print("tick\n"), maxExecutions: 5);
@@ -760,8 +762,8 @@ echo "Done\n";
 // Done          ← script advances only after wait() returns
 ```
 
-`wait()` throws if the promise rejects or is cancelled — whether that happened
-before `wait()` was called, or during the loop iterations while waiting:
+`wait()` throws if the promise rejects or is cancelled, whether that happened
+before `wait()` was called or during the loop iterations while waiting:
 ```php
 try {
     Promise::rejected(new \RuntimeException('Failed'))->wait();
@@ -783,12 +785,13 @@ try {
 > throws `InvalidContextException` with the exact file and line of the
 > offending call. Inside a Fiber, use `await()` from `hiblaphp/async`
 > to properly suspend the fiber instead of blocking the thread.
+
 ---
 
 ## Async Delay
 
 The global `delay()` function returns a promise that resolves after the
-given number of seconds. It is cancellable — cancelling it also cancels
+given number of seconds. It is cancellable: cancelling it also cancels
 the underlying timer.
 ```php
 use function Hibla\delay;
@@ -803,7 +806,7 @@ delay(1.5)->then(fn() => print("1.5 seconds later\n"));
 ### The 4-state model
 
 This library extends the standard Promise/A+ 3-state model with a distinct
-**cancelled** state. Cancellation is not an error — it represents a deliberate
+**cancelled** state. Cancellation is not an error; it represents a deliberate
 decision to abort work that is no longer needed. A cancelled promise never
 transitions to fulfilled or rejected.
 ```php
@@ -821,7 +824,7 @@ var_dump($promise->isRejected());  // false
 
 Cancellation runs **synchronously** and **immediately** when `cancel()` is
 called. All registered `onCancel()` handlers execute in registration order
-before `cancel()` returns. This is intentional — it eliminates race conditions
+before `cancel()` returns. This is intentional: it eliminates race conditions
 where the promise could be resolved or rejected in the same tick that
 cancellation is requested.
 ```php
@@ -840,8 +843,8 @@ echo "C\n"; // prints third — after both handlers have already run
 ### Cooperative cancellation — `onCancel()`
 
 Calling `cancel()` on a promise only changes its state. It does **not**
-automatically stop the underlying work. To actually free resources — cancel
-a timer, abort an HTTP request, close a file handle — you must register an
+automatically stop the underlying work. To actually free resources (cancel
+a timer, abort an HTTP request, close a file handle), you must register an
 `onCancel()` handler at the point where the async work begins.
 ```php
 // Correct — resources are freed on cancellation
@@ -865,7 +868,7 @@ $promise = new Promise(function ($resolve) {
 $promise->cancel(); // Promise state changes, but timer is still live
 ```
 
-Multiple `onCancel()` handlers can be registered — they fire in registration
+Multiple `onCancel()` handlers can be registered and they fire in registration
 order. If cancellation has already occurred when `onCancel()` is called, the
 handler fires immediately and synchronously.
 
@@ -873,7 +876,7 @@ handler fires immediately and synchronously.
 
 Because cancellation is synchronous, `onCancel()` handlers run directly on
 the call stack of whatever code called `cancel()`. If a handler throws, the
-exception propagates out of `cancel()` — which means code that calls
+exception propagates out of `cancel()`, meaning code that calls
 `cancel()` expecting it to be a silent fire-and-forget operation will receive
 an unexpected exception.
 
@@ -881,8 +884,8 @@ The library collects exceptions from all handlers before rethrowing, so every
 handler runs regardless of whether a previous one threw. The throwing behavior
 depends on how many handlers failed:
 ```
-One handler throws     → that exception is rethrown directly from cancel()
-Multiple handlers throw → all exceptions are wrapped in AggregateErrorException
+One handler throws      -> that exception is rethrown directly from cancel()
+Multiple handlers throw -> all exceptions are wrapped in AggregateErrorException
 ```
 ```php
 $promise->onCancel(function () {
@@ -897,10 +900,10 @@ try {
 }
 ```
 
-The promise is already in the `cancelled` state before any handler runs —
-this is true even when a handler throws. Cleanup of internal state runs
-regardless of handler exceptions. The only consequence of a throwing handler
-is the exception propagating out of `cancel()`.
+The promise is already in the `cancelled` state before any handler runs,
+even when a handler throws. Cleanup of internal state runs regardless of
+handler exceptions. The only consequence of a throwing handler is the
+exception propagating out of `cancel()`.
 ```php
 $promise->onCancel(function () {
     throw new \RuntimeException('handler A failed');
@@ -937,8 +940,8 @@ $promise->onCancel(function () use ($conn) {
 });
 ```
 
-For cleanup that is inherently async — such as sending a cancellation signal
-to a remote server — fire a task and return immediately rather than awaiting
+For cleanup that is inherently async (such as sending a cancellation signal
+to a remote server), fire a task and return immediately rather than awaiting
 the result:
 ```php
 $promise->onCancel(function () use ($requestId) {
@@ -956,7 +959,7 @@ $promise->onCancel(function () use ($requestId) {
 
 ### `cancel()` vs `cancelChain()`
 
-**`cancel()`** propagates forward only — it cancels the promise and all child
+**`cancel()`** propagates forward only: it cancels the promise and all child
 promises created from it via `then()`, but does not propagate upward to the
 parent:
 ```php
@@ -966,7 +969,7 @@ $processed = $root->then(fn($file) => processFile($file));
 $root->cancel(); // Cancels root AND processed (forward propagation)
 ```
 
-**`cancelChain()`** propagates both ways — it walks up the parent chain to
+**`cancelChain()`** propagates both ways: it walks up the parent chain to
 find the root, then cancels everything from the root downward. Use this when
 you only hold a reference to a child promise but need to cancel the entire
 operation:
@@ -980,7 +983,7 @@ $processed->cancelChain(); // Cancels download AND processed
 ### The cost of non-cooperative cancellation
 
 The difference between registering an `onCancel()` handler and not
-registering one is not just architectural — it has a direct, measurable
+registering one is not just architectural; it has a direct, measurable
 impact on how long your script runs.
 ```php
 // No onCancel() handler — cancelling changes state but not the timer
@@ -1056,8 +1059,8 @@ json_encode($result);
 
 ## Accepting iterables
 
-All collection methods accept any `iterable` — not just arrays. You can pass
-arrays, generators, or any `Traversable`.
+All collection methods accept any `iterable`: arrays, generators, or any
+`Traversable`.
 ```php
 // Array
 Promise::all([$promise1, $promise2, $promise3]);
@@ -1092,8 +1095,8 @@ $promise->all([$promise1, $promise2]);
 
 ## Structured Concurrency
 
-The non-settled collection methods — `all()`, `race()`, `any()`, and
-`timeout()` — follow **structured concurrency** semantics. The lifetime of
+The non-settled collection methods (`all()`, `race()`, `any()`, and
+`timeout()`) follow **structured concurrency** semantics. The lifetime of
 every promise inside the collection is bound to the collection promise that
 owns them. The library enforces this in three situations:
 
@@ -1103,7 +1106,7 @@ promises that are still pending are automatically cancelled. Their
 `onCancel()` handlers fire synchronously, freeing any resources they hold.
 
 **2. A promise is cancelled:**
-The collection promise treats this identically to a rejection — it rejects
+The collection promise treats this identically to a rejection: it rejects
 immediately and all remaining pending promises are automatically cancelled,
 triggering their `onCancel()` handlers synchronously.
 
@@ -1138,8 +1141,8 @@ $all = Promise::all([$userPromise, $orderPromise, $statsPromise]);
 $all->cancel();
 ```
 
-The `*Settled` variants — `allSettled()`, `concurrentSettled()`,
-`batchSettled()`, `mapSettled()`, and `forEachSettled()` — deliberately opt
+The `*Settled` variants (`allSettled()`, `concurrentSettled()`,
+`batchSettled()`, `mapSettled()`, and `forEachSettled()`) deliberately opt
 out of this behavior. Individual failures and cancellations are captured as
 `SettledResult` objects rather than propagating. However, cancelling the
 collection promise itself still cancels all in-flight operations even in
@@ -1150,7 +1153,7 @@ settled variants.
 ## `Promise::all()`
 
 Resolves with an array of all results when every promise fulfills, preserving
-the original key order. **Fail-fast** — the moment any promise rejects or is
+the original key order. **Fail-fast**: the moment any promise rejects or is
 cancelled, the collection rejects immediately and all remaining pending
 promises are automatically cancelled synchronously.
 ```php
@@ -1199,7 +1202,7 @@ Promise::allSettled([
 });
 ```
 
-**When to use:** Batch operations where you want to process all outcomes —
+**When to use:** Batch operations where you want to process all outcomes:
 sending notifications, syncing records, or any scenario where partial failure
 is acceptable and you need a full audit of results.
 
@@ -1207,7 +1210,7 @@ is acceptable and you need a full audit of results.
 
 ## `Promise::race()`
 
-Settles with the **first promise to settle** — whether fulfilled or rejected.
+Settles with the **first promise to settle**, whether fulfilled or rejected.
 The moment any promise settles, all remaining pending promises are
 automatically cancelled synchronously before the collection's `then()` or
 `catch()` fires.
@@ -1280,7 +1283,7 @@ Promise::timeout($query, seconds: 5.0)
     });
 ```
 
-**When to use:** Any operation that must not run indefinitely — database
+**When to use:** Any operation that must not run indefinitely: database
 queries, HTTP requests, user input, or any external I/O.
 
 ---
@@ -1290,19 +1293,19 @@ queries, HTTP requests, user input, or any external I/O.
 | Method         | Rejects on member rejection? | Rejects on member cancel? | Cancels pending synchronously? | Cancels on collection cancel? | Returns                            |
 | -------------- | ---------------------------- | ------------------------- | ------------------------------ | ----------------------------- | ---------------------------------- |
 | `all()`        | Yes                          | Yes                       | Yes                            | Yes                           | `array<results>`                   |
-| `allSettled()` | Captures as SettledResult    | Captures as SettledResult | Never                          | Yes — synchronously           | `array<SettledResult>`             |
-| `race()`       | Yes — if first to settle     | Yes — if first to settle  | Yes — on any settle            | Yes — synchronously           | First settled value                |
-| `any()`        | Yes — only if all reject     | Treated as rejection      | Yes — on first fulfill         | Yes — synchronously           | First fulfilled value              |
-| `timeout()`    | Yes                          | Yes                       | Yes — synchronously            | Yes — synchronously           | Original value or TimeoutException |
+| `allSettled()` | Captures as SettledResult    | Captures as SettledResult | Never                          | Yes, synchronously            | `array<SettledResult>`             |
+| `race()`       | Yes, if first to settle      | Yes, if first to settle   | Yes, on any settle             | Yes, synchronously            | First settled value                |
+| `any()`        | Yes, only if all reject      | Treated as rejection      | Yes, on first fulfill          | Yes, synchronously            | First fulfilled value              |
+| `timeout()`    | Yes                          | Yes                       | Yes, synchronously             | Yes, synchronously            | Original value or TimeoutException |
 
 ---
 
 ## Concurrency Utilities
 
 All concurrency methods accept **callables that return promises**, not
-pre-created promise instances. This is fundamental — a pre-created promise is
+pre-created promise instances. This is fundamental: a pre-created promise is
 already running and cannot be subject to concurrency control. Callables give
-the library control over exactly when each task starts.
+the library control over exactly when each task starts. Doing so will throw an exception.
 ```php
 // Correct — factory callables, tasks start when the library decides
 $tasks = [
@@ -1318,16 +1321,17 @@ $tasks = [
     fetchUser(3),
 ];
 ```
+> **Note**: items in concurrency collection must be a callable that return a promise. If >   pass by an unexpected value will throw a `RuntimeException`.
 
 ### Accepting iterables
 
-All concurrency utilities accept any `iterable` — arrays, generators, or any
+All concurrency utilities accept any `iterable`: arrays, generators, or any
 `Traversable`. Tasks are pulled **lazily** from the iterable, so generators
 are never fully materialized. Only as many tasks are pulled as needed to fill
 the concurrency slots, making generators ideal for very large or infinite task
 sources where you do not want to load everything into memory at once.
 
-> **New to generators?** All examples below use plain arrays — they work
+> **New to generators?** All examples below use plain arrays, which work
 > identically. Swap in a generator only when you need to process a very large
 > dataset lazily.
 
@@ -1343,7 +1347,7 @@ in-flight tasks are automatically cancelled synchronously before the
 collection's `catch()` fires. No further tasks are pulled from the iterator.
 
 **2. A task promise is cancelled externally:** Treated identically to a
-rejection — the collection rejects with `CancelledException` and all
+rejection: the collection rejects with `CancelledException` and all
 remaining in-flight tasks are cancelled synchronously.
 
 **3. The collection promise itself is cancelled:** All currently running tasks
@@ -1373,7 +1377,7 @@ Promise::concurrent($tasks, concurrency: 2)
 ```
 
 > **Large datasets:** Use a generator to avoid loading everything into memory
-> at once — tasks are pulled lazily as slots open up:
+> at once. Tasks are pulled lazily as slots open up:
 > ```php
 > Promise::concurrent((function () use ($db) {
 >     foreach ($db->cursor('SELECT id FROM records') as $row) {
@@ -1386,8 +1390,8 @@ Promise::concurrent($tasks, concurrency: 2)
 
 ### `Promise::concurrentSettled()`
 
-Identical scheduling to `concurrent()` — pool is kept full, tasks start as
-slots open. Individual failures and cancellations are captured as
+Identical scheduling to `concurrent()`: the pool is kept full and tasks start
+as slots open. Individual failures and cancellations are captured as
 `SettledResult` rather than aborting. External cancellation of the collection
 still cancels all in-flight tasks synchronously.
 ```php
@@ -1414,7 +1418,7 @@ Promise::concurrentSettled($tasks, concurrency: 2)
 ### `Promise::batch()`
 
 Processes tasks in sequential batches. The entire first batch must complete
-before the second batch starts. **Fail-fast** — if any task in a batch fails,
+before the second batch starts. **Fail-fast**: if any task in a batch fails,
 all in-flight tasks in that batch are cancelled synchronously and no further
 batches start.
 ```php
@@ -1431,8 +1435,8 @@ Promise::batch($emails, batchSize: 2, concurrency: 2)
 ```
 
 **When to use `batch()` over `concurrent()`:** When you need hard boundaries
-between groups of work — e.g. processing records page by page where each page
-must fully commit before the next starts.
+between groups of work, for example processing records page by page where
+each page must fully commit before the next starts.
 
 ---
 
@@ -1519,7 +1523,7 @@ Promise::filter($products, function ($product) {
 
 ### `Promise::reduce()`
 
-The only inherently **sequential** method — each step waits for the previous
+The only inherently **sequential** method: each step waits for the previous
 carry before starting. **Fail-fast.**
 ```php
 Promise::reduce(
@@ -1538,7 +1542,7 @@ faster.
 ### `Promise::forEach()`
 
 Executes a side-effect callback for each item. Return values are discarded
-immediately — memory stays flat regardless of input size. Defaults to
+immediately, so memory stays flat regardless of input size. Defaults to
 **unlimited concurrency**. **Fail-fast.**
 ```php
 $records = [$record1, $record2, $record3];
@@ -1552,7 +1556,7 @@ Promise::forEach($records, fn($record) => saveToExternalApi($record), concurrenc
 
 ### `Promise::forEachSettled()`
 
-Same as `forEach()` — side effects only, memory stays flat — but failures are
+Same as `forEach()` (side effects only, memory stays flat) but failures are
 silently swallowed. Every item is attempted regardless of individual failures.
 ```php
 $users = [$user1, $user2, $user3];
@@ -1562,7 +1566,7 @@ Promise::forEachSettled($users, fn($user) => sendWelcomeEmail($user), concurrenc
 ```
 
 **When to use `forEachSettled()` over `forEach()`:** Notifications, emails,
-webhooks, audit logs, or cache invalidation — where partial failure is
+webhooks, audit logs, or cache invalidation, where partial failure is
 acceptable and every item should be attempted regardless.
 
 ---
@@ -1571,16 +1575,17 @@ acceptable and every item should be attempted regardless.
 
 | Method                | Accepts iterable | Tasks pulled lazily | Default concurrency | Fail-fast | Cancels in-flight on reject? | Cancels on collection cancel? | Returns                |
 | --------------------- | ---------------- | ------------------- | ------------------- | --------- | ---------------------------- | ----------------------------- | ---------------------- |
-| `concurrent()`        | Yes              | Yes                 | Required            | Yes       | Yes — synchronously          | Yes — synchronously           | `array<results>`       |
-| `concurrentSettled()` | Yes              | Yes                 | Required            | No        | Captures as SettledResult    | Yes — synchronously           | `array<SettledResult>` |
-| `batch()`             | Yes              | Yes — per batch     | batchSize           | Yes       | Yes — synchronously          | Yes — synchronously           | `array<results>`       |
-| `batchSettled()`      | Yes              | Yes — per batch     | batchSize           | No        | Captures as SettledResult    | Yes — synchronously           | `array<SettledResult>` |
-| `map()`               | Yes              | Yes                 | Unlimited           | Yes       | Yes — synchronously          | Yes — synchronously           | `array<mapped>`        |
-| `mapSettled()`        | Yes              | Yes                 | Unlimited           | No        | Captures as SettledResult    | Yes — synchronously           | `array<SettledResult>` |
-| `filter()`            | Yes              | Yes                 | Unlimited           | Yes       | Yes — synchronously          | Yes — synchronously           | `array<filtered>`      |
-| `reduce()`            | Yes              | Yes                 | Sequential          | Yes       | N/A                          | Yes — synchronously           | Single value           |
-| `forEach()`           | Yes              | Yes                 | Unlimited           | Yes       | Yes — synchronously          | Yes — synchronously           | void                   |
-| `forEachSettled()`    | Yes              | Yes                 | Unlimited           | No        | Captures as SettledResult    | Yes — synchronously           | void                   |
+| `concurrent()`        | Yes              | Yes                 | Required            | Yes       | Yes, synchronously           | Yes, synchronously            | `array<results>`       |
+| `concurrentSettled()` | Yes              | Yes                 | Required            | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
+| `batch()`             | Yes              | Yes, per batch      | batchSize           | Yes       | Yes, synchronously           | Yes, synchronously            | `array<results>`       |
+| `batchSettled()`      | Yes              | Yes, per batch      | batchSize           | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
+| `map()`               | Yes              | Yes                 | Unlimited           | Yes       | Yes, synchronously           | Yes, synchronously            | `array<mapped>`        |
+| `mapSettled()`        | Yes              | Yes                 | Unlimited           | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
+| `filter()`            | Yes              | Yes                 | Unlimited           | Yes       | Yes, synchronously           | Yes, synchronously            | `array<filtered>`      |
+| `reduce()`            | Yes              | Yes                 | Sequential          | Yes       | N/A                          | Yes, synchronously            | Single value           |
+| `forEach()`           | Yes              | Yes                 | Unlimited           | Yes       | Yes, synchronously           | Yes, synchronously            | void                   |
+| `forEachSettled()`    | Yes              | Yes                 | Unlimited           | No        | Captures as SettledResult    | Yes, synchronously            | void                   |
+
 ---
 
 ## Unhandled Rejections
@@ -1622,17 +1627,17 @@ Promise::setRejectionHandler(null)          removes the handler, restores defaul
 There are two ways an unhandled rejection throw is suppressed. Only one of
 them is intentional:
 
-**Intentional — attaching a rejection handler:**
+**Intentional: attaching a rejection handler:**
 ```php
 $promise->catch(fn($e) => logError($e));       // intentional
 $promise->then(null, fn($e) => logError($e));  // same
 ```
 
-**Unintentional — inspecting the promise value:**
+**Unintentional: inspecting the promise value:**
 
 Calling `getValue()`, `getReason()`, or `wait()` on a promise sets an
 internal `valueAccessed` flag. Once this flag is set, `__destruct()` skips
-the unhandled rejection check entirely — even if no `catch()` was ever
+the unhandled rejection check entirely, even if no `catch()` was ever
 attached.
 ```php
 $promise = Promise::rejected(new \RuntimeException('Something went wrong'));
@@ -1660,7 +1665,7 @@ $promise->catch(function (\Throwable $e) {
 });
 ```
 
-The same applies to `wait()` — calling it on a rejected promise throws the
+The same applies to `wait()`: calling it on a rejected promise throws the
 rejection reason and marks the promise as accessed, silencing the
 `__destruct()` check. This is intentional for `wait()` since you are
 explicitly handling the rejection via the thrown exception. It is only a
@@ -1668,12 +1673,13 @@ footgun when using `getValue()` or `getReason()` for inspection rather than
 for handling.
 ```
 Method          Sets hasRejectionHandler   Sets valueAccessed   Silences throw?
-catch()         Yes                        No                   Yes — intentionally
-then(null, fn)  Yes                        No                   Yes — intentionally
-getValue()      No                         Yes                  Yes — side effect
-getReason()     No                         Yes                  Yes — side effect
-wait()          No                         Yes                  Yes — intentional
+catch()         Yes                        No                   Yes, intentionally
+then(null, fn)  Yes                        No                   Yes, intentionally
+getValue()      No                         Yes                  Yes, side effect
+getReason()     No                         Yes                  Yes, side effect
+wait()          No                         Yes                  Yes, intentional
 ```
+
 ---
 
 ## API Reference
@@ -1743,8 +1749,8 @@ Hibla Promise ships a PHPStan extension that improves type inference for
 
 | Type                     | Meaning                                             |
 | ------------------------ | --------------------------------------------------- |
-| `PromiseInterface<null>` | Resolves with the value `null` — a concrete result  |
-| `PromiseInterface<void>` | Resolves with no meaningful value — a side effect   |
+| `PromiseInterface<null>` | Resolves with the value `null`, a concrete result   |
+| `PromiseInterface<void>` | Resolves with no meaningful value, a side effect    |
 
 Without the extension, PHPStan infers `Promise::resolved()` with no argument
 as `PromiseInterface<null>` because the parameter defaults to `null`. This
@@ -1775,7 +1781,7 @@ Promise::resolved($user);   // PromiseInterface<User>
 
 Without this extension, every side-effect promise in your codebase would
 require a manual `@return PromiseInterface<void>` annotation just to satisfy
-the analyzer — or worse, the return type would silently degrade to
+the analyzer, or worse, the return type would silently degrade to
 `PromiseInterface<null>`, losing the distinction entirely.
 
 ### Registering the extension
@@ -1806,8 +1812,8 @@ Then allow the plugin in your `composer.json`:
 }
 ```
 
-From that point on, any Composer package that ships a PHPStan extension —
-including `hiblaphp/promise` — is discovered and registered automatically.
+From that point on, any Composer package that ships a PHPStan extension
+(including `hiblaphp/promise`) is discovered and registered automatically.
 No manual includes required.
 
 ---
