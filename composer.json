@@ -24,7 +24,7 @@
     ],
     "require": {
         "php": "^8.3",
-        "hiblaphp/event-loop": "dev-main"
+        "hiblaphp/event-loop": "^1.0@alpha"
     },
     "require-dev": {
         "pestphp/pest": "^3.0",
