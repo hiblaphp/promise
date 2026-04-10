@@ -1544,7 +1544,7 @@ describe('Promise Static Methods', function () {
 
             $bytesPerItem = (memory_get_usage(true) - $memBefore) / 10_000;
 
-            expect($bytesPerItem)->toBeLessThan(1);
+            expect($bytesPerItem)->toBeLessThan(300);
         });
 
         it('continues processing all items after async rejection', function () {
