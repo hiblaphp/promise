@@ -32,12 +32,13 @@ it('cancels in-flight tasks when batch promise is cancelled', function () {
 
     $batch = $handler->batch($tasks, batchSize: 10, concurrency: 5);
 
-    Loop::addTimer(0.1, fn() => $batch->cancel());
+    Loop::addTimer(0.1, fn () => $batch->cancel());
     Loop::run();
 
     expect($cancelledCount)->toBe(5)
         ->and($completedCount)->toBe(0)
-        ->and($batch->isCancelled())->toBeTrue();
+        ->and($batch->isCancelled())->toBeTrue()
+    ;
 });
 
 it('does not advance to the next batch after cancellation', function () {
@@ -50,9 +51,9 @@ it('does not advance to the next batch after cancellation', function () {
             $startedCount++;
             $promise = new Promise();
 
-            $timerId = Loop::addTimer(0.5, fn() => $promise->resolve('completed'));
+            $timerId = Loop::addTimer(0.5, fn () => $promise->resolve('completed'));
 
-            $promise->onCancel(fn() => Loop::cancelTimer($timerId));
+            $promise->onCancel(fn () => Loop::cancelTimer($timerId));
 
             return $promise;
         };
@@ -60,11 +61,12 @@ it('does not advance to the next batch after cancellation', function () {
 
     $batch = $handler->batch($tasks, batchSize: 10, concurrency: 5);
 
-    Loop::addTimer(0.1, fn() => $batch->cancel());
+    Loop::addTimer(0.1, fn () => $batch->cancel());
     Loop::run();
 
     expect($startedCount)->toBe(5)
-        ->and($batch->isCancelled())->toBeTrue();
+        ->and($batch->isCancelled())->toBeTrue()
+    ;
 });
 
 it('cancels in-flight tasks when batchSettled promise is cancelled', function () {
@@ -93,12 +95,13 @@ it('cancels in-flight tasks when batchSettled promise is cancelled', function ()
 
     $batch = $handler->batchSettled($tasks, batchSize: 10, concurrency: 5);
 
-    Loop::addTimer(0.1, fn() => $batch->cancel());
+    Loop::addTimer(0.1, fn () => $batch->cancel());
     Loop::run();
 
     expect($cancelledCount)->toBe(5)
         ->and($completedCount)->toBe(0)
-        ->and($batch->isCancelled())->toBeTrue();
+        ->and($batch->isCancelled())->toBeTrue()
+    ;
 });
 
 it('cancels between batches cleanly when no tasks are in-flight', function () {
@@ -129,4 +132,3 @@ it('cancels between batches cleanly when no tasks are in-flight', function () {
     expect($secondBatchStarted)->toBeFalse()
         ->and($batch->isCancelled())->toBeTrue();
 });
-

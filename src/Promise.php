@@ -175,8 +175,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         if ($executor !== null) {
             try {
                 $executor(
-                    fn($value = null) => $this->resolve($value),
-                    fn($reason = null) => $this->reject($reason)
+                    fn ($value = null) => $this->resolve($value),
+                    fn ($reason = null) => $this->reject($reason)
                 );
             } catch (\Throwable $e) {
                 $this->reject($e);
@@ -265,8 +265,8 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         if ($value instanceof PromiseInterface) {
             $value->then(
-                fn($v) => $this->resolve($v),
-                fn($r) => $this->reject($r)
+                fn ($v) => $this->resolve($v),
+                fn ($r) => $this->reject($r)
             );
 
             // If THIS promise is cancelled, forward it to the inner promise
@@ -540,9 +540,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             }
 
             if ($this->state === PromiseState::FULFILLED) {
-                Loop::microTask(fn() => $handleResolve($this->value));
+                Loop::microTask(fn () => $handleResolve($this->value));
             } elseif ($this->state === PromiseState::REJECTED) {
-                Loop::microTask(fn() => $handleReject($this->reason));
+                Loop::microTask(fn () => $handleReject($this->reason));
             } else {
                 $this->thenCallbacks[] = $handleResolve;
                 $this->catchCallbacks[] = $handleReject;
@@ -594,16 +594,18 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             static function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn($resolve) => $resolve($result)))
-                    ->then(fn(): mixed => $value);
+                return (new self(fn ($resolve) => $resolve($result)))
+                    ->then(fn (): mixed => $value)
+                ;
             },
             static function (\Throwable $reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                return (new self(fn($resolve) => $resolve($result)))
+                return (new self(fn ($resolve) => $resolve($result)))
                     ->then(function () use ($reason): never {
                         throw $reason;
-                    });
+                    })
+                ;
             }
         );
     }
@@ -974,9 +976,10 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             return;
         }
 
-        if ($this->state === PromiseState::REJECTED && !$this->hasRejectionHandler) {
+        if ($this->state === PromiseState::REJECTED && ! $this->hasRejectionHandler) {
             if (self::$rejectionHandler !== null) {
                 (self::$rejectionHandler)($this->reason, $this);
+
                 return;
             }
 

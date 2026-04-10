@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Hibla\Promise;
 
+use Hibla\Promise\Interfaces\SettledResultInterface;
 use JsonSerializable;
 
 /**
  * @template TValue
  * @template TReason
+ *
+ * @implements SettledResultInterface<TValue, TReason>
  */
-final readonly class SettledResult implements JsonSerializable
+final readonly class SettledResult implements SettledResultInterface
 {
     private const string STATUS_FULFILLED = 'fulfilled';
     private const string STATUS_REJECTED = 'rejected';
@@ -24,6 +27,8 @@ final readonly class SettledResult implements JsonSerializable
     }
 
     /**
+     * @internal use in combinator logic
+     *
      * @template TFulfilledValue
      * @param TFulfilledValue $value
      * @return self<TFulfilledValue, never>
@@ -35,6 +40,8 @@ final readonly class SettledResult implements JsonSerializable
     }
 
     /**
+     *  @internal use in combinator logic
+     *
      * @template TRejectedReason
      * @param TRejectedReason $reason
      * @return self<never, TRejectedReason>
@@ -46,6 +53,8 @@ final readonly class SettledResult implements JsonSerializable
     }
 
     /**
+     * @internal use in combinator logic
+     *
      * @return self<never, never>
      */
     public static function cancelled(): self
@@ -54,16 +63,25 @@ final readonly class SettledResult implements JsonSerializable
         return new self(self::STATUS_CANCELLED);
     }
 
+    /**
+     * @inheritDoc
+     */
     public function isFulfilled(): bool
     {
         return $this->status === self::STATUS_FULFILLED;
     }
 
+    /**
+     * @inheritDoc
+     */
     public function isRejected(): bool
     {
         return $this->status === self::STATUS_REJECTED;
     }
 
+    /**
+     * @inheritDoc
+     */
     public function isCancelled(): bool
     {
         return $this->status === self::STATUS_CANCELLED;

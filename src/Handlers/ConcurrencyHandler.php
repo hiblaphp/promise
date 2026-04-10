@@ -457,7 +457,8 @@ final readonly class ConcurrencyHandler
                         }
                         unset($batchResults);
                         Loop::microTask($processNextBatch);
-                    });
+                    })
+                ;
             };
 
             Loop::microTask($processNextBatch);
@@ -489,7 +490,7 @@ final readonly class ConcurrencyHandler
                         ? $item
                         : Promise::resolved($item);
 
-                    return $inputPromise->then(fn($resolvedValue) => $mapper($resolvedValue, $key));
+                    return $inputPromise->then(fn ($resolvedValue) => $mapper($resolvedValue, $key));
                 };
             }
         })();
@@ -516,7 +517,7 @@ final readonly class ConcurrencyHandler
                         ? $item
                         : Promise::resolved($item);
 
-                    return $inputPromise->then(fn($resolvedValue) => $mapper($resolvedValue, $key));
+                    return $inputPromise->then(fn ($resolvedValue) => $mapper($resolvedValue, $key));
                 };
             }
         })();
@@ -557,7 +558,7 @@ final readonly class ConcurrencyHandler
                                     ? $item
                                     : Promise::resolved($item);
 
-                                return $inputPromise->then(fn($resolvedValue) => $callback($resolvedValue, $key));
+                                return $inputPromise->then(fn ($resolvedValue) => $callback($resolvedValue, $key));
                             };
                         }
                     })()
@@ -722,7 +723,7 @@ final readonly class ConcurrencyHandler
                                     ? $item
                                     : Promise::resolved($item);
 
-                                return $inputPromise->then(fn($resolvedValue) => $callback($resolvedValue, $key));
+                                return $inputPromise->then(fn ($resolvedValue) => $callback($resolvedValue, $key));
                             };
                         }
                     })()
@@ -1033,7 +1034,7 @@ final readonly class ConcurrencyHandler
             return $tasks->getIterator();
         }
 
-        return (fn() => yield from $tasks)();
+        return (fn () => yield from $tasks)();
     }
 
     /**

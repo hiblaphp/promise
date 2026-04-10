@@ -90,7 +90,7 @@ interface PromiseStaticInterface
      *
      * @template TAllSettledValue
      * @param  iterable<int|string, PromiseInterface<TAllSettledValue>>  $promises
-     * @return PromiseInterface<array<int|string, SettledResult<TAllSettledValue, mixed>>>
+     * @return PromiseInterface<array<int|string, SettledResultInterface<TAllSettledValue, mixed>>>
      *
      * @static
      */
@@ -207,7 +207,7 @@ interface PromiseStaticInterface
      * @template TConcurrentSettledValue
      * @param  iterable<int|string, callable(): PromiseInterface<TConcurrentSettledValue>>  $tasks  Iterable of tasks that return promises.
      * @param  int  $concurrency  Maximum number of concurrent executions
-     * @return PromiseInterface<array<int|string, SettledResult<TConcurrentSettledValue, mixed>>> A promise that resolves with settlement results
+     * @return PromiseInterface<array<int|string, SettledResultInterface<TConcurrentSettledValue, mixed>>> A promise that resolves with settlement results
      *
      * @static
      */
@@ -230,7 +230,7 @@ interface PromiseStaticInterface
      * @param  iterable<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks  Iterable of tasks that return promises.
      * @param  int  $batchSize  Size of each batch to process concurrently
      * @param  int|null  $concurrency  Maximum number of concurrent executions per batch
-     * @return PromiseInterface<array<int|string, SettledResult<TBatchSettledValue, mixed>>> A promise that resolves with settlement results
+     * @return PromiseInterface<array<int|string, SettledResultInterface<TBatchSettledValue, mixed>>> A promise that resolves with settlement results
      *
      * @static
      */
@@ -283,7 +283,7 @@ interface PromiseStaticInterface
      * @param int|null $concurrency Maximum number of concurrent executions.
      *                              - Pass `null` for **Unlimited** concurrency.
      *
-     * @return PromiseInterface<array<int|string, SettledResult<TMapResult, mixed>>> A promise that always resolves with an array of settled results.
+     * @return PromiseInterface<array<int|string, SettledResultInterface<TMapResult, mixed>>> A promise that always resolves with an array of settled results.
      * @static
      */
     public static function mapSettled(iterable $items, callable $mapper, ?int $concurrency = null): PromiseInterface;

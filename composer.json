@@ -23,7 +23,7 @@
         }
     ],
     "require": {
-        "php": "^8.3",
+        "php": "^8.4",
         "hiblaphp/event-loop": "^1.0@alpha"
     },
     "require-dev": {

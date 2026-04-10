@@ -988,7 +988,8 @@ describe('ConcurrencyHandler', function () {
             ;
 
             expect(fn () => $handler->forEachSettled([], fn () => null, -1)->wait())
-                ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0');
+                ->toThrow(InvalidArgumentException::class, 'Concurrency limit must be greater than 0')
+            ;
         });
     });
 });

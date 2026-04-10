@@ -55,7 +55,7 @@ final readonly class ReduceHandler
                     return;
                 }
 
-                $key  = $iterator->key();
+                $key = $iterator->key();
                 $item = $iterator->current();
                 $iterator->next();
 

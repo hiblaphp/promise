@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\EventLoop\Loop;
 use Hibla\Promise\Promise;
 
@@ -34,7 +36,8 @@ it('cancels the in-flight step when reduce promise is cancelled', function () {
 
     expect($cancelledCount)->toBe(1)
         ->and($completedCount)->toBe(0)
-        ->and($reduce->isCancelled())->toBeTrue();
+        ->and($reduce->isCancelled())->toBeTrue()
+    ;
 });
 
 it('does not advance to the next step after cancellation', function () {
@@ -62,7 +65,8 @@ it('does not advance to the next step after cancellation', function () {
     Loop::run();
 
     expect($stepsStarted)->toBe(1)
-        ->and($reduce->isCancelled())->toBeTrue();
+        ->and($reduce->isCancelled())->toBeTrue()
+    ;
 });
 
 it('cancels between steps cleanly when no step is in-flight', function () {
@@ -81,7 +85,7 @@ it('cancels between steps cleanly when no step is in-flight', function () {
                     return $v;
                 });
             }
-            
+
             $secondStepStarted = true;
 
             return Promise::resolved($carry + $item);
@@ -92,5 +96,6 @@ it('cancels between steps cleanly when no step is in-flight', function () {
     Loop::run();
 
     expect($secondStepStarted)->toBeFalse()
-        ->and($reduce->isCancelled())->toBeTrue();
+        ->and($reduce->isCancelled())->toBeTrue()
+    ;
 });
