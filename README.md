@@ -9,6 +9,8 @@ cancellation, structured concurrency, and a rich set of collection and
 concurrency utilities.
 
 [![Latest Release](https://img.shields.io/github/release/hiblaphp/promise.svg?style=flat-square)](https://github.com/hiblaphp/promise/releases)
+[![Tests](https://github.com/hiblaphp/promise/actions/workflows/test.yml/badge.svg)](https://github.com/hiblaphp/promise/actions/workflows/test.yml)
+[![Total Downloads](https://img.shields.io/packagist/dt/hiblaphp/promise.svg?style=flat-square)](https://packagist.org/packages/hiblaphp/promise)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](./LICENSE)
 
 ---
