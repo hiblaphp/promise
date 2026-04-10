@@ -99,7 +99,7 @@ composer require hiblaphp/promise
 ```
 
 **Requirements:**
-- PHP 8.3+
+- PHP 8.4+
 - `hiblaphp/event-loop`
 
 ---
