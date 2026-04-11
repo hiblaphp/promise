@@ -92,7 +92,7 @@ concurrency utilities.
 ---
 
 ## Installation
->Hibla Promise is currently in its Alpha development phase. You can install the library via Composer by explicitly allowing alpha stability:
+>This library is currently in its Alpha development phase. You can install the library via Composer by explicitly allowing alpha stability:
 
 ```bash
 composer require hiblaphp/promise:^1.0@alpha
