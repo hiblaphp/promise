@@ -30,6 +30,7 @@ concurrency utilities.
   - [Resolving and rejecting manually](#resolving-and-rejecting-manually)
   - [Pre-settled promises](#pre-settled-promises)
 - [The Deferred Pattern](#the-deferred-pattern)
+  - [When to use the deferred pattern](#when-to-use-the-deferred-pattern)
   - [Always pair with `onCancel()`](#always-pair-with-oncancel)
 - [Chaining](#chaining)
   - [`then()` always runs asynchronously](#then-always-runs-asynchronously-via-microtask)
@@ -39,7 +40,7 @@ concurrency utilities.
   - [Cancellation and thenable interoperability](#cancellation-and-thenable-interoperability)
   - [Cyclic chain detection](#cyclic-chain-detection)
   - [`finally()` — always runs](#finally--always-runs)
-- [Blocking — `wait()`](#blocking--wait)
+- [Pausing — `wait()`](#pausing--wait)
 - [Async Delay](#async-delay)
 
 **Cancellation**
@@ -97,6 +98,44 @@ concurrency utilities.
 ```bash
 composer require hiblaphp/promise:"^1.0@alpha"
 ```
+## Quick Example
+
+```php
+use Hibla\Promise\Promise;
+use function Hibla\delay;
+
+// Fetch two promises concurrently and combine their results
+Promise::all([
+    'user'   => fetchUser(1),
+    'orders' => fetchOrders(1),
+])
+->then(function (array $results) {
+    echo "User: {$results['user']->name}\n";
+    echo "Orders: " . count($results['orders']) . "\n";
+})
+->catch(fn(\Throwable $e) => error_log($e->getMessage()));
+
+// Pause until a promise settles — useful at the top level of a script
+$user = fetchUser(1)->wait(); // returns the resolved value, or throws on rejection
+
+// Wrap any async work in a cancellable promise
+$job = new Promise(function ($resolve, $reject, $onCancel) {
+    $timerId = Loop::addTimer(10.0, fn() => $resolve('done'));
+    $onCancel(fn() => Loop::cancelTimer($timerId)); // cleans up if cancelled
+});
+
+// Cancel it after 2 seconds — the timer is cleaned up immediately
+delay(2.0)->then(fn() => $job->cancel());
+```
+
+The four things to notice:
+
+- `then()` / `catch()` let you chain async steps without nesting callbacks.
+- `Promise::all()` runs operations in parallel and gives you all results at once.
+- `wait()` blocks until a promise settles and returns its value directly — handy at script boundaries.
+- The `$onCancel` argument lets you register cleanup right next to the work it belongs to.
+
+The rest of this document covers each of these in detail.
 
 **Requirements:**
 - PHP 8.4+
@@ -347,6 +386,10 @@ everything in the structured concurrency model is built on.
 ## Basic Usage
 
 ### Creating a Promise
+
+The executor receives three callbacks: `$resolve`, `$reject`, and `$onCancel`.
+The third argument is optional — existing executors that only use `$resolve`
+and `$reject` work unchanged.
 ```php
 use Hibla\Promise\Promise;
 
@@ -369,6 +412,46 @@ $promise = new Promise(function (callable $resolve, callable $reject) {
 $promise->catch(function (\Throwable $e) {
     echo $e->getMessage(); // Something went wrong
 });
+```
+
+#### Co-locating cleanup with `$onCancel`
+
+The third executor argument, `$onCancel`, lets you register cancellation
+cleanup handlers right next to the async work that needs them. This is the
+recommended approach for simple, self-contained promises where the resource
+is created inside the executor:
+```php
+$promise = new Promise(function (callable $resolve, callable $reject, callable $onCancel) {
+    $timerId = Loop::addTimer(5, fn() => $resolve('done'));
+
+    // Cleanup lives right next to the work — harder to forget
+    $onCancel(fn() => Loop::cancelTimer($timerId));
+});
+```
+
+You can call `$onCancel()` multiple times. Handlers are registered in FIFO
+order and all run when the promise is cancelled:
+```php
+$promise = new Promise(function (callable $resolve, callable $reject, callable $onCancel) {
+    $timerId = Loop::addTimer(5, fn() => $resolve('done'));
+    $handle  = fopen('data.tmp', 'w');
+
+    $onCancel(fn() => Loop::cancelTimer($timerId)); // runs first
+    $onCancel(fn() => fclose($handle));             // runs second
+});
+```
+
+Handlers registered via `$onCancel` inside the executor and handlers
+registered via `->onCancel()` on the outside are equivalent and they share
+the same queue and fire in registration order:
+```php
+$promise = new Promise(function (callable $resolve, callable $reject, callable $onCancel) {
+    $onCancel(fn() => /* runs 1st */);
+    $onCancel(fn() => /* runs 2nd */);
+});
+
+$promise->onCancel(fn() => /* runs 3rd */);
+$promise->onCancel(fn() => /* runs 4th */);
 ```
 
 ### Resolving and rejecting manually
@@ -417,12 +500,91 @@ Loop::addTimer(1.0, function () use ($promise) {
 $promise->then(fn($value) => print($value));
 ```
 
+### When to use the deferred pattern
+
+The constructor pattern (with an executor) and the deferred pattern (no
+executor, settle later) solve different problems. Choosing between them
+depends on where the async work lives and who drives it to completion.
+
+**Use the constructor pattern** when you own the async work and its
+lifecycle, the resource is created inside the executor and the cancel
+logic is obvious:
+```php
+// Constructor pattern — work and cleanup live in the same place
+$promise = new Promise(function ($resolve, $reject, $onCancel) {
+    $timerId = Loop::addTimer(5, fn() => $resolve('done'));
+    $onCancel(fn() => Loop::cancelTimer($timerId));
+});
+```
+
+**Use the deferred pattern** when `resolve()` or `reject()` need to be
+called from outside the construction site — event listeners, callbacks you
+don't own, class properties, or anywhere multiple external actors drive
+the promise to settlement. This covers three broad scenarios:
+
+**State machines** — the promise settles when the machine transitions to a
+terminal state, driven by events that arrive from outside:
+```php
+$promise = new Promise();
+
+$machine->onTransition(function (State $from, State $to) use ($promise) {
+    if ($to === State::COMPLETED) $promise->resolve($machine->result());
+    if ($to === State::FAILED)    $promise->reject($machine->error());
+    if ($to === State::ABORTED)   $promise->reject(new AbortedException());
+});
+
+$promise->onCancel(fn() => $machine->forceStop());
+```
+
+**Low-level connection handling** — multiple socket events (connect, error,
+timeout) each drive the same promise toward settlement:
+```php
+$promise = new Promise();
+
+$socket->onConnect(fn()  => $promise->resolve($socket));
+$socket->onError(fn($e)  => $promise->reject($e));
+$socket->onTimeout(fn()  => $promise->reject(new TimeoutException()));
+$promise->onCancel(fn()  => $socket->close());
+```
+
+**Complex event orchestration** — the promise settles only when multiple
+independent events have all occurred:
+```php
+$promise = new Promise();
+$barrier = new CountdownLatch(3);
+
+$bus->on('worker.done', function () use ($barrier, $promise) {
+    $barrier->countDown();
+    if ($barrier->isDone()) {
+        $promise->resolve();
+    }
+});
+```
+
+The common thread: the promise is created before you know how or when it
+will settle, and settlement is driven by external actors. The constructor
+pattern cannot express this cleanly because it assumes you know the work and
+its lifecycle at construction time. The deferred pattern is the right tool
+whenever the outside world decides when a promise resolves.
+
 ### Always pair with `onCancel()`
 
-Any deferred promise that wraps a real resource must register an `onCancel()`
+Any promise that wraps a real resource must register an `onCancel()`
 handler to clean up that resource if the promise is cancelled before it
 resolves. Without it, cancelling the promise only changes its state and the
 underlying work keeps running.
+
+For constructor-style promises, register cleanup via the `$onCancel`
+executor argument to keep it co-located with the work:
+```php
+$promise = new Promise(function ($resolve, $reject, $onCancel) {
+    $timerId = Loop::addTimer(5.0, fn() => $resolve('Finished'));
+    $onCancel(fn() => Loop::cancelTimer($timerId));
+});
+```
+
+For deferred-style promises, register cleanup via `->onCancel()` after
+construction:
 ```php
 $promise = new Promise();
 
@@ -740,11 +902,12 @@ $promise
 
 ---
 
-## Blocking — `wait()`
+## Pausing — `wait()`
 
 `wait()` returns immediately if the promise is already settled. If the promise
-is still pending, it drives the event loop (running full iterations via
-`Loop::runOnce()`) until the promise settles, then returns the resolved value.
+is still pending, it pauses the script at that line and drives the event loop
+(running full iterations via `Loop::runOnce()`) until the promise settles,
+then returns the resolved value.
 
 The script cannot advance past the `wait()` line until it returns, but the
 event loop is fully alive underneath: timers fire, I/O callbacks run, and
@@ -788,7 +951,7 @@ try {
 > **Important:** `wait()` **cannot** be called inside a Fiber. Doing so
 > throws `InvalidContextException` with the exact file and line of the
 > offending call. Inside a Fiber, use `await()` from `hiblaphp/async`
-> to properly suspend the fiber instead of blocking the thread.
+> to properly suspend the fiber instead.
 
 ---
 
@@ -814,8 +977,9 @@ This library extends the standard Promise/A+ 3-state model with a distinct
 decision to abort work that is no longer needed. A cancelled promise never
 transitions to fulfilled or rejected.
 ```php
-$promise = new Promise(function ($resolve) {
-    Loop::addTimer(10.0, fn() => $resolve('done'));
+$promise = new Promise(function ($resolve, $reject, $onCancel) {
+    $timerId = Loop::addTimer(10.0, fn() => $resolve('done'));
+    $onCancel(fn() => Loop::cancelTimer($timerId));
 });
 
 $promise->cancel();
@@ -850,17 +1014,26 @@ Calling `cancel()` on a promise only changes its state. It does **not**
 automatically stop the underlying work. To actually free resources (cancel
 a timer, abort an HTTP request, close a file handle), you must register an
 `onCancel()` handler at the point where the async work begins.
+
+You can register cleanup either via the `$onCancel` executor argument
+(co-located with the work) or via `->onCancel()` on the instance (useful
+for deferred-style promises). Both approaches are equivalent:
 ```php
-// Correct — resources are freed on cancellation
-$promise = new Promise(function ($resolve) use (&$timerId) {
+// Via executor argument — co-located, preferred for constructor-style promises
+$promise = new Promise(function ($resolve, $reject, $onCancel) {
     $timerId = Loop::addTimer(10.0, fn() => $resolve('done'));
+    $onCancel(fn() => Loop::cancelTimer($timerId)); // right next to the work
 });
 
-$promise->onCancel(function () use (&$timerId) {
-    Loop::cancelTimer($timerId); // Actually stops the timer
-});
+$promise->cancel(); // timer is cancelled, no callback fires
+```
+```php
+// Via ->onCancel() — preferred for deferred-style promises
+$promise = new Promise();
+$timerId = Loop::addTimer(10.0, fn() => $promise->resolve('done'));
+$promise->onCancel(fn() => Loop::cancelTimer($timerId));
 
-$promise->cancel(); // Timer is cancelled, no callback fires
+$promise->cancel(); // timer is cancelled, no callback fires
 ```
 ```php
 // Incorrect — timer keeps running after cancel()
@@ -1003,17 +1176,10 @@ function nonCancellableDelay(float $seconds): PromiseInterface
 // onCancel() handler registered — cancelling also cancels the timer
 function cancellableDelay(float $seconds): PromiseInterface
 {
-    $promise = new Promise();
-
-    $timerId = Loop::addTimer($seconds, function () use ($promise) {
-        $promise->resolve();
+    return new Promise(function (callable $resolve, callable $reject, callable $onCancel) use ($seconds) {
+        $timerId = Loop::addTimer($seconds, fn() => $resolve());
+        $onCancel(fn() => Loop::cancelTimer($timerId));
     });
-
-    $promise->onCancel(function () use ($timerId) {
-        Loop::cancelTimer($timerId);
-    });
-
-    return $promise;
 }
 
 $start = microtime(true);
@@ -1325,7 +1491,8 @@ $tasks = [
     fetchUser(3),
 ];
 ```
-> **Note**: items in concurrency collection must be a callable that return a promise. If >   pass by an unexpected value will throw a `RuntimeException`.
+> **Note**: items in concurrency collection must be a callable that return a promise. If
+> passed an unexpected value will throw a `RuntimeException`.
 
 ### Accepting iterables
 
@@ -1639,14 +1806,14 @@ $promise->then(null, fn($e) => logError($e));  // same
 
 **Unintentional: inspecting the promise value:**
 
-Calling `getValue()`, `getReason()`, or `wait()` on a promise sets an
+Accessing the `$value`, `$reason`, or calling `wait()` on a promise sets an
 internal `valueAccessed` flag. Once this flag is set, `__destruct()` skips
 the unhandled rejection check entirely, even if no `catch()` was ever
 attached.
 ```php
 $promise = Promise::rejected(new \RuntimeException('Something went wrong'));
 
-// Inspecting the reason marks the promise as "accessed"
+// Accessing the reason marks the promise as "accessed"
 $reason = $promise->reason; // sets valueAccessed = true
 
 // No catch() attached — but the exception is never thrown on destruct.
@@ -1673,15 +1840,15 @@ The same applies to `wait()`: calling it on a rejected promise throws the
 rejection reason and marks the promise as accessed, silencing the
 `__destruct()` check. This is intentional for `wait()` since you are
 explicitly handling the rejection via the thrown exception. It is only a
-footgun when using `getValue()` or `getReason()` for inspection rather than
-for handling.
+footgun when using `$promise->value` or `$promise->reason` for inspection
+rather than for handling.
 ```
-Method          Sets hasRejectionHandler   Sets valueAccessed   Silences throw?
-catch()         Yes                        No                   Yes, intentionally
-then(null, fn)  Yes                        No                   Yes, intentionally
-getValue()      No                         Yes                  Yes, side effect
-getReason()     No                         Yes                  Yes, side effect
-wait()          No                         Yes                  Yes, intentional
+Property/Method     Sets hasRejectionHandler   Sets valueAccessed   Silences throw?
+catch()             Yes                        No                   Yes, intentionally
+then(null, fn)      Yes                        No                   Yes, intentionally
+$promise->value     No                         Yes                  Yes, side effect
+$promise->reason    No                         Yes                  Yes, side effect
+wait()              No                         Yes                  Yes, intentional
 ```
 
 ---
@@ -1690,7 +1857,7 @@ wait()          No                         Yes                  Yes, intentional
 
 ### Instance Methods
 
-| Method                                                | Description                                                                                                          |
+| Method / Property                                     | Description                                                                                                          |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `then(?callable $onFulfilled, ?callable $onRejected)` | Attach fulfillment and/or rejection handlers. Returns a new promise.                                                 |
 | `catch(callable $onRejected)`                         | Attach a rejection handler only. Equivalent to `then(null, $fn)`.                                                    |
@@ -1706,9 +1873,9 @@ wait()          No                         Yes                  Yes, intentional
 | `isRejected(): bool`                                  | True if rejected with a reason.                                                                                      |
 | `isPending(): bool`                                   | True if neither settled nor cancelled.                                                                               |
 | `isSettled(): bool`                                   | True if fulfilled or rejected (not pending, not cancelled).                                                          |
-| `getValue(): mixed`                                   | Returns the resolved value. Null if not fulfilled. Sets valueAccessed — see unhandled rejection tracking.            |
-| `getReason(): mixed`                                  | Returns the rejection reason. Null if not rejected. Sets valueAccessed — see unhandled rejection tracking.           |
-| `getState(): string`                                  | Returns `'pending'`, `'fulfilled'`, `'rejected'`, or `'cancelled'`.                                                  |
+| `$promise->value`                                     | The resolved value. Null if not fulfilled. Accessing sets valueAccessed — see unhandled rejection tracking.          |
+| `$promise->reason`                                    | The rejection reason. Null if not rejected. Accessing sets valueAccessed — see unhandled rejection tracking.         |
+| `$promise->state`                                     | Returns `'pending'`, `'fulfilled'`, `'rejected'`, or `'cancelled'` as a string.                                      |
 
 ### Static Methods
 

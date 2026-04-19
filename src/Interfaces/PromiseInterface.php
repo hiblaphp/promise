@@ -283,18 +283,21 @@ interface PromiseInterface
     public function isPending(): bool;
 
     /**
-     * **[BLOCKING]** Wait for the promise to resolve synchronously.
+     * **[WAITING]** Hold the script at this line until the promise settles.
      *
-     * This method BLOCKS the current thread by running the EventLoop
-     * until the promise settles. Use this only at the top-level of your
-     * application or in synchronous contexts.
+     * If the promise is still pending, this method holds the script at this line
+     * and drives the event loop until the promise settles. The event loop remains
+     * fully alive underneath: timers fire, I/O callbacks run, and other in-flight
+     * work continues normally while it waits. The script simply cannot advance
+     * past this line until the promise settles.
+     *
+     * Use this only at the top-level of your application or in synchronous contexts.
      *
      * IMPORTANT: This method CANNOT be called inside a Fiber context.
      * Calling wait() inside a Fiber will throw InvalidContextException
-     * because it would block the fiber and prevent the event loop from
-     * processing, leading to deadlocks.
+     * because it would prevent the event loop from processing, leading to deadlocks.
      *
-     * For non-blocking async code, use the await() function instead.
+     * For async code inside a Fiber, use await() instead from hiblaphp/async library.
      *
      * ```php
      * // Don't use inside async blocks
@@ -308,7 +311,7 @@ interface PromiseInterface
      * });
      *
      * // Use ->wait() at top-level (outside Fiber context)
-     * $result = $promise->wait();  // Blocks to get result
+     * $result = $promise->wait();  // Holds here until settled
      * ```
      *
      * If the promise is rejected, this method will throw the rejection reason.
