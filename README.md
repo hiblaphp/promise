@@ -93,11 +93,24 @@ concurrency utilities.
 ---
 
 ## Installation
->This library is currently in its Alpha development phase. You can install the library via Composer by explicitly allowing alpha stability:
+
+>This package is currently in **beta**. Before installing, ensure your `composer.json`
+allows beta releases:
+
+```json
+{
+    "minimum-stability": "beta",
+    "prefer-stable": true
+}
+```
 
 ```bash
-composer require hiblaphp/promise:"^1.0@alpha"
+composer require hiblaphp/promise
 ```
+
+**Requirements:**
+- PHP 8.4+
+  
 ## Quick Example
 
 ```php
