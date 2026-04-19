@@ -31,7 +31,7 @@ describe('Promise State Management', function () {
         expect($promise->isFulfilled())->toBeTrue()
             ->and($promise->isPending())->toBeFalse()
             ->and($promise->isRejected())->toBeFalse()
-            ->and($promise->getValue())->toBe($testValue)
+            ->and($promise->value)->toBe($testValue)
         ;
     });
 
@@ -44,7 +44,7 @@ describe('Promise State Management', function () {
         expect($promise->isRejected())->toBeTrue()
             ->and($promise->isPending())->toBeFalse()
             ->and($promise->isFulfilled())->toBeFalse()
-            ->and($promise->getReason())->toBe($testReason)
+            ->and($promise->reason)->toBe($testReason)
         ;
     });
 
@@ -65,8 +65,8 @@ describe('Promise State Management', function () {
         $promise->cancel();
 
         expect($promise->isRejected())->toBeFalse();
-        expect($promise->getReason())->toBeNull();
-        expect($promise->getReason())->toBeNull();
+        expect($promise->reason)->toBeNull();
+        expect($promise->reason)->toBeNull();
     });
 
     it('cannot be resolved after cancellation', function () {
@@ -90,7 +90,7 @@ describe('Promise State Management', function () {
         expect($promise->isCancelled())->toBeTrue()
             ->and($promise->isRejected())->toBeFalse()
         ;
-        expect($promise->getReason())->toBeNull();
+        expect($promise->reason)->toBeNull();
     });
 
     it('ignores multiple cancellation attempts', function () {

@@ -594,7 +594,7 @@ describe('Promise Static Methods', function () {
             $promise = Promise::resolved('test value');
 
             expect($promise->isFulfilled())->toBeTrue();
-            expect($promise->getValue())->toBe('test value');
+            expect($promise->value)->toBe('test value');
         });
     });
 
@@ -604,7 +604,7 @@ describe('Promise Static Methods', function () {
             $promise = Promise::rejected($exception);
 
             expect($promise->isRejected())->toBeTrue();
-            expect($promise->getReason())->toBe($exception);
+            expect($promise->reason)->toBe($exception);
         });
     });
 

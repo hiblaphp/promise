@@ -250,7 +250,7 @@ describe('Promise Cancellation', function () {
 
         Loop::run();
 
-        $originalValue = $promise->getValue();
+        $originalValue = $promise->value;
 
         $promise->cancel();
         $promise->reject(new Exception('should not work'));
@@ -259,7 +259,7 @@ describe('Promise Cancellation', function () {
         expect($promise->isFulfilled())->toBeTrue();
         expect($promise->isCancelled())->toBeFalse();
         expect($promise->isRejected())->toBeFalse();
-        expect($promise->getValue())->toBe($originalValue);
+        expect($promise->value)->toBe($originalValue);
     });
 
     test('synchronously resolved promise in constructor cannot be cancelled', function () {

@@ -18,7 +18,7 @@ describe('Promise Static Methods Integration', function () {
 
             expect($promise)->toBeInstanceOf(PromiseInterface::class);
             expect($promise->isFulfilled())->toBeTrue();
-            expect($promise->getValue())->toBe('test value');
+            expect($promise->value)->toBe('test value');
 
             $result = $promise->wait();
             expect($result)->toBe('test value');
@@ -30,7 +30,7 @@ describe('Promise Static Methods Integration', function () {
 
             expect($promise)->toBeInstanceOf(PromiseInterface::class);
             expect($promise->isRejected())->toBeTrue();
-            expect($promise->getReason())->toBe($error);
+            expect($promise->reason)->toBe($error);
 
             expect(fn () => $promise->wait())
                 ->toThrow(RuntimeException::class, 'test error')

@@ -1647,7 +1647,7 @@ attached.
 $promise = Promise::rejected(new \RuntimeException('Something went wrong'));
 
 // Inspecting the reason marks the promise as "accessed"
-$reason = $promise->getReason(); // sets valueAccessed = true
+$reason = $promise->reason; // sets valueAccessed = true
 
 // No catch() attached — but the exception is never thrown on destruct.
 // The rejection is silently swallowed.
@@ -1659,7 +1659,7 @@ unhandled rejection tracking to work, attach a `catch()` explicitly:
 ```php
 // Wrong — inspection silences the throw
 if ($promise->isRejected()) {
-    $reason = $promise->getReason();
+    $reason = $promise->reason;
     // Exception never thrown on destruct — rejection is silent
 }
 

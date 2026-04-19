@@ -10,7 +10,7 @@ describe('Promise Value Handling', function () {
         $promise->resolve(null);
 
         expect($promise->isFulfilled())->toBeTrue()
-            ->and($promise->getValue())->toBeNull()
+            ->and($promise->value)->toBeNull()
         ;
     });
 
@@ -19,23 +19,23 @@ describe('Promise Value Handling', function () {
         $data = ['key' => 'value', 'nested' => ['array' => true]];
         $promise->resolve($data);
 
-        expect($promise->getValue())->toBe($data);
+        expect($promise->value)->toBe($data);
     });
 
     it('can be rejected with string reasons', function () {
         $promise = new Promise();
         $promise->reject('simple error message');
 
-        expect($promise->getReason())->toBe('simple error message');
+        expect($promise->reason)->toBe('simple error message');
     });
 
     it('returns null when getting value of non-resolved promise', function () {
         $promise = new Promise();
-        expect($promise->getValue())->toBeNull();
+        expect($promise->value)->toBeNull();
     });
 
     it('returns null when getting reason of non-rejected promise', function () {
         $promise = new Promise();
-        expect($promise->getReason())->toBeNull();
+        expect($promise->reason)->toBeNull();
     });
 });

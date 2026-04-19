@@ -22,6 +22,39 @@ use Hibla\Promise\Exceptions\InvalidContextException;
 interface PromiseInterface
 {
     /**
+     * The resolved value of the promise.
+     *
+     * Accessing this property marks the value as accessed for unhandled
+     * rejection tracking purposes. Returns null if the promise is not fulfilled.
+     *
+     * Should only be read after confirming the promise is fulfilled via isFulfilled().
+     *
+     * @var TValue|null
+     */
+    public mixed $value { get; }
+
+    /**
+     * The rejection reason of the promise.
+     *
+     * Accessing this property marks the reason as accessed for unhandled
+     * rejection tracking purposes. Returns null if the promise is not rejected.
+     *
+     * Should only be read after confirming the promise is rejected via isRejected().
+     *
+     * @var mixed
+     */
+    public mixed $reason { get; }
+
+    /**
+     * The current state of the promise as a string.
+     *
+     * One of: 'pending', 'fulfilled', 'rejected', 'cancelled'.
+     *
+     * @var string
+     */
+    public string $state { get; }
+
+    /**
      * Attaches handlers for promise fulfillment and/or rejection.
      *
      * Returns a new promise that will be resolved or rejected based on
@@ -190,9 +223,9 @@ interface PromiseInterface
 
     /**
      * Set a handler to be called when the promise is cancelled.
-     * You can register multiple cancel handlers, and they will be called in FIFO order of registration.
      *
-     * This is useful for cleanup operations like:
+     * You can register multiple cancel handlers, and they will be called in
+     * FIFO order of registration. This is useful for cleanup operations like:
      * - Cancelling timers
      * - Aborting HTTP requests
      * - Closing file handles
@@ -201,6 +234,7 @@ interface PromiseInterface
      * Note:
      * - cancelHandlers are always attached to the promise instance, not the chain.
      * - By default, cancel handlers execute synchronously.
+     * - If the promise is already cancelled, the handler executes immediately.
      *
      * @param callable $handler The cleanup handler to execute on cancellation
      * @return PromiseInterface<TValue> The promise instance for chaining
@@ -247,39 +281,6 @@ interface PromiseInterface
      * @return bool True if pending, false otherwise.
      */
     public function isPending(): bool;
-
-    /**
-     * Gets the resolved value of the promise.
-     *
-     * This method should only be called after confirming the promise
-     * is resolved using isResolved().
-     *
-     * Calling this method marks the value as accessed for unhandled
-     * rejection tracking purposes.
-     *
-     * @return TValue|null The resolved value, or null if not resolved.
-     */
-    public function getValue(): mixed;
-
-    /**
-     * Gets the current state of the promise.
-     *
-     * @return string The current state of the promise.
-     */
-    public function getState(): string;
-
-    /**
-     * Gets the rejection reason of the promise.
-     *
-     * This method should only be called after confirming the promise
-     * is rejected using isRejected().
-     *
-     * Calling this method marks the reason as accessed for unhandled
-     * rejection tracking purposes.
-     *
-     * @return mixed The rejection reason, or null if not rejected.
-     */
-    public function getReason(): mixed;
 
     /**
      * **[BLOCKING]** Wait for the promise to resolve synchronously.

@@ -9,7 +9,7 @@ describe('Promise Static Factories', function () {
         $promise = Promise::resolved('test value');
 
         expect($promise->isFulfilled())->toBeTrue()
-            ->and($promise->getValue())->toBe('test value')
+            ->and($promise->value)->toBe('test value')
         ;
     });
 
@@ -18,7 +18,7 @@ describe('Promise Static Factories', function () {
         $promise = Promise::rejected($exception);
 
         expect($promise->isRejected())->toBeTrue()
-            ->and($promise->getReason())->toBe($exception)
+            ->and($promise->reason)->toBe($exception)
         ;
     });
 });
