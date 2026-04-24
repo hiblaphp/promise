@@ -24,7 +24,7 @@ describe('Promise Cancellation', function () {
         expect($promise->isCancelled())->toBeTrue();
         expect($promise->isFulfilled())->toBeFalse();
         expect($promise->isRejected())->toBeFalse();
-        expect($promise->isSettled())->toBeFalse();
+        expect($promise->isSettled())->toBeTrue();
         expect($promise->isPending())->toBeFalse();
     });
 

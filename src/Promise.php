@@ -288,8 +288,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
      */
     public function isSettled(): bool
     {
-        return $this->promiseState === PromiseState::FULFILLED
-            || $this->promiseState === PromiseState::REJECTED;
+        return $this->promiseState !== PromiseState::PENDING;
     }
 
     /**
@@ -411,14 +410,14 @@ class Promise implements PromiseInterface, PromiseStaticInterface
                 break;
             }
 
-            if ($parent->isCancelled() || $parent->isSettled()) {
+            if ($parent->isSettled()) {
                 break;
             }
 
             $current = $parent;
         }
 
-        if (! $current->isSettled() && ! $current->isCancelled()) {
+        if (! $current->isSettled()) {
             $current->cancel();
         }
     }

@@ -252,7 +252,7 @@ interface PromiseInterface
     public function isCancelled(): bool;
 
     /**
-     * Checks if the promise has been settled (resolved or rejected).
+     * Checks if the promise has been settled (resolved, rejected, or cancelled).
      *
      * A settled promise is one that is no longer pending - it has either
      * been fulfilled with a value or rejected with a reason.

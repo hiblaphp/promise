@@ -1885,7 +1885,7 @@ wait()              No                         Yes                  Yes, intenti
 | `isFulfilled(): bool`                                 | True if resolved with a value.                                                                                       |
 | `isRejected(): bool`                                  | True if rejected with a reason.                                                                                      |
 | `isPending(): bool`                                   | True if neither settled nor cancelled.                                                                               |
-| `isSettled(): bool`                                   | True if fulfilled or rejected (not pending, not cancelled).                                                          |
+| `isSettled(): bool`                                   | True if fulfilled, rejected, or cancelled (not pending).                                                          |
 | `$promise->value`                                     | The resolved value. Null if not fulfilled. Accessing sets valueAccessed — see unhandled rejection tracking.          |
 | `$promise->reason`                                    | The rejection reason. Null if not rejected. Accessing sets valueAccessed — see unhandled rejection tracking.         |
 | `$promise->state`                                     | Returns `'pending'`, `'fulfilled'`, `'rejected'`, or `'cancelled'` as a string.                                      |
