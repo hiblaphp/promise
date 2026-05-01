@@ -943,12 +943,23 @@ echo "Done\n";
 ```
 
 `wait()` throws if the promise rejects or is cancelled, whether that happened
-before `wait()` was called or during the loop iterations while waiting:
+before `wait()` was called or during the loop iterations while waiting.
+
+When rejected with a `Throwable`, `wait()` rethrows it directly. When rejected
+with a non-Throwable value (a string, integer, array, etc.), `wait()` wraps it
+in `PromiseRejectionException` so callers always receive a `Throwable`:
 ```php
 try {
     Promise::rejected(new \RuntimeException('Failed'))->wait();
 } catch (\RuntimeException $e) {
     echo $e->getMessage(); // Failed
+}
+```
+```php
+try {
+    Promise::rejected('quota exceeded')->wait();
+} catch (\Hibla\Promise\Exceptions\PromiseRejectionException $e) {
+    echo $e->getReason(); // quota exceeded
 }
 ```
 ```php
@@ -1651,8 +1662,8 @@ Promise::batchSettled($records, batchSize: 2, concurrency: 2)
 ### `Promise::map()`
 
 Transforms each item using an async mapper. Input items can be plain values
-or promises. Preserves **original key order**. Defaults to **unlimited
-concurrency**. **Fail-fast.**
+or promises. Preserves **original key order**. Defaults to **10** concurrent
+items (`ConcurrencyHandler::DEFAULT_CONCURRENCY`). **Fail-fast.**
 ```php
 $ids = [1 => 1, 2 => 2, 3 => 3];
 
@@ -1683,7 +1694,7 @@ Promise::mapSettled($records, fn($record) => processRecord($record), concurrency
 
 Tests each item against an async predicate, returning only items where the
 predicate resolves to `true`. Preserves both **key order** and **original
-keys**. Defaults to **unlimited concurrency**. **Fail-fast.**
+keys**. Defaults to **10** concurrent items (`ConcurrencyHandler::DEFAULT_CONCURRENCY`). **Fail-fast.**
 ```php
 $products = [
     'sku-1' => $product1,
@@ -1727,7 +1738,7 @@ faster.
 
 Executes a side-effect callback for each item. Return values are discarded
 immediately, so memory stays flat regardless of input size. Defaults to
-**unlimited concurrency**. **Fail-fast.**
+**10** concurrent items (`ConcurrencyHandler::DEFAULT_CONCURRENCY`). **Fail-fast.**
 ```php
 $records = [$record1, $record2, $record3];
 
@@ -1763,12 +1774,12 @@ acceptable and every item should be attempted regardless.
 | `concurrentSettled()` | Yes              | Yes                 | Required            | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
 | `batch()`             | Yes              | Yes, per batch      | batchSize           | Yes       | Yes, synchronously           | Yes, synchronously            | `array<results>`       |
 | `batchSettled()`      | Yes              | Yes, per batch      | batchSize           | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
-| `map()`               | Yes              | Yes                 | Unlimited           | Yes       | Yes, synchronously           | Yes, synchronously            | `array<mapped>`        |
-| `mapSettled()`        | Yes              | Yes                 | Unlimited           | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
-| `filter()`            | Yes              | Yes                 | Unlimited           | Yes       | Yes, synchronously           | Yes, synchronously            | `array<filtered>`      |
+| `map()`               | Yes              | Yes                 | 10                  | Yes       | Yes, synchronously           | Yes, synchronously            | `array<mapped>`        |
+| `mapSettled()`        | Yes              | Yes                 | 10                  | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
+| `filter()`            | Yes              | Yes                 | 10                  | Yes       | Yes, synchronously           | Yes, synchronously            | `array<filtered>`      |
 | `reduce()`            | Yes              | Yes                 | Sequential          | Yes       | N/A                          | Yes, synchronously            | Single value           |
-| `forEach()`           | Yes              | Yes                 | Unlimited           | Yes       | Yes, synchronously           | Yes, synchronously            | void                   |
-| `forEachSettled()`    | Yes              | Yes                 | Unlimited           | No        | Captures as SettledResult    | Yes, synchronously            | void                   |
+| `forEach()`           | Yes              | Yes                 | 10                  | Yes       | Yes, synchronously           | Yes, synchronously            | void                   |
+| `forEachSettled()`    | Yes              | Yes                 | 10                  | No        | Captures as SettledResult    | Yes, synchronously            | void                   |
 
 ---
 

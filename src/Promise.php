@@ -256,7 +256,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
             throw $reason instanceof \Throwable
                 ? $reason
-                : new \Exception($this->safeStringCast($reason));
+                : new Exceptions\PromiseRejectionException($reason);
         }
 
         // @phpstan-ignore-next-line identical.alwaysTrue - State changes during Loop::runOnce()
@@ -275,7 +275,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
             throw $reason instanceof \Throwable
                 ? $reason
-                : new \Exception($this->safeStringCast($reason));
+                : new Exceptions\PromiseRejectionException($reason);
         }
 
         $this->valueAccessed = true;
@@ -455,9 +455,11 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         $this->cleanup();
 
-        if (\count($cancelExceptions) === 1) {
+        $count = \count($cancelExceptions);
+
+        if ($count === 1) {
             throw $cancelExceptions[0];
-        } elseif (\count($cancelExceptions) > 1) {
+        } elseif ($count > 1) {
             $errorMessages = [];
             foreach ($cancelExceptions as $index => $exception) {
                 $errorMessages[] = \sprintf(
@@ -472,7 +474,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
             $detailedMessage = \sprintf(
                 "Promise cancellation failed with %d error(s):\n%s",
-                \count($cancelExceptions),
+                $count,
                 implode("\n", $errorMessages)
             );
 
@@ -639,19 +641,25 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         $this->onCancel($onFinally);
 
         return $this->then(
-            static function ($value) use ($onFinally) {
+            static function ($value) use ($onFinally): mixed {
                 $result = $onFinally();
 
-                return (new self(fn($resolve) => $resolve($result)))
-                    ->then(fn(): mixed => $value);
+                if ($result instanceof PromiseInterface) {
+                    return $result->then(fn (): mixed => $value);
+                }
+
+                return $value;
             },
-            static function (\Throwable $reason) use ($onFinally): PromiseInterface {
+            static function (\Throwable $reason) use ($onFinally): mixed {
                 $result = $onFinally();
 
-                return (new self(fn($resolve) => $resolve($result)))
-                    ->then(function () use ($reason): never {
+                if ($result instanceof PromiseInterface) {
+                    return $result->then(static function () use ($reason): never {
                         throw $reason;
                     });
+                }
+
+                throw $reason;
             }
         );
     }
@@ -961,8 +969,15 @@ class Promise implements PromiseInterface, PromiseStaticInterface
 
         $this->childPromises = [];
 
-        if (\count($childExceptions) > 0) {
+        $count = \count($childExceptions);
+
+        if ($count === 1) {
             throw $childExceptions[0];
+        } elseif ($count > 1) {
+            throw new Exceptions\AggregateErrorException(
+                $childExceptions,
+                \sprintf('Multiple errors during child promise cancellation: %d error(s)', $count)
+            );
         }
     }
 
