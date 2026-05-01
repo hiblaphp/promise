@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hibla\Promise\Handlers;
 
 use Hibla\EventLoop\Loop;
+use Hibla\Promise\Concerns\NormalizesIterator;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 
 final readonly class ReduceHandler
 {
+    use NormalizesIterator;
     /**
      * @template TReduceItem
      * @template TReduceCarry
@@ -88,24 +90,5 @@ final readonly class ReduceHandler
         });
 
         return $reducePromise;
-    }
-
-    /**
-     * Normalizes an iterable into a manual Iterator without materializing it.
-     *
-     * @param iterable<int|string, mixed> $items
-     * @return \Iterator<int|string, mixed>
-     */
-    private function getIterator(iterable $items): \Iterator
-    {
-        if ($items instanceof \Iterator) {
-            return $items;
-        }
-
-        if ($items instanceof \IteratorAggregate) {
-            return $items->getIterator();
-        }
-
-        return (fn () => yield from $items)();
     }
 }

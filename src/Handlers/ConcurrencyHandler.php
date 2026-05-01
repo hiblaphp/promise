@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Promise\Handlers;
 
 use Hibla\EventLoop\Loop;
+use Hibla\Promise\Concerns\NormalizesIterator;
 use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
@@ -15,6 +16,9 @@ use Throwable;
 
 final readonly class ConcurrencyHandler
 {
+    use NormalizesIterator;
+
+    public const int DEFAULT_CONCURRENCY = 10;
     /**
      * @template TConcurrentValue
      * @param  iterable<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks
@@ -495,7 +499,7 @@ final readonly class ConcurrencyHandler
             }
         })();
 
-        return $this->concurrent($tasks, $concurrency ?? PHP_INT_MAX);
+        return $this->concurrent($tasks, $concurrency ?? self::DEFAULT_CONCURRENCY);
     }
 
     /**
@@ -522,7 +526,7 @@ final readonly class ConcurrencyHandler
             }
         })();
 
-        return $this->concurrentSettled($tasks, $concurrency ?? PHP_INT_MAX);
+        return $this->concurrentSettled($tasks, $concurrency ?? self::DEFAULT_CONCURRENCY);
     }
 
     /**
@@ -541,7 +545,7 @@ final readonly class ConcurrencyHandler
 
         /** @var Promise<void> $forEachPromise */
         $forEachPromise = new Promise(function (callable $resolve, callable $reject) use ($items, $callback, $concurrency, &$promiseInstances): void {
-            $concurrency ??= PHP_INT_MAX;
+            $concurrency ??= self::DEFAULT_CONCURRENCY;
 
             if ($concurrency <= 0) {
                 $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));
@@ -706,7 +710,7 @@ final readonly class ConcurrencyHandler
 
         /** @var Promise<void> $forEachPromise */
         $forEachPromise = new Promise(function (callable $resolve, callable $reject) use ($items, $callback, $concurrency, &$promiseInstances): void {
-            $concurrency ??= PHP_INT_MAX;
+            $concurrency ??= self::DEFAULT_CONCURRENCY;
 
             if ($concurrency <= 0) {
                 $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));
@@ -837,7 +841,7 @@ final readonly class ConcurrencyHandler
 
         /** @var Promise<array<int|string, TFilterItem>> $filterPromise */
         $filterPromise = new Promise(function (callable $resolve, callable $reject) use ($items, $predicate, $concurrency, &$promiseInstances): void {
-            $concurrency ??= PHP_INT_MAX;
+            $concurrency ??= self::DEFAULT_CONCURRENCY;
 
             if ($concurrency <= 0) {
                 $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));
@@ -1017,24 +1021,6 @@ final readonly class ConcurrencyHandler
         }
 
         return $filtered;
-    }
-
-    /**
-     * Normalizes an iterable into a manual Iterator without materializing it.
-     *
-     * @param  iterable<int|string, callable(): PromiseInterface<mixed>>  $tasks
-     * @return \Iterator<int|string, callable(): PromiseInterface<mixed>>
-     */
-    private function getIterator(iterable $tasks): \Iterator
-    {
-        if ($tasks instanceof \Iterator) {
-            return $tasks;
-        }
-        if ($tasks instanceof \IteratorAggregate) {
-            return $tasks->getIterator();
-        }
-
-        return (fn () => yield from $tasks)();
     }
 
     /**
