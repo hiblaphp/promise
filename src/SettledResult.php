@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Promise;
 
 use Hibla\Promise\Interfaces\SettledResultInterface;
+use Hibla\Promise\PromiseState;
 use JsonSerializable;
 
 /**
@@ -15,10 +16,6 @@ use JsonSerializable;
  */
 final readonly class SettledResult implements SettledResultInterface
 {
-    private const string STATUS_FULFILLED = 'fulfilled';
-    private const string STATUS_REJECTED = 'rejected';
-    private const string STATUS_CANCELLED = 'cancelled';
-
     private function __construct(
         public string $status,
         public mixed $value = null,
@@ -36,7 +33,7 @@ final readonly class SettledResult implements SettledResultInterface
     public static function fulfilled(mixed $value): self
     {
         /** @var self<TFulfilledValue, never> */
-        return new self(self::STATUS_FULFILLED, $value);
+        return new self(PromiseState::FULFILLED->value, $value);
     }
 
     /**
@@ -49,7 +46,7 @@ final readonly class SettledResult implements SettledResultInterface
     public static function rejected(mixed $reason): self
     {
         /** @var self<never, TRejectedReason> */
-        return new self(self::STATUS_REJECTED, null, $reason);
+        return new self(PromiseState::REJECTED->value, null, $reason);
     }
 
     /**
@@ -60,7 +57,7 @@ final readonly class SettledResult implements SettledResultInterface
     public static function cancelled(): self
     {
         /** @var self<never, never> */
-        return new self(self::STATUS_CANCELLED);
+        return new self(PromiseState::CANCELLED->value);
     }
 
     /**
@@ -68,7 +65,7 @@ final readonly class SettledResult implements SettledResultInterface
      */
     public function isFulfilled(): bool
     {
-        return $this->status === self::STATUS_FULFILLED;
+        return $this->status === PromiseState::FULFILLED->value;
     }
 
     /**
@@ -76,7 +73,7 @@ final readonly class SettledResult implements SettledResultInterface
      */
     public function isRejected(): bool
     {
-        return $this->status === self::STATUS_REJECTED;
+        return $this->status === PromiseState::REJECTED->value;
     }
 
     /**
@@ -84,7 +81,7 @@ final readonly class SettledResult implements SettledResultInterface
      */
     public function isCancelled(): bool
     {
-        return $this->status === self::STATUS_CANCELLED;
+        return $this->status === PromiseState::CANCELLED->value;
     }
 
     /**
@@ -102,20 +99,20 @@ final readonly class SettledResult implements SettledResultInterface
     {
         if ($this->isFulfilled()) {
             return [
-                'status' => self::STATUS_FULFILLED,
+                'status' => PromiseState::FULFILLED->value,
                 'value' => $this->value,
             ];
         }
 
         if ($this->isRejected()) {
             return [
-                'status' => self::STATUS_REJECTED,
+                'status' => PromiseState::REJECTED->value,
                 'reason' => $this->serializeReason($this->reason),
             ];
         }
 
         return [
-            'status' => self::STATUS_CANCELLED,
+            'status' => PromiseState::CANCELLED->value,
         ];
     }
 
