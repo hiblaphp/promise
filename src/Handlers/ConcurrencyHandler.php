@@ -486,6 +486,7 @@ final readonly class ConcurrencyHandler
      *
      * @return PromiseInterface<array<int|string, TMapResult>>
      */
+    public function map(iterable $items, callable $mapper, ?int $concurrency = null): PromiseInterface
     {
         $tasks = (function () use ($items, $mapper) {
             foreach ($items as $key => $item) {
