@@ -703,7 +703,8 @@ final readonly class ConcurrencyHandler
      * @param int|null $concurrency  Defaults to unlimited (all items run concurrently) when null.
      *
      * @return PromiseInterface<void>
-     */(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface
+     */
+    public function forEachSettled(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface
     {
         /** @var array<int|string, PromiseInterface<mixed>> $promiseInstances */
         $promiseInstances = [];
