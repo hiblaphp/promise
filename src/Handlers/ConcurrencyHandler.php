@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Promise\Handlers;
 
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\Concerns\NormalizesIterator;
+use Hibla\Promise\Traits\NormalizesIterator;
 use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
@@ -18,7 +18,6 @@ final readonly class ConcurrencyHandler
 {
     use NormalizesIterator;
 
-    public const int DEFAULT_CONCURRENCY = 10;
     /**
      * @template TConcurrentValue
      * @param  iterable<int|string, callable(): PromiseInterface<TConcurrentValue>>  $tasks
@@ -326,9 +325,10 @@ final readonly class ConcurrencyHandler
 
     /**
      * @template TBatchValue
+     *
      * @param  iterable<int|string, callable(): PromiseInterface<TBatchValue>>  $tasks
-     * @param  int  $batchSize
-     * @param  int|null  $concurrency
+     * @param  int  $batchSize  Number of tasks per batch.
+     * @param  int|null  $concurrency  Max tasks within each batch. Defaults to $batchSize when null (fully parallel within each batch).
      * @return PromiseInterface<array<int|string, TBatchValue>>
      */
     public function batch(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
@@ -402,9 +402,10 @@ final readonly class ConcurrencyHandler
 
     /**
      * @template TBatchSettledValue
+     *
      * @param  iterable<int|string, callable(): PromiseInterface<TBatchSettledValue>>  $tasks
-     * @param  int  $batchSize
-     * @param  int|null  $concurrency
+     * @param  int  $batchSize  Number of tasks per batch.
+     * @param  int|null  $concurrency  Max tasks within each batch. Defaults to $batchSize when null (fully parallel within each batch).
      * @return PromiseInterface<array<int|string, SettledResult<TBatchSettledValue, mixed>>>
      */
     public function batchSettled(iterable $tasks, int $batchSize = 10, ?int $concurrency = null): PromiseInterface
@@ -481,11 +482,10 @@ final readonly class ConcurrencyHandler
      *
      * @param iterable<int|string, TMapItem> $items
      * @param callable(TMapItem, int|string): (TMapResult|PromiseInterface<TMapResult>) $mapper
-     * @param int|null $concurrency
+     * @param int|null $concurrency  Defaults to unlimited (all items run concurrently) when null, mirroring array_map() semantics.
      *
      * @return PromiseInterface<array<int|string, TMapResult>>
      */
-    public function map(iterable $items, callable $mapper, ?int $concurrency = null): PromiseInterface
     {
         $tasks = (function () use ($items, $mapper) {
             foreach ($items as $key => $item) {
@@ -499,7 +499,7 @@ final readonly class ConcurrencyHandler
             }
         })();
 
-        return $this->concurrent($tasks, $concurrency ?? self::DEFAULT_CONCURRENCY);
+        return $this->concurrent($tasks, $concurrency ?? PHP_INT_MAX);
     }
 
     /**
@@ -508,7 +508,7 @@ final readonly class ConcurrencyHandler
      *
      * @param iterable<int|string, TMapItem> $items
      * @param callable(TMapItem, int|string): (TMapResult|PromiseInterface<TMapResult>) $mapper
-     * @param int|null $concurrency
+     * @param int|null $concurrency  Defaults to unlimited (all items run concurrently) when null.
      *
      * @return PromiseInterface<array<int|string, SettledResult<TMapResult, mixed>>>
      */
@@ -526,7 +526,7 @@ final readonly class ConcurrencyHandler
             }
         })();
 
-        return $this->concurrentSettled($tasks, $concurrency ?? self::DEFAULT_CONCURRENCY);
+        return $this->concurrentSettled($tasks, $concurrency ?? PHP_INT_MAX);
     }
 
     /**
@@ -534,7 +534,7 @@ final readonly class ConcurrencyHandler
      *
      * @param iterable<int|string, TForEachItem> $items
      * @param callable(TForEachItem, int|string): (void|PromiseInterface<void>) $callback
-     * @param int|null $concurrency
+     * @param int|null $concurrency  Defaults to unlimited (all items run concurrently) when null, mirroring array_walk() semantics.
      *
      * @return PromiseInterface<void>
      */
@@ -545,7 +545,7 @@ final readonly class ConcurrencyHandler
 
         /** @var Promise<void> $forEachPromise */
         $forEachPromise = new Promise(function (callable $resolve, callable $reject) use ($items, $callback, $concurrency, &$promiseInstances): void {
-            $concurrency ??= self::DEFAULT_CONCURRENCY;
+            $concurrency ??= PHP_INT_MAX;
 
             if ($concurrency <= 0) {
                 $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));
@@ -699,18 +699,17 @@ final readonly class ConcurrencyHandler
      *
      * @param iterable<int|string, TForEachItem> $items
      * @param callable(TForEachItem, int|string): (void|PromiseInterface<void>) $callback
-     * @param int|null $concurrency
+     * @param int|null $concurrency  Defaults to unlimited (all items run concurrently) when null.
      *
      * @return PromiseInterface<void>
-     */
-    public function forEachSettled(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface
+     */(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface
     {
         /** @var array<int|string, PromiseInterface<mixed>> $promiseInstances */
         $promiseInstances = [];
 
         /** @var Promise<void> $forEachPromise */
         $forEachPromise = new Promise(function (callable $resolve, callable $reject) use ($items, $callback, $concurrency, &$promiseInstances): void {
-            $concurrency ??= self::DEFAULT_CONCURRENCY;
+            $concurrency ??= PHP_INT_MAX;
 
             if ($concurrency <= 0) {
                 $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));
@@ -830,7 +829,7 @@ final readonly class ConcurrencyHandler
      *
      * @param iterable<int|string, TFilterItem> $items
      * @param callable(TFilterItem, int|string): (bool|PromiseInterface<bool>) $predicate
-     * @param int|null $concurrency
+     * @param int|null $concurrency  Defaults to unlimited (all items run concurrently) when null, mirroring array_filter() semantics.
      *
      * @return PromiseInterface<array<int|string, TFilterItem>>
      */
@@ -841,7 +840,7 @@ final readonly class ConcurrencyHandler
 
         /** @var Promise<array<int|string, TFilterItem>> $filterPromise */
         $filterPromise = new Promise(function (callable $resolve, callable $reject) use ($items, $predicate, $concurrency, &$promiseInstances): void {
-            $concurrency ??= self::DEFAULT_CONCURRENCY;
+            $concurrency ??= PHP_INT_MAX;
 
             if ($concurrency <= 0) {
                 $reject(new InvalidArgumentException('Concurrency limit must be greater than 0'));

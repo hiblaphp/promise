@@ -959,7 +959,7 @@ try {
 try {
     Promise::rejected('quota exceeded')->wait();
 } catch (\Hibla\Promise\Exceptions\PromiseRejectionException $e) {
-    echo $e->getReason(); // quota exceeded
+    echo $e->getMessage(); // quota exceeded
 }
 ```
 ```php
@@ -1616,6 +1616,10 @@ Processes tasks in sequential batches. The entire first batch must complete
 before the second batch starts. **Fail-fast**: if any task in a batch fails,
 all in-flight tasks in that batch are cancelled synchronously and no further
 batches start.
+
+The `concurrency` parameter controls how many tasks run in parallel within each
+batch. When omitted or `null`, it defaults to `$batchSize` so every slot in the
+batch runs simultaneously.
 ```php
 $emails = [
     'alice@example.com' => fn() => sendEmail('alice@example.com'),
@@ -1638,7 +1642,8 @@ each page must fully commit before the next starts.
 ### `Promise::batchSettled()`
 
 Same batching behavior as `batch()` but individual failures are captured as
-`SettledResult`. Always resolves once all batches are attempted.
+`SettledResult`. Always resolves once all batches are attempted. The
+`concurrency` parameter defaults to `$batchSize` when `null`.
 ```php
 $records = [
     1 => fn() => importRecord(1),
@@ -1662,8 +1667,8 @@ Promise::batchSettled($records, batchSize: 2, concurrency: 2)
 ### `Promise::map()`
 
 Transforms each item using an async mapper. Input items can be plain values
-or promises. Preserves **original key order**. Defaults to **10** concurrent
-items (`ConcurrencyHandler::DEFAULT_CONCURRENCY`). **Fail-fast.**
+or promises. Preserves **original key order**. Defaults to **unlimited
+concurrency** (mirrors `array_map()` semantics). **Fail-fast.**
 ```php
 $ids = [1 => 1, 2 => 2, 3 => 3];
 
@@ -1694,7 +1699,7 @@ Promise::mapSettled($records, fn($record) => processRecord($record), concurrency
 
 Tests each item against an async predicate, returning only items where the
 predicate resolves to `true`. Preserves both **key order** and **original
-keys**. Defaults to **10** concurrent items (`ConcurrencyHandler::DEFAULT_CONCURRENCY`). **Fail-fast.**
+keys**. Defaults to **unlimited concurrency** (mirrors `array_filter()` semantics). **Fail-fast.**
 ```php
 $products = [
     'sku-1' => $product1,
@@ -1738,7 +1743,7 @@ faster.
 
 Executes a side-effect callback for each item. Return values are discarded
 immediately, so memory stays flat regardless of input size. Defaults to
-**10** concurrent items (`ConcurrencyHandler::DEFAULT_CONCURRENCY`). **Fail-fast.**
+**unlimited concurrency** (mirrors `array_walk()` semantics). **Fail-fast.**
 ```php
 $records = [$record1, $record2, $record3];
 
@@ -1774,12 +1779,12 @@ acceptable and every item should be attempted regardless.
 | `concurrentSettled()` | Yes              | Yes                 | Required            | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
 | `batch()`             | Yes              | Yes, per batch      | batchSize           | Yes       | Yes, synchronously           | Yes, synchronously            | `array<results>`       |
 | `batchSettled()`      | Yes              | Yes, per batch      | batchSize           | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
-| `map()`               | Yes              | Yes                 | 10                  | Yes       | Yes, synchronously           | Yes, synchronously            | `array<mapped>`        |
-| `mapSettled()`        | Yes              | Yes                 | 10                  | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
-| `filter()`            | Yes              | Yes                 | 10                  | Yes       | Yes, synchronously           | Yes, synchronously            | `array<filtered>`      |
+| `map()`               | Yes              | Yes                 | Unlimited           | Yes       | Yes, synchronously           | Yes, synchronously            | `array<mapped>`        |
+| `mapSettled()`        | Yes              | Yes                 | Unlimited           | No        | Captures as SettledResult    | Yes, synchronously            | `array<SettledResult>` |
+| `filter()`            | Yes              | Yes                 | Unlimited           | Yes       | Yes, synchronously           | Yes, synchronously            | `array<filtered>`      |
 | `reduce()`            | Yes              | Yes                 | Sequential          | Yes       | N/A                          | Yes, synchronously            | Single value           |
-| `forEach()`           | Yes              | Yes                 | 10                  | Yes       | Yes, synchronously           | Yes, synchronously            | void                   |
-| `forEachSettled()`    | Yes              | Yes                 | 10                  | No        | Captures as SettledResult    | Yes, synchronously            | void                   |
+| `forEach()`           | Yes              | Yes                 | Unlimited           | Yes       | Yes, synchronously           | Yes, synchronously            | void                   |
+| `forEachSettled()`    | Yes              | Yes                 | Unlimited           | No        | Captures as SettledResult    | Yes, synchronously            | void                   |
 
 ---
 

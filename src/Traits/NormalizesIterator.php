@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hibla\Promise\Concerns;
+namespace Hibla\Promise\Traits;
 
 trait NormalizesIterator
 {

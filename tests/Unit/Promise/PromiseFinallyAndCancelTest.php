@@ -7,7 +7,7 @@ use Hibla\Promise\Exceptions\AggregateErrorException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 
-describe('Promise finally() optimization', function () {
+describe('Promise finally() behavior', function () {
     it('passes the resolved value through when onFinally returns void', function () {
         $promise = Promise::resolved('original value');
         $finallyCalled = false;

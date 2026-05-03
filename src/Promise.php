@@ -641,25 +641,19 @@ class Promise implements PromiseInterface, PromiseStaticInterface
         $this->onCancel($onFinally);
 
         return $this->then(
-            static function ($value) use ($onFinally): mixed {
+            static function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                if ($result instanceof PromiseInterface) {
-                    return $result->then(fn (): mixed => $value);
-                }
-
-                return $value;
+                return (new self(fn ($resolve) => $resolve($result)))
+                    ->then(fn (): mixed => $value);
             },
-            static function (\Throwable $reason) use ($onFinally): mixed {
+            static function (\Throwable $reason) use ($onFinally): PromiseInterface {
                 $result = $onFinally();
 
-                if ($result instanceof PromiseInterface) {
-                    return $result->then(static function () use ($reason): never {
+                return (new self(fn ($resolve) => $resolve($result)))
+                    ->then(function () use ($reason): never {
                         throw $reason;
                     });
-                }
-
-                throw $reason;
             }
         );
     }

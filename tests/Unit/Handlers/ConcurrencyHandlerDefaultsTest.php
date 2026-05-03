@@ -5,32 +5,20 @@ declare(strict_types=1);
 use Hibla\Promise\Handlers\ConcurrencyHandler;
 use Hibla\Promise\Promise;
 
-describe('ConcurrencyHandler default concurrency', function () {
-    it('exposes DEFAULT_CONCURRENCY constant', function () {
-        expect(ConcurrencyHandler::DEFAULT_CONCURRENCY)->toBe(10);
-    });
-
-    it('map() respects the default concurrency limit', function () {
+describe('ConcurrencyHandler map() concurrency', function () {
+    it('processes all items when no concurrency argument is given', function () {
         $handler = new ConcurrencyHandler();
-        $running = 0;
-        $maxConcurrent = 0;
-
         $items = range(1, 25);
 
-        $result = $handler->map($items, function ($item) use (&$running, &$maxConcurrent) {
-            $running++;
-            $maxConcurrent = max($maxConcurrent, $running);
-            $running--;
-
-            return Promise::resolved($item * 2);
-        })->wait();
+        $result = $handler->map($items, fn ($item) => Promise::resolved($item * 2))->wait();
 
         expect($result)->toHaveCount(25)
-            ->and($maxConcurrent)->toBeLessThanOrEqual(ConcurrencyHandler::DEFAULT_CONCURRENCY)
+            ->and($result[0])->toBe(2)
+            ->and($result[24])->toBe(50)
         ;
     });
 
-    it('map() with explicit null concurrency uses the default limit', function () {
+    it('processes all items when null is passed as concurrency', function () {
         $handler = new ConcurrencyHandler();
         $items = ['a' => 1, 'b' => 2, 'c' => 3];
 
@@ -39,7 +27,7 @@ describe('ConcurrencyHandler default concurrency', function () {
         expect($result)->toBe(['a' => 11, 'b' => 12, 'c' => 13]);
     });
 
-    it('map() with explicit concurrency limit overrides the default', function () {
+    it('respects an explicit concurrency limit when given', function () {
         $handler = new ConcurrencyHandler();
         $items = range(1, 5);
 
