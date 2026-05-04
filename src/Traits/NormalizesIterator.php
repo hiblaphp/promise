@@ -12,8 +12,9 @@ trait NormalizesIterator
      * Arrays are wrapped in a generator, IteratorAggregate implementations are
      * unwrapped, and plain Iterators are returned as-is.
      *
-     * @param  iterable<int|string, mixed>  $items
-     * @return \Iterator<int|string, mixed>
+     * @template TIteratorValue
+     * @param  iterable<int|string, TIteratorValue>  $items
+     * @return \Iterator<int|string, TIteratorValue>
      */
     private function getIterator(iterable $items): \Iterator
     {

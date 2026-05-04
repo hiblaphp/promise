@@ -364,6 +364,7 @@ final readonly class ConcurrencyHandler
                         return;
                     }
 
+                    /** @var array<int|string, callable(): PromiseInterface<mixed>> $batchTasks */
                     $batchTasks = [];
                     for ($i = 0; $i < $batchSize && $iterator->valid(); $i++) {
                         $batchTasks[$iterator->key()] = $iterator->current();
@@ -441,6 +442,7 @@ final readonly class ConcurrencyHandler
                         return;
                     }
 
+                    /** @var array<int|string, callable(): PromiseInterface<mixed>> $batchTasks */
                     $batchTasks = [];
                     for ($i = 0; $i < $batchSize && $iterator->valid(); $i++) {
                         $batchTasks[$iterator->key()] = $iterator->current();
