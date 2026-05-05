@@ -943,12 +943,23 @@ echo "Done\n";
 ```
 
 `wait()` throws if the promise rejects or is cancelled, whether that happened
-before `wait()` was called or during the loop iterations while waiting:
+before `wait()` was called or during the loop iterations while waiting.
+
+When rejected with a `Throwable`, `wait()` rethrows it directly. When rejected
+with a non-Throwable value (a string, integer, array, etc.), `wait()` wraps it
+in `PromiseRejectionException` so callers always receive a `Throwable`:
 ```php
 try {
     Promise::rejected(new \RuntimeException('Failed'))->wait();
 } catch (\RuntimeException $e) {
     echo $e->getMessage(); // Failed
+}
+```
+```php
+try {
+    Promise::rejected('quota exceeded')->wait();
+} catch (\Hibla\Promise\Exceptions\PromiseRejectionException $e) {
+    echo $e->getMessage(); // quota exceeded
 }
 ```
 ```php
@@ -1605,6 +1616,10 @@ Processes tasks in sequential batches. The entire first batch must complete
 before the second batch starts. **Fail-fast**: if any task in a batch fails,
 all in-flight tasks in that batch are cancelled synchronously and no further
 batches start.
+
+The `concurrency` parameter controls how many tasks run in parallel within each
+batch. When omitted or `null`, it defaults to `$batchSize` so every slot in the
+batch runs simultaneously.
 ```php
 $emails = [
     'alice@example.com' => fn() => sendEmail('alice@example.com'),
@@ -1627,7 +1642,8 @@ each page must fully commit before the next starts.
 ### `Promise::batchSettled()`
 
 Same batching behavior as `batch()` but individual failures are captured as
-`SettledResult`. Always resolves once all batches are attempted.
+`SettledResult`. Always resolves once all batches are attempted. The
+`concurrency` parameter defaults to `$batchSize` when `null`.
 ```php
 $records = [
     1 => fn() => importRecord(1),
@@ -1652,7 +1668,7 @@ Promise::batchSettled($records, batchSize: 2, concurrency: 2)
 
 Transforms each item using an async mapper. Input items can be plain values
 or promises. Preserves **original key order**. Defaults to **unlimited
-concurrency**. **Fail-fast.**
+concurrency** (mirrors `array_map()` semantics). **Fail-fast.**
 ```php
 $ids = [1 => 1, 2 => 2, 3 => 3];
 
@@ -1683,7 +1699,7 @@ Promise::mapSettled($records, fn($record) => processRecord($record), concurrency
 
 Tests each item against an async predicate, returning only items where the
 predicate resolves to `true`. Preserves both **key order** and **original
-keys**. Defaults to **unlimited concurrency**. **Fail-fast.**
+keys**. Defaults to **unlimited concurrency** (mirrors `array_filter()` semantics). **Fail-fast.**
 ```php
 $products = [
     'sku-1' => $product1,
@@ -1727,7 +1743,7 @@ faster.
 
 Executes a side-effect callback for each item. Return values are discarded
 immediately, so memory stays flat regardless of input size. Defaults to
-**unlimited concurrency**. **Fail-fast.**
+**unlimited concurrency** (mirrors `array_walk()` semantics). **Fail-fast.**
 ```php
 $records = [$record1, $record2, $record3];
 
