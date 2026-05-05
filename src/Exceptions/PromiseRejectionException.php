@@ -11,11 +11,16 @@ use Throwable;
  */
 class PromiseRejectionException extends \Exception
 {
+    private mixed $originalReason;
+
     public function __construct(mixed $reason, int $code = 0, ?Throwable $previous = null)
     {
-        $message = $this->createMessage($reason);
+        $this->originalReason = $reason;
+        parent::__construct($this->createMessage($reason), $code, $previous);
+    }
 
-        parent::__construct($message, $code, $previous);
+    public mixed $reason {
+        get => $this->originalReason;
     }
 
     private function createMessage(mixed $reason): string
@@ -34,6 +39,6 @@ class PromiseRejectionException extends \Exception
 
         $type = get_debug_type($reason);
 
-        return "Promise rejected with {$type}: ".print_r($reason, true);
+        return "Promise rejected with {$type}: " . print_r($reason, true);
     }
 }
