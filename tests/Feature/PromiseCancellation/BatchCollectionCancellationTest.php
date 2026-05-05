@@ -130,5 +130,6 @@ it('cancels between batches cleanly when no tasks are in-flight', function () {
     Loop::run();
 
     expect($secondBatchStarted)->toBeFalse()
-        ->and($batch->isCancelled())->toBeTrue();
+        ->and($batch->isCancelled())->toBeTrue()
+    ;
 });

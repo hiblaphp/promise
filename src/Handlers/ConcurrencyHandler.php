@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hibla\Promise\Handlers;
 
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\Traits\NormalizesIterator;
 use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use Hibla\Promise\SettledResult;
+use Hibla\Promise\Traits\NormalizesIterator;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;

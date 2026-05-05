@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Hibla\Promise\Handlers;
 
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\Traits\NormalizesIterator;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
+use Hibla\Promise\Traits\NormalizesIterator;
 
 final readonly class ReduceHandler
 {
     use NormalizesIterator;
+
     /**
      * @template TReduceItem
      * @template TReduceCarry

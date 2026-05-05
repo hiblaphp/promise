@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hibla\Promise;
 
 use Hibla\Promise\Interfaces\SettledResultInterface;
-use Hibla\Promise\PromiseState;
 use JsonSerializable;
 
 /**
