@@ -962,7 +962,7 @@ final readonly class ConcurrencyHandler
                                     return;
                                 }
 
-                                $predicateResults[$key] = (bool) $passed;
+                                $predicateResults[$key] = $passed;
                                 $running--;
 
                                 if ($state->exhausted && $running === 0) {
