@@ -49,6 +49,9 @@ concurrency utilities.
 - [Cooperative cancellation — `onCancel()`](#cooperative-cancellation--oncancel)
 - [`onCancel()` handlers must not throw](#oncancel-handlers-must-not-throw)
 - [`cancel()` vs `cancelChain()`](#cancel-vs-cancelchain)
+- [`Promise::propagateCancellation()`](#promisepropagatecancellation)
+- [`Promise::forwardCancellation()`](#promiseforwardcancellation)
+- [`Promise::uninterruptible()`](#promiseuninterruptible)
 - [The cost of non-cooperative cancellation](#the-cost-of-non-cooperative-cancellation)
 
 **Collections**
@@ -1225,6 +1228,147 @@ echo 'Cancellable: ' . round(microtime(true) - $start, 2) . 's' . PHP_EOL;
 `cancel()` changes the promise state. `onCancel()` is what actually stops
 the work. Both are required for cancellation to be meaningful.
 
+### `Promise::propagateCancellation()`
+
+In a deep chain, calling `cancel()` on a leaf promise only cancels that node
+and its children. It does not propagate back up to the parent. This is
+normally fine, but sometimes you hold only a reference to a derived promise
+and need cancelling it to reach all the way back to the root where the actual
+I/O or timer lives.
+
+`propagateCancellation()` patches the promise so that cancelling it also
+walks up the parent chain and cancels the root:
+
+```php
+$derived = downloadFile($url)
+    ->then(fn($file) => parseFile($file))
+    ->then(fn($data) => validateData($data));
+
+// Without this, cancelling $derived only cancels the validateData step.
+// The download and parse are still in flight.
+$derived = Promise::propagateCancellation($derived);
+
+// Now cancelling $derived walks up and cancels the download too.
+$derived->cancel();
+```
+
+The method returns the same promise it receives, so it can be composed
+inline with a chain:
+
+```php
+$job = Promise::propagateCancellation(
+    buildReport()->then(fn($r) => renderReport($r))
+);
+
+$job->cancel(); // cancels all the way back to buildReport()
+```
+
+**When to use:** When you expose a derived promise to a caller who should be
+able to abort the entire underlying operation, not just the last step. This
+is also useful when combining `timeout()` with a long chain. Wrapping the
+leaf with `propagateCancellation()` ensures the timeout cancellation reaches
+the root where the real resource (a timer, a curl handle) lives.
+
+---
+
+### `Promise::forwardCancellation()`
+
+Forwards a cancellation signal from one promise to another. If `$source` is
+cancelled, `$target` is also cancelled automatically. The two promises are
+otherwise independent: `$target` does not adopt the state of `$source`, and
+there is no effect if `$source` fulfills or rejects.
+
+```php
+$controller = new Promise(); // acts as an abort signal
+$work        = startLongRunningJob();
+
+// Cancelling $controller will also cancel $work
+Promise::forwardCancellation($controller, $work);
+
+// Later, when the user clicks "cancel":
+$controller->cancel(); // $work is also cancelled, its onCancel() handlers fire
+```
+
+This is useful when you want a single controlling promise to act as a
+cancellation token that fans out to multiple independent tasks:
+
+```php
+$signal = new Promise(); // shared abort signal
+
+Promise::forwardCancellation($signal, fetchUsers());
+Promise::forwardCancellation($signal, fetchOrders());
+Promise::forwardCancellation($signal, fetchStats());
+
+// One call cancels all three operations
+$signal->cancel();
+```
+
+Unlike `cancelChain()`, `forwardCancellation()` does not assume any
+parent-child relationship between the promises. The two promises can be
+completely unrelated. This is purely a one-way cancellation link.
+
+**`$target` may be `null`:** If `$target` is `null`, the call is a no-op.
+This allows safe use in patterns where the target promise may not exist yet
+at the time the link is established:
+
+```php
+$target = null;
+
+// Target is assigned later, conditionally
+if ($condition) {
+    $target = startOptionalWork();
+}
+
+Promise::forwardCancellation($source, $target); // safe even if $target is null
+```
+
+---
+
+### `Promise::uninterruptible()`
+
+Protects a critical internal promise from being cancelled by the caller.
+Returns a new user-facing promise that mirrors the result of the internal
+one. If the user cancels the user-facing promise, the internal work continues
+uninterrupted. Only the caller's view of it is discarded.
+
+```php
+$commit = Promise::uninterruptible(
+    $db->commit() // must complete even if the caller gives up waiting
+);
+
+// User cancels their request after 2 seconds
+delay(2.0)->then(fn() => $commit->cancel());
+
+// The DB commit still runs to completion. Calling cancel() only
+// discards the mirror; the internal $db->commit() promise is unaffected.
+```
+
+**When to use:** Operations that must not be interrupted mid-flight because
+leaving them incomplete would corrupt state or leave resources in an
+inconsistent condition. This covers database commits and rollbacks, audit log
+writes, cache invalidation flushes, or any cleanup that must run to
+completion regardless of whether the caller is still waiting:
+
+```php
+function transferFunds(Account $from, Account $to, int $amount): PromiseInterface
+{
+    return $db->beginTransaction()
+        ->then(fn() => $from->debit($amount))
+        ->then(fn() => $to->credit($amount))
+        ->then(fn() => Promise::uninterruptible($db->commit()))
+        ->catch(fn($e) => Promise::uninterruptible($db->rollback())
+            ->then(fn() => throw $e)
+        );
+}
+```
+
+> **Note:** `uninterruptible()` does not make the internal promise
+> unstoppable in an absolute sense. It only disconnects the user-facing
+> cancel signal from the internal work. If the internal promise has its own
+> `cancel()` called directly, or is cancelled through another code path, it
+> will still be cancelled. The guarantee is specifically that cancelling the
+> returned promise will not reach the internal one.
+
 ---
 
 ## `SettledResult`
@@ -1928,6 +2072,9 @@ wait()              No                         Yes                  Yes, intenti
 | `Promise::forEach(iterable $items, callable $callback, ?int $concurrency)`        | Side-effect per item, no result accumulation. Fail-fast, cancels in-flight synchronously.          |
 | `Promise::forEachSettled(iterable $items, callable $callback, ?int $concurrency)` | Same as `forEach()` but never rejects.                                                             |
 | `Promise::setRejectionHandler(?callable $handler)`                                | Set a global unhandled rejection handler. Returns previous handler.                                |
+| `Promise::propagateCancellation(PromiseInterface $promise)`                         | Ensures cancelling the returned promise propagates back up to the chain root.       |
+| `Promise::forwardCancellation(PromiseInterface $source, ?PromiseInterface $target)` | Cancels `$target` automatically whenever `$source` is cancelled.                    |
+| `Promise::uninterruptible(PromiseInterface $internal)`                              | Returns a mirrored promise whose cancellation does not interrupt the internal work. |
 
 ### Global Functions
 
