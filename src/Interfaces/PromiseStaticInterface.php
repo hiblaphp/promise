@@ -446,4 +446,44 @@ interface PromiseStaticInterface
      * @static
      */
     public static function forEachSettled(iterable $items, callable $callback, ?int $concurrency = null): PromiseInterface;
+
+    /**
+     * Ensures that cancelling the returned leaf promise propagates the cancellation
+     * all the way up to the root of the promise chain.
+     *
+     * In deep chains, calling cancel() on the last promise often only cancels
+     * that specific node. This helper ensures the cancellation signal travels
+     * back to the original source where the actual work (I/O, timers, etc.) can be stopped.
+     *
+     * @template T
+     * @param PromiseInterface<T> $promise
+     * @return PromiseInterface<T>
+     */
+    public static function propagateCancellation(PromiseInterface $promise): PromiseInterface;
+
+    /**
+     * Forwards a cancellation signal from a source promise to a target promise.
+     *
+     * If the $source promise is cancelled, the $target promise (if it exists
+     * and is still pending) will also be cancelled automatically.
+     *
+     * @param PromiseInterface<mixed> $source
+     * @param PromiseInterface<mixed>|null $target
+     */
+    public static function forwardCancellation(PromiseInterface $source, ?PromiseInterface $target): void;
+
+    /**
+     * Protects an internal promise from being cancelled by the user.
+     *
+     * Returns a new promise that mirrors the result of the internal one. If the
+     * returned promise is cancelled by the user, the internal work is NOT interrupted.
+     *
+     * Use this for critical operations that must finish (like COMMIT, ROLLBACK, or
+     * logging) even if the user gives up on waiting for the result.
+     *
+     * @template T
+     * @param PromiseInterface<T> $internal
+     * @return PromiseInterface<T>
+     */
+    public static function uninterruptible(PromiseInterface $internal): PromiseInterface;
 }

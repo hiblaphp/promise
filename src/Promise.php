@@ -719,6 +719,56 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * @inheritDoc
      */
+    public static function propagateCancellation(PromiseInterface $promise): PromiseInterface
+    {
+        $promise->onCancel($promise->cancelChain(...));
+
+        return $promise;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public static function forwardCancellation(PromiseInterface $source, ?PromiseInterface $target): void
+    {
+        $source->onCancel(static function () use ($target): void {
+            if ($target !== null && ! $target->isSettled()) {
+                $target->cancelChain();
+            }
+        });
+    }
+
+    /**
+     * @inheritDoc
+     *
+     * @template TResult
+     * @param  PromiseInterface<TResult>  $internal  The internal promise to wrap
+     * @return PromiseInterface<TResult>
+     */
+    public static function uninterruptible(PromiseInterface $internal): PromiseInterface
+    {
+        /** @var Promise<TResult> $userPromise */
+        $userPromise = new self();
+
+        $internal->then(
+            static function (mixed $v) use ($userPromise): void {
+                if ($userPromise->isPending()) {
+                    $userPromise->resolve($v);
+                }
+            },
+            static function (\Throwable $e) use ($userPromise): void {
+                if ($userPromise->isPending()) {
+                    $userPromise->reject($e);
+                }
+            }
+        );
+
+        return $userPromise;
+    }
+
+    /**
+     * @inheritDoc
+     */
     public static function all(iterable $promises): PromiseInterface
     {
         return self::getCollectionHandler()->all($promises);
