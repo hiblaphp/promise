@@ -470,7 +470,7 @@ interface PromiseStaticInterface
      * @param PromiseInterface<mixed> $source
      * @param PromiseInterface<mixed>|null $target
      */
-    public static function forwardCancellation(PromiseInterface $source, ?PromiseInterface $target): void;
+    public static function forwardCancellation(PromiseInterface $source, ?PromiseInterface &$target): void;
 
     /**
      * Protects an internal promise from being cancelled by the user.

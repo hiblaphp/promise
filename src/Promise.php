@@ -644,7 +644,7 @@ class Promise implements PromiseInterface, PromiseStaticInterface
             static function ($value) use ($onFinally) {
                 $result = $onFinally();
 
-                return (new self(fn ($resolve) => $resolve($result)))
+                return new self(fn ($resolve) => $resolve($result))
                     ->then(fn (): mixed => $value)
                 ;
             },
@@ -729,9 +729,9 @@ class Promise implements PromiseInterface, PromiseStaticInterface
     /**
      * @inheritDoc
      */
-    public static function forwardCancellation(PromiseInterface $source, ?PromiseInterface $target): void
+    public static function forwardCancellation(PromiseInterface $source, ?PromiseInterface &$target): void
     {
-        $source->onCancel(static function () use ($target): void {
+        $source->onCancel(static function () use (&$target): void {
             if ($target !== null && ! $target->isSettled()) {
                 $target->cancelChain();
             }
